@@ -1,0 +1,67 @@
+package shuttle;
+
+option cc_generic_services = true;
+
+message SubmitJobRequest {
+
+}
+
+message SubmitJobResponse {
+}
+
+message UpdateJobRequest {
+}
+
+message UpdateJobResponse {
+}
+
+
+message KillJobRequest {
+}
+
+message KillJobResponse {
+}
+
+message ListJobsRequest {
+}
+
+message ListJobsResponse {
+}
+
+message ShowJobRequest {
+}
+
+message ShowJobResponse {
+}
+
+message AssignTaskRequest {
+}
+
+message AssignTaskResponse {
+}
+
+message FinishTaskRequest {
+}
+
+message FinishTaskResponse {
+
+}
+
+
+service Master {
+
+    rpc SubmitJob(SubmitJobRequest) returns (SubmitJobResponse);
+
+    rpc UpdateJob(UpdateJobRequest) returns (UpdateJobResponse);
+
+    rpc KillJob(KillJobRequest) returns (KillJobResponse);
+
+    rpc ListJobs(ListJobsRequest) returns (ListJobsResponse);
+
+    rpc ShowJob(ShowJobRequest) returns (ShowJobResponse);
+
+    rpc AssignTask(AssignTaskRequest) returns (AssignTaskResponse);
+
+    rpc FinishTask(FinishTaskRequest) returns (FinishTaskResponse);
+
+}

@@ -1,0 +1,15 @@
+package shuttle;
+
+option cc_generic_services = true;
+
+message CollectDataRequest {
+}
+
+message CollectDataResponse {
+}
+
+
+service Minion {
+    rpc CollectData(CollectDataRequest) returns (CollectDataResponse);
+}
+
