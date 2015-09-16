@@ -30,7 +30,7 @@ minion除负责提供输入处理输出外还具有包管理的功能。用户�
 
 ## 示例 - wordcount
 1. 首先客户端接受用户请求，并将批处理文件以及待统计的文件发送至HDFS，生成的地址及命令参数发送给master。
-2. master接受用户请求后，根据用户的环境参数调用Galaxy sdk启动minion进行Map任务，同时根据用户指定的HDFS地址找到输入文件，并创建输入分配管理表用于管理输入分配给各个Map的情况。
+2. master接受用户请求后，根据用户的环境参数调用Galaxy sdk启动minion进行Map任务，用户设置的map.capacity对应为Galaxy的job replica， 同时根据用户指定的HDFS地址找到输入文件，并创建输入分配管理表用于管理输入分配给各个Map的情况。
 3. Map从master处获取id等信息，并从HDFS上获取输入数据以及Map启动所需的文件，运行Map并为其提供输入。将Map的输出暂存、排序后保存在HDFS上。
 4. Map运行几近结束时，master可对同一输入开启多个Map的副本来避免长尾效应。多个Map会将输出暂存为HDFS上的临时文件，直到运行结束便重命名为正式输出并做好完成标记。其他副本检查到完成标记后退出。
 5. Map运行几近结束时，master便调用Galaxy sdk启动minion进行Reduce任务。Reduce任务会先从HDFS上获取自己的输入并在本地进行归并。
