@@ -7,20 +7,20 @@ message QueryRequest {
 }
 
 message QueryResponse {
-	optional string job_id = 1;
-	optional int32 task_id = 2;
-	optional int32 attemp_id = 3;
-	optional TaskState task_state = 4;
+    optional string job_id = 1;
+    optional int32 task_id = 2;
+    optional int32 attemp_id = 3;
+    optional TaskState task_state = 4;
 }
 
 message CancelTaskRequest {
-	optional string job_id = 1;
-	optional int32 task_id = 2;
-	optional int32 attemp_id = 3;
+    optional string job_id = 1;
+    optional int32 task_id = 2;
+    optional int32 attemp_id = 3;
 }
 
 message CancelTaskResponse {
-	optional Status status = 1;
+    optional Status status = 1;
 }
 
 service Minion {

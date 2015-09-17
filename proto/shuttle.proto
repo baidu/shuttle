@@ -7,11 +7,11 @@ enum Status {
 }
 
 enum JobPriority {
-	kVeryHigh = 0;
-	kHigh = 1;
-	kNormal = 2;
-	kLow = 3;
-	kVeryLow = 4;	
+    kVeryHigh = 0;
+    kHigh = 1;
+    kNormal = 2;
+    kLow = 3;
+    kVeryLow = 4;  
 }
 
 enum TaskState {
@@ -19,7 +19,7 @@ enum TaskState {
     kTaskRunning = 1;
     kTaskFailed = 2;
     kTaskKilled = 3;
-    kTaskCompleted = 4; 
+    kTaskCompleted = 4;
 }
 
 message JobDescriptor {
@@ -47,5 +47,5 @@ message TaskInfo {
     optional int32 task_id = 1;
     optional int32 attemp_id = 2;
     optional TaskInput input = 3;
-    optional JobDescriptor job = 4;    
+    optional JobDescriptor job = 4;   
 }

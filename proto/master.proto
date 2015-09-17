@@ -4,48 +4,48 @@ package baidu.shuttle;
 option cc_generic_services = true;
 
 enum JobState {
-	kPending = 0;
-	kRunning = 1;
-	kFailed = 2;
-	kKilled = 3;
-	kCompleted = 4;
+    kPending = 0;
+    kRunning = 1;
+    kFailed = 2;
+    kKilled = 3;
+    kCompleted = 4;
 }
 
 message TaskStatistics {
-	optional int32 total = 1;
-	optional int32 pending = 2;
-	optional int32 runnning = 3;
-	optional int32 failed = 4;
-	optional int32 killed = 5;
-	optional int32 completed = 6;
+    optional int32 total = 1;
+    optional int32 pending = 2;
+    optional int32 runnning = 3;
+    optional int32 failed = 4;
+    optional int32 killed = 5;
+    optional int32 completed = 6;
 }
 
 message SubmitJobRequest {
-	required JobDescriptor job = 1;
+    required JobDescriptor job = 1;
 }
 
 message SubmitJobResponse {
-	optional Status status = 1;
-	optional string jobid = 2;
+    optional Status status = 1;
+    optional string jobid = 2;
 }
 
 message UpdateJobRequest {
-	required string jobid = 1;
+    required string jobid = 1;
     optional JobPriority priority = 2;
     optional int32 map_capacity = 3;
     optional int32 reduce_capacity = 4;
 }
 
 message UpdateJobResponse {
-	optional Status status = 1;
+    optional Status status = 1;
 }
 
 message KillJobRequest {
-	required string jobid = 1;
+    required string jobid = 1;
 }
 
 message KillJobResponse {
-	optional Status status = 1;
+    optional Status status = 1;
 }
 
 message ListJobsRequest {
@@ -66,12 +66,12 @@ message ListJobsResponse {
 }
 
 message ShowJobRequest {
-	required string jobid = 1;
+    required string jobid = 1;
 }
 
 message ShowJobResponse {
-	optional Status status = 1;
-	optional JobOverview job = 2;
+    optional Status status = 1;
+    optional JobOverview job = 2;
 }
 
 message AssignTaskRequest {
@@ -79,19 +79,19 @@ message AssignTaskRequest {
 }
 
 message AssignTaskResponse {
-	optional Status status = 1;
-	optional TaskInfo task = 2;
+    optional Status status = 1;
+    optional TaskInfo task = 2;
 }
 
 message FinishTaskRequest {
-	required string jobid = 1;
-	required int32 task_id = 2;
-	required int32 attempt_id = 3;
-	optional TaskState task_state = 4;
+    required string jobid = 1;
+    required int32 task_id = 2;
+    required int32 attempt_id = 3;
+    optional TaskState task_state = 4;
 }
 
 message FinishTaskResponse {
-	optional Status status = 1;
+    optional Status status = 1;
 }
 
 service Master {
