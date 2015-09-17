@@ -1,4 +1,4 @@
-package shuttle;
+package baidu.shuttle;
 
 option cc_generic_services = true;
 

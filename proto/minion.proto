@@ -1,15 +1,21 @@
-package shuttle;
+package baidu.shuttle;
 
 option cc_generic_services = true;
 
-message CancelJobRequest {
+message QueryRequest {
 }
 
-message CancelJobResponse {
+message QueryResponse {
 }
 
+message CancelTaskRequest {
+}
+
+message CancelTaskResponse {
+}
 
 service Minion {
-    rpc CancelJob(CancelJobRequest) returns (CancelJobResponse);
+    rpc Query(QueryRequest) returns (QueryResponse);
+    rpc CancelTask(CancelTaskRequest) returns (CancelTaskResponse);
 }
 
