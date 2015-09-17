@@ -2,14 +2,14 @@ package shuttle;
 
 option cc_generic_services = true;
 
-message CollectDataRequest {
+message CancelJobRequest {
 }
 
-message CollectDataResponse {
+message CancelJobResponse {
 }
 
 
 service Minion {
-    rpc CollectData(CollectDataRequest) returns (CollectDataResponse);
+    rpc CancelJob(CancelJobRequest) returns (CancelJobResponse);
 }
 
