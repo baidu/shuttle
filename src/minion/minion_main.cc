@@ -1,5 +1,7 @@
 #include "minion_impl.h"
 
 int main(int argc, char* argv[]) {
-	return 0;
+   (void)argc;
+   (void)argv;
+   return 0;
 }

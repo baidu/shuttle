@@ -11,15 +11,15 @@ public:
     virtual ~MinionImpl();
 
     void Query(::google::protobuf::RpcController* controller,
-               const ::shuttle::QueryRequest* request,
-               ::shuttle::QueryResponse* response,
+               const ::baidu::shuttle::QueryRequest* request,
+               ::baidu::shuttle::QueryResponse* response,
                ::google::protobuf::Closure* done);
     void CancelTask(::google::protobuf::RpcController* controller,
-                    const ::shuttle::CancelTaskRequest* request,
-                    ::shuttle::CancelTaskResponse* response,
+                    const ::baidu::shuttle::CancelTaskRequest* request,
+                    ::baidu::shuttle::CancelTaskResponse* response,
                     ::google::protobuf::Closure* done);
 
-}
+};
 
 }
 }
