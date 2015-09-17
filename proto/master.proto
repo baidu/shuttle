@@ -1,52 +1,98 @@
+import "shuttle.proto";
 package baidu.shuttle;
 
 option cc_generic_services = true;
 
-message SubmitJobRequest {
+enum JobState {
+	kPending = 0;
+	kRunning = 1;
+	kFailed = 2;
+	kKilled = 3;
+	kCompleted = 4;
+}
 
+message TaskStatistics {
+	optional int32 total = 1;
+	optional int32 pending = 2;
+	optional int32 runnning = 3;
+	optional int32 failed = 4;
+	optional int32 killed = 5;
+	optional int32 completed = 6;
+}
+
+message SubmitJobRequest {
+	required JobDescriptor job = 1;
 }
 
 message SubmitJobResponse {
+	optional Status status = 1;
+	optional string jobid = 2;
 }
 
 message UpdateJobRequest {
+	required string jobid = 1;
+    optional JobPriority priority = 2;
+    optional int32 map_capacity = 3;
+    optional int32 reduce_capacity = 4;
 }
 
 message UpdateJobResponse {
+	optional Status status = 1;
 }
 
-
 message KillJobRequest {
+	required string jobid = 1;
 }
 
 message KillJobResponse {
+	optional Status status = 1;
 }
 
 message ListJobsRequest {
+
+}
+
+message JobOverview {
+    optional JobDescriptor desc = 1;
+    optional string jobid = 2;
+    optional JobState state = 3;
+    optional TaskStatistics map_stat = 4;
+    optional TaskStatistics reduce_stat = 5;
 }
 
 message ListJobsResponse {
+    optional Status status = 1;
+    repeated JobOverview jobs = 2;
 }
 
 message ShowJobRequest {
+	required string jobid = 1;
 }
 
 message ShowJobResponse {
+	optional Status status = 1;
+	optional JobOverview job = 2;
 }
 
 message AssignTaskRequest {
+
 }
 
 message AssignTaskResponse {
+	optional Status status = 1;
+	optional TaskInfo task = 2;
 }
 
 message FinishTaskRequest {
+	required string jobid = 1;
+	required int32 task_id = 2;
+	required int32 attempt_id = 3;
+	optional TaskState task_state = 4;
 }
 
 message FinishTaskResponse {
-
+	optional Status status = 1;
 }
-
 
 service Master {
 

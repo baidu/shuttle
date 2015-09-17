@@ -1,0 +1,51 @@
+package baidu.shuttle;
+option cc_generic_services = true;
+
+enum Status {
+    kOk = 0;
+    kUnKnown = 20;
+}
+
+enum JobPriority {
+	kVeryHigh = 0;
+	kHigh = 1;
+	kNormal = 2;
+	kLow = 3;
+	kVeryLow = 4;	
+}
+
+enum TaskState {
+    kTaskPending = 0;
+    kTaskRunning = 1;
+    kTaskFailed = 2;
+    kTaskKilled = 3;
+    kTaskCompleted = 4; 
+}
+
+message JobDescriptor {
+    optional string name = 1;
+    optional string user = 2;
+    optional JobPriority priority = 3;
+    optional int32 map_capacity = 4;
+    optional int32 reduce_capacity = 5;
+    optional int32 millicores = 6;
+    optional int64 memory = 7;
+    repeated string inputs = 8;
+    optional string output = 9;
+    repeated string files = 10;
+    optional string map_command = 11;
+    optional string reduce_command = 12;
+}
+
+message TaskInput {
+    optional string input_file = 3;
+    optional int64 input_offset = 4;
+    optional int64 input_size = 5;
+}
+
+message TaskInfo {
+    optional int32 task_id = 1;
+    optional int32 attemp_id = 2;
+    optional TaskInput input = 3;
+    optional JobDescriptor job = 4;    
+}

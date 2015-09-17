@@ -3,6 +3,14 @@
 namespace baidu {
 namespace shuttle {
 
+MasterImpl::MasterImpl() {
+
+}
+
+MasterImpl::~MasterImpl() {
+
+}
+
 void MasterImpl::SubmitJob(::google::protobuf::RpcController* controller,
                            const ::baidu::shuttle::SubmitJobRequest* request,
                            ::baidu::shuttle::SubmitJobResponse* response,

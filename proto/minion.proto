@@ -1,3 +1,4 @@
+import "shuttle.proto";
 package baidu.shuttle;
 
 option cc_generic_services = true;
@@ -6,12 +7,20 @@ message QueryRequest {
 }
 
 message QueryResponse {
+	optional string job_id = 1;
+	optional int32 task_id = 2;
+	optional int32 attemp_id = 3;
+	optional TaskState task_state = 4;
 }
 
 message CancelTaskRequest {
+	optional string job_id = 1;
+	optional int32 task_id = 2;
+	optional int32 attemp_id = 3;
 }
 
 message CancelTaskResponse {
+	optional Status status = 1;
 }
 
 service Minion {

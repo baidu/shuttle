@@ -3,6 +3,14 @@
 namespace baidu {
 namespace shuttle {
 
+MinionImpl::MinionImpl() {
+
+}
+
+MinionImpl::~MinionImpl() {
+
+}
+
 void MinionImpl::Query(::google::protobuf::RpcController* controller,
                        const ::baidu::shuttle::QueryRequest* request,
                        ::baidu::shuttle::QueryResponse* response,

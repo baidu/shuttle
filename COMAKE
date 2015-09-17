@@ -42,11 +42,22 @@ CONFIGS('inf/computing/libhdfs@libhdfs_1-4-2-62665_PD_BL@COMAKE', IncludePaths('
 
 master_src = 'src/master/master_main.cc \
               src/master/master_impl.cc \
-              proto/master.proto'
+              src/master/master_flags.cc \
+              proto/master.proto \
+              proto/shuttle.proto'
 
 minion_src = 'src/minion/minion_main.cc \
               src/minion/minion_impl.cc \
-              proto/minion.proto'
+              src/minion/minion_flags.cc \
+              proto/minion.proto \
+              proto/shuttle.proto'
 
-Application('master',Sources(master_src))
-Application('minion',Sources(minion_src))
+client_src = 'src/client/shuttle_main.cc \
+              src/client/shuttle_flags.cc'
+
+Application('master', Sources(master_src))
+Application('minion', Sources(minion_src))
+Application('shuttle', Sources(client_src))
+
+TARGET('cp_so', ShellCommands('cp ../../inf/computing/java6/jre/lib/amd64/server/libjvm.so output/bin'))
+
