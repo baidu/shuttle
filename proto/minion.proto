@@ -1,15 +1,22 @@
-package shuttle;
+package baidu.shuttle;
 
 option cc_generic_services = true;
 
-message CollectDataRequest {
+message QueryRequest {
 }
 
-message CollectDataResponse {
+message QueryResponse {
 }
 
+message CancelTaskRequest {
+	
+}
+
+message CancelTaskResponse {
+	
+}
 
 service Minion {
-    rpc CollectData(CollectDataRequest) returns (CollectDataResponse);
+    rpc Query(QueryRequest) returns (QueryResponse);
+    rpc CancelTask(CancelTaskRequest) returns (CancelTaskResponse);
 }
-
