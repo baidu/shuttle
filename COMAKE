@@ -25,7 +25,7 @@ CXXFLAGS('-g -pipe -W -Wall -fPIC')
 PROTOC('../../third-64/protobuf/bin/protoc')
 
 #头文件路径.
-INCPATHS('. ./src ./output/include galaxy/common/include galaxy/ins/sdk/')
+INCPATHS('. ./src ./output/include galaxy/output/include galaxy/common/include galaxy/ins/sdk/')
 
 #使用库
 LIBS('galaxy/common/libcommon.a galaxy/ins/libins_sdk.a ./galaxy/libgalaxy.a')
@@ -43,6 +43,7 @@ CONFIGS('inf/computing/libhdfs@libhdfs_1-4-2-62665_PD_BL@COMAKE', IncludePaths('
 master_src = 'src/master/master_main.cc \
               src/master/master_impl.cc \
               src/master/master_flags.cc \
+              src/master/job_tracker.cc \
               proto/master.proto \
               proto/shuttle.proto'
 

@@ -3,6 +3,8 @@ option cc_generic_services = true;
 
 enum Status {
     kOk = 0;
+    kGalaxyError = 1;
+    kNoSuchJob = 2;
     kUnKnown = 20;
 }
 
@@ -11,7 +13,6 @@ enum JobPriority {
     kHigh = 1;
     kNormal = 2;
     kLow = 3;
-    kVeryLow = 4;  
 }
 
 enum TaskState {

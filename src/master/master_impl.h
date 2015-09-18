@@ -1,6 +1,12 @@
 #ifndef _BAIDU_SHUTTLE_MASTER_IMPL_H_
 #define _BAIDU_SHUTTLE_MASTER_IMPL_H_
+#include <string>
+#include <map>
+
+#include "galaxy.h"
+#include "mutex.h"
 #include "proto/master.pb.h"
+#include "job_tracker.h"
 
 namespace baidu {
 namespace shuttle {
@@ -40,6 +46,10 @@ public:
                     ::baidu::shuttle::FinishTaskResponse* response,
                     ::google::protobuf::Closure* done);
 
+private:
+    ::baidu::galaxy::Galaxy* galaxy_sdk_;
+    Mutex tracker_mu_;
+    std::map<std::string, JobTracker*> job_trackers_;
 };
 
 }
