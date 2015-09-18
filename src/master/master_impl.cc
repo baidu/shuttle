@@ -138,12 +138,23 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
 void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
                             const ::baidu::shuttle::AssignTaskRequest* request,
                             ::baidu::shuttle::AssignTaskResponse* response,
-                            ::google::protobuf::Closure* done) {}
+                            ::google::protobuf::Closure* done) {
+    static int dummy_test = 0;
+    if (++dummy_test < 10) {
+      response->set_status(kOk); 
+    } else {
+      response->set_status(kNoMore);
+    }
+    done->Run();
+}
 
 void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
                             const ::baidu::shuttle::FinishTaskRequest* request,
                             ::baidu::shuttle::FinishTaskResponse* response,
-                            ::google::protobuf::Closure* done) {}
+                            ::google::protobuf::Closure* done) {
+    response->set_status(kOk);
+    done->Run();
+}
 
 }
 }

@@ -5,6 +5,7 @@ enum Status {
     kOk = 0;
     kGalaxyError = 1;
     kNoSuchJob = 2;
+    kNoMore = 3;
     kUnKnown = 20;
 }
 
@@ -46,7 +47,7 @@ message TaskInput {
 
 message TaskInfo {
     optional int32 task_id = 1;
-    optional int32 attemp_id = 2;
+    optional int32 attempt_id = 2;
     optional TaskInput input = 3;
     optional JobDescriptor job = 4;   
 }
