@@ -75,7 +75,8 @@ message ShowJobResponse {
 }
 
 message AssignTaskRequest {
-
+    optional string jobid = 1;
+    optional string endpoint = 2;
 }
 
 message AssignTaskResponse {
