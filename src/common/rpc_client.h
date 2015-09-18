@@ -1,46 +1,42 @@
-// Copyright (c) 2014, Baidu.com, Inc. All Rights Reserved
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-//
-// Author: yanshiguang02@baidu.com
+#ifndef  BAIDU_SHUTTLE_RPC_CLIENT_H_
+#define  BAIDU_SHUTTLE_RPC_CLIENT_H_
 
-#ifndef  RPC_CLIENT_H_
-#define  RPC_CLIENT_H_
-
+#include <assert.h>
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
 #include <sofa/pbrpc/pbrpc.h>
-#include "common/mutex.h"
-#include "common/thread_pool.h"
-#include "common/logging.h"
+#include <mutex.h>
+#include <thread_pool.h>
+#include <logging.h>
 
-namespace galaxy {
-namespace ins {
+namespace baidu {
+namespace shuttle {
+    
 class RpcClient {
 public:
     RpcClient() {
         // 定义 client 对象，一个 client 程序只需要一个 client 对象
         // 可以通过 client_options 指定一些配置参数，譬如线程数、流控等
         sofa::pbrpc::RpcClientOptions options;
-        options.max_pending_buffer_size = 10;
-        rpc_client_ = new sofa::pbrpc::RpcClient(options);
+        options.max_pending_buffer_size = 128;
+        _rpc_client = new sofa::pbrpc::RpcClient(options);
     }
     ~RpcClient() {
-        delete rpc_client_;
+        delete _rpc_client;
     }
     template <class T>
     bool GetStub(const std::string server, T** stub) {
-        MutexLock lock(&host_map_lock_);
+        MutexLock lock(&_host_map_lock);
         sofa::pbrpc::RpcChannel* channel = NULL;
-        HostMap::iterator it = host_map_.find(server);
-        if (it != host_map_.end()) {
+        HostMap::iterator it = _host_map.find(server);
+        if (it != _host_map.end()) {
             channel = it->second;
         } else {
             // 定义 channel，代表通讯通道，每个服务器地址对应一个 channel
             // 可以通过 channel_options 指定一些配置参数
             sofa::pbrpc::RpcChannelOptions channel_options;
-            channel = new sofa::pbrpc::RpcChannel(rpc_client_, server, channel_options);
-            host_map_[server] = channel;
+            channel = new sofa::pbrpc::RpcChannel(_rpc_client, server, channel_options);
+            _host_map[server] = channel;
         }
         *stub = new T(channel);
         return true;
@@ -58,7 +54,7 @@ public:
             (stub->*func)(&controller, request, response, NULL);
             if (controller.Failed()) {
                 if (retry < retry_times - 1) {
-                    LOG(WARNING, "Send failed, retry ...\n");
+                    LOG(DEBUG, "Send failed, retry ...\n");
                     usleep(1000000);
                 } else {
                     LOG(WARNING, "SendRequest fail: %s\n", controller.ErrorText().c_str());
@@ -76,8 +72,7 @@ public:
                     const Request*, Response*, Callback*),
                     const Request* request, Response* response,
                     boost::function<void (const Request*, Response*, bool, int)> callback,
-                    int32_t rpc_timeout, int retry_times) {
-        (void)retry_times;
+                    int32_t rpc_timeout, int /*retry_times*/) {
         sofa::pbrpc::RpcController* controller = new sofa::pbrpc::RpcController();
         controller->SetTimeout(rpc_timeout * 1000L);
         google::protobuf::Closure* done = 
@@ -94,23 +89,25 @@ public:
         bool failed = rpc_controller->Failed();
         int error = rpc_controller->ErrorCode();
         if (failed || error) {
+            assert(failed && error);
             if (error != sofa::pbrpc::RPC_ERROR_SEND_BUFFER_FULL) {
                 LOG(WARNING, "RpcCallback: %s\n", rpc_controller->ErrorText().c_str());
+            } else {
+                ///TODO: Retry
             }
         }
         delete rpc_controller;
         callback(request, response, failed, error);
     }
 private:
-    sofa::pbrpc::RpcClient* rpc_client_;
+    sofa::pbrpc::RpcClient* _rpc_client;
     typedef std::map<std::string, sofa::pbrpc::RpcChannel*> HostMap;
-    HostMap host_map_;
-    Mutex host_map_lock_;
+    HostMap _host_map;
+    Mutex _host_map_lock;
 };
 
-} // namespace ins
 } // namespace galaxy
+} // namespace baidu
 
-#endif  // RPC_CLIENT_H_
+#endif  // BAIDU_SHUTTLE_RPC_CLIENT_H_
 
-/* vim: set expandtab ts=4 sw=4 sts=4 tw=100: */

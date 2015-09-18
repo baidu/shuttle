@@ -50,6 +50,7 @@ minion_src = 'src/minion/minion_main.cc \
               src/minion/minion_impl.cc \
               src/minion/minion_flags.cc \
               proto/minion.proto \
+	      proto/master.proto \
               proto/shuttle.proto'
 
 client_src = 'src/client/shuttle_main.cc \
