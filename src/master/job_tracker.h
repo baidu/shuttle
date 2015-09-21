@@ -6,6 +6,7 @@
 #include "mutex.h"
 #include "proto/shuttle.pb.h"
 #include "proto/master.pb.h"
+#include "resource_manager.h"
 
 namespace baidu {
 namespace shuttle {
@@ -19,6 +20,8 @@ public:
     Status Start();
     Status Update(const std::string& priority, int map_capacity, int reduce_capacity);
     Status Kill();
+    ResourceItem* Assign();
+    Status FinishTask(int no, int attempt, TaskState state);
 
     const std::string& GetJobId() {
         return job_id_;
@@ -36,6 +39,7 @@ private:
     JobDescriptor job_descriptor_;
     std::string job_id_;
     JobState state_;
+    ResourceManager* resource_;
     std::string map_minion_;
     ::baidu::galaxy::JobDescription map_description_;
     std::string reduce_minion_;

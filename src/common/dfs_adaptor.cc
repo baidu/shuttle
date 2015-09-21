@@ -61,6 +61,7 @@ bool DfsAdaptor::Open(const char* path, const char* options) {
 void DfsAdaptor::Close() {
     if (current_file_ != NULL) {
         hdfsCloseFile(fs_, current_file_);
+        current_file_ = NULL;
     }
 }
 
@@ -85,7 +86,7 @@ void DfsAdaptor::Flush() {
     hdfsFlush(fs_, current_file_);
 }
 
-bool DfsAdaptor::ListDirectory(const std::string& dir, std::vector<std::string>& files) {
+bool DfsAdaptor::ListDirectory(const std::string& dir, std::vector<FileInfo>& files) {
     if (!hdfsExists(fs_, dir.c_str())) {
         LOG(WARNING, "directory not exist: %s", dir.c_str());
         return false;
@@ -98,18 +99,27 @@ bool DfsAdaptor::ListDirectory(const std::string& dir, std::vector<std::string>&
         return false;
     }
     for (int i = 0; i < file_num; i++) {
-        files.push_back(file_list[i].mName);
+        files.push_back(FileInfo(file_list[i]));
     }
-    free(file_list);
+    hdfsFreeFileInfo(file_list, file_num);
     return true;
 }
 
-void DfsAdaptor::ParseHdfsPath(const std::string& path) {
+std::string DfsAdaptor::GetServerFromPath(const std::string& path) {
     // A hdfs path is composed with:
     // * A magic number: `hdfs://`
     // * A server hostname/ip:port format: `localhost:9090`
     // * An absolute path: `/somepath/somefile`
     // string must not contain trailing spaces and enters
+    if (!boost::starts_with(path, "hdfs://")) {
+        LOG(WARNING, "not a valid hdfs path: %s", path.c_str());
+    }
+    // len('hdfs://') + 1 == 7
+    size_t server_path_seperator = path.find_first_of('/', 7);
+    return path.substr(7, server_path_seperator - 7);
+}
+
+void DfsAdaptor::ParseHdfsPath(const std::string& path) {
     if (!boost::starts_with(path, "hdfs://")) {
         LOG(WARNING, "not a valid hdfs path: %s", path.c_str());
     }

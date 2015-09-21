@@ -3,11 +3,28 @@
 #include <string>
 #include <vector>
 #include <stdlib.h>
+#include <stdint.h>
 
 #include "hdfs.h"
 
 namespace baidu {
 namespace shuttle {
+
+struct FileInfo {
+    char kind;
+    std::string name;
+    int64_t size;
+    short replication;
+    int64_t blocksize;
+    FileInfo() { }
+    FileInfo(const hdfsFileInfo& hdfsfile) :
+            kind(hdfsfile.mKind),
+            name(hdfsfile.mName),
+            size(hdfsfile.mSize),
+            replication(hdfsfile.mReplication),
+            blocksize(hdfsfile.mBlockSize) {
+    }
+};
 
 class DfsAdaptor {
 public:
@@ -22,7 +39,9 @@ public:
     void Flush();
 
     // generic file-system operation
-    bool ListDirectory(const std::string& dir, std::vector<std::string>& files);
+    bool ListDirectory(const std::string& dir, std::vector<FileInfo>& files);
+
+    static std::string GetServerFromPath(const std::string& path);
 
 private:
     void ParseHdfsPath(const std::string& path);

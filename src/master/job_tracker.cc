@@ -20,6 +20,7 @@ JobTracker::JobTracker(::baidu::galaxy::Galaxy* galaxy_sdk, const JobDescriptor&
     ::baidu::common::timer::now_time_str(time_str, 32);
     job_id_ = time_str;
     job_id_ += boost::lexical_cast<std::string>(random());
+    // TODO Initialize resource manager here
 }
 
 JobTracker::~JobTracker() {
@@ -96,6 +97,15 @@ Status JobTracker::Kill() {
     if (!reduce_minion_.empty() && !sdk_->TerminateJob(reduce_minion_)) {
         return kGalaxyError;
     }
+    return kOk;
+}
+
+ResourceItem* JobTracker::Assign() {
+    return resource_->GetItem();
+}
+
+Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
+    // TODO finish a map/reduce task
     return kOk;
 }
 
