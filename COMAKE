@@ -58,9 +58,11 @@ minion_src = 'src/minion/minion_main.cc \
 client_src = 'src/client/shuttle_main.cc \
               src/client/shuttle_flags.cc'
 
+executor_src = 'src/minion/executor_impl.cc \
+                src/minion/executor_map.cc \
+                src/minion/executor_reduce.cc \
+                src/minion/executor_maponly.cc'
+
 Application('master', Sources(master_src))
-Application('minion', Sources(minion_src))
+Application('minion', Sources(minion_src, executor_src))
 Application('shuttle', Sources(client_src))
-
-TARGET('cp_so', ShellCommands('cp ../../inf/computing/java6/jre/lib/amd64/server/libjvm.so output/bin'))
-

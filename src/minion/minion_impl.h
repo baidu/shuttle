@@ -1,10 +1,12 @@
 #ifndef _BAIDU_SHUTTLE_MINION_H_
 #define _BAIDU_SHUTTLE_MINION_H_
+
 #include "thread_pool.h"
 #include "mutex.h"
 #include "common/rpc_client.h"
 #include "proto/minion.pb.h"
 #include "ins_sdk.h"
+#include "executor.h"
 
 namespace baidu {
 namespace shuttle {
@@ -28,7 +30,6 @@ public:
     bool IsStop();
 private:
     void Loop();
-    TaskState DoWork(const TaskInfo& task);
     std::string endpoint_;
     ThreadPool pool_;
     std::string master_endpoint_;
@@ -37,10 +38,10 @@ private:
     Mutex mu_;
     RpcClient rpc_client_;
     std::string jobid_;
+    Executor* executor_;
 };
 
 }
 }
 
 #endif
-
