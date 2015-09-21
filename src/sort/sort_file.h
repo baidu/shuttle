@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include "proto/shuttle.pb.h"
+#include "proto/sortfile.pb.h"
 
 namespace baidu {
 namespace shuttle {

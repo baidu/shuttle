@@ -35,12 +35,19 @@ private:
 
 class SortFileHdfsWriter : public SortFileWriter {
 public:
+    SortFileHdfsWriter();
     virtual Status Open(const std::string& path, Param& param);
     virtual Status Put(const std::string& key, const std::string& value);
     virtual Status Close();
 private:
+    Status FlushCurBlock();
+    Status FlushIdxBlock();
+    static bool KeyValueCmp(const KeyValue& a, const KeyValue& b);
     hdfsFS fs_;
     hdfsFile fd_;
+    DataBlock cur_block_;
+    IndexBlock idx_block_;
+    int32_t cur_block_size_;
 };
 
 }

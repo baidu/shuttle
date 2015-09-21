@@ -9,6 +9,7 @@ enum Status {
     kConnHdfsFail = 4;
     kOpenHdfsFileFail = 5;
     kCloseFileFail = 6;
+    kWriteHdfsFileFail = 7;
     kUnKnown = 20;
 }
 
