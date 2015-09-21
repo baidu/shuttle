@@ -35,10 +35,11 @@ LDFLAGS('-lpthread -lz')
 
 #依赖模块
 CONFIGS('public/sofa-pbrpc@trunk@comake')
+CONFIGS('third-64/gtest@1.6.0.100')
 CONFIGS('thirdsrc/protobuf@2.6.2.0')
 CONFIGS('third-64/boost@1.63.0.101')
 CONFIGS('third-64/gflags@gflags_2-0-0-100_PD_BL')
-CONFIGS('inf/computing/libhdfs@libhdfs_1-4-2-62665_PD_BL@COMAKE', IncludePaths('../output/include'))
+CONFIGS('inf/computing/libhdfs@libhdfs_1-4-2-62665_PD_BL@COMAKE', IncludePaths('./output/include'))
 
 master_src = 'src/master/master_main.cc \
               src/master/master_impl.cc \
@@ -63,6 +64,10 @@ executor_src = 'src/minion/executor_impl.cc \
                 src/minion/executor_reduce.cc \
                 src/minion/executor_maponly.cc'
 
+sort_test_src = 'src/sort/sort_file_hdfs.cc \
+                 src/sort/sort_file_hdfs_test.cc'
+
 Application('master', Sources(master_src))
 Application('minion', Sources(minion_src, executor_src))
 Application('shuttle', Sources(client_src))
+Application('sort_test', Sources(sort_test_src))
