@@ -25,7 +25,7 @@ public:
         SortFileHdfsReader* reader_;
     };
 
-    virtual Status Open(const std::string& path, const Param& param);
+    virtual Status Open(const std::string& path, Param& param);
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key);
     virtual Status Close();
 private:
@@ -35,9 +35,19 @@ private:
 
 class SortFileHdfsWriter : public SortFileWriter {
 public:
-    virtual Status Open(const std::string& path, const Param& param);
+    SortFileHdfsWriter();
+    virtual Status Open(const std::string& path, Param& param);
     virtual Status Put(const std::string& key, const std::string& value);
     virtual Status Close();
+private:
+    Status FlushCurBlock();
+    Status FlushIdxBlock();
+    hdfsFS fs_;
+    hdfsFile fd_;
+    DataBlock cur_block_;
+    IndexBlock idx_block_;
+    int32_t cur_block_size_;
+    std::string last_key_;
 };
 
 }

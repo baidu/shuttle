@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include "proto/shuttle.pb.h"
+#include "proto/sortfile.pb.h"
 
 namespace baidu {
 namespace shuttle {
@@ -20,7 +21,7 @@ public:
         virtual ~Iterator() {};
     };
     typedef std::map<std::string, std::string> Param;
-    virtual Status Open(const std::string& path, const Param& param) = 0;
+    virtual Status Open(const std::string& path, Param& param) = 0;
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key) = 0;
     virtual Status Close() = 0;
 };
@@ -28,7 +29,7 @@ public:
 class SortFileWriter {
 public:
     typedef std::map<std::string, std::string> Param;
-    virtual Status Open(const std::string& path, const Param& param) = 0;
+    virtual Status Open(const std::string& path, Param& param) = 0;
     virtual Status Put(const std::string& key, const std::string& value) = 0;
     virtual Status Close() = 0;
 };
