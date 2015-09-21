@@ -87,6 +87,10 @@ Status SortFileHdfsWriter::Open(const std::string& path, Param& param) {
 }
 
 Status SortFileHdfsWriter::Put(const std::string& key, const std::string& value) {
+    if (key < last_key_) {
+        LOG(WARNING, "try to put a un-ordered key: %s", key.c_str());
+        return kInvalidArg;
+    }
     if (cur_block_size_ >= sBlockSize) {
         Status status = FlushCurBlock();
         if (status != kOk) {
@@ -97,6 +101,7 @@ Status SortFileHdfsWriter::Put(const std::string& key, const std::string& value)
     item->set_key(key);
     item->set_value(value);
     cur_block_size_ += (key.size() + value.size());
+    last_key_ = key;
     return kOk;
 }
 
@@ -136,18 +141,10 @@ Status SortFileHdfsWriter::FlushIdxBlock() {
     return kOk;
 }
 
-bool SortFileHdfsWriter::KeyValueCmp(const KeyValue& a, const KeyValue& b) {
-    return a.key() < b.key();
-}
-
 Status SortFileHdfsWriter::FlushCurBlock() {
     if (cur_block_.items_size() == 0) {
         return kOk;
     }
-    //sort the item in cur_block_
-    std::sort(cur_block_.mutable_items()->begin(),
-              cur_block_.mutable_items()->end(),
-              KeyValueCmp);
     std::string raw_buf, compressed_buf;
     bool ret = cur_block_.SerializeToString(&raw_buf);
     if (!ret) {

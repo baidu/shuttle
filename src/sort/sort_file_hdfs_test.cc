@@ -15,9 +15,9 @@ TEST(HdfsTest, Put) {
     char key[256] = {'\0'};
     char value[256] = {'\0'};
     int total = 250000;
-    for (int i = total; i >=1; i--) {
-        snprintf(key, sizeof(key), "key_%i", i);
-        snprintf(value, sizeof(value), "value_%i", i*2);
+    for (int i = 1; i <= total; i++) {
+        snprintf(key, sizeof(key), "key_%09d", i);
+        snprintf(value, sizeof(value), "value_%d", i*2);
         status = writer->Put(key, value);
         EXPECT_EQ(status, kOk);
         if (i % 1000 == 0) {
