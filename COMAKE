@@ -25,7 +25,7 @@ CXXFLAGS('-g -pipe -W -Wall -fPIC')
 PROTOC('../../third-64/protobuf/bin/protoc')
 
 #头文件路径.
-INCPATHS('. ./src ./output/include galaxy/output/include galaxy/common/include galaxy/ins/sdk/')
+INCPATHS('. ./src ./output/include galaxy/output/include galaxy/common/include galaxy/ins/sdk/ ../../inf/computing/libhdfs/output/include')
 
 #使用库
 LIBS('galaxy/common/libcommon.a galaxy/ins/libins_sdk.a ./galaxy/libgalaxy.a')
@@ -44,6 +44,7 @@ master_src = 'src/master/master_main.cc \
               src/master/master_impl.cc \
               src/master/master_flags.cc \
               src/master/job_tracker.cc \
+              src/master/dfs_adaptor.cc \
               proto/master.proto \
               proto/shuttle.proto'
 
@@ -51,7 +52,7 @@ minion_src = 'src/minion/minion_main.cc \
               src/minion/minion_impl.cc \
               src/minion/minion_flags.cc \
               proto/minion.proto \
-	      proto/master.proto \
+              proto/master.proto \
               proto/shuttle.proto'
 
 client_src = 'src/client/shuttle_main.cc \
