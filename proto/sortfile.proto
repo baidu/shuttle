@@ -1,0 +1,20 @@
+package baidu.shuttle;
+option cc_generic_services = true;
+
+message KeyValue {
+	required string key = 1;
+	optional string value = 2;
+}
+
+message KeyOffset {
+	required string key = 1;
+	required int64 offset = 2;
+}
+
+message DataBlock {
+	repeated KeyValue items = 1;
+}
+
+message IndexBlock {
+	repeated KeyOffset items = 1;
+}

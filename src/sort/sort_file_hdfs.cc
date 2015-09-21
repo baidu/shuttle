@@ -33,7 +33,7 @@ Status SortFileHdfsReader::IteratorHdfs::Error() {
     return kOk;
 }
 
-Status SortFileHdfsReader::Open(const std::string& path, const Param& param) {
+Status SortFileHdfsReader::Open(const std::string& path, Param& param) {
     return kOk;
 }
 
@@ -43,10 +43,37 @@ SortFileReader::Iterator* SortFileHdfsReader::Scan(const std::string& start_key,
 }
 
 Status SortFileHdfsReader::Close() {
+    if (!fs_) {
+        return kConnHdfsFail;
+    }
+    if (!fd_) {
+        return kOpenHdfsFileFail;
+    }
+    int ret = hdfsCloseFile(fs_, fd_);
+    if (ret != 0) {
+        return kCloseFileFail;
+    }
     return kOk;
 }
 
-Status SortFileHdfsWriter::Open(const std::string& path, const Param& param) {
+Status SortFileHdfsWriter::Open(const std::string& path, Param& param) {
+    if (param.size() == 0) {
+        fs_ = hdfsConnect("default", 0);
+    } else {
+        const std::string& user = param["user"];
+        const std::string& password = param["passowrd"];
+        const std::string& host = param["host"];
+        const std::string& port = param["port"];
+        fs_ = hdfsConnectAsUser(host.c_str(), atoi(port.c_str()),
+                                user.c_str(), password.c_str());
+    }
+    if (!fs_) {
+        return kConnHdfsFail;
+    }
+    fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, 0, 0);
+    if (!fd_) {
+        return kOpenHdfsFileFail;
+    }
     return kOk;
 }
 
