@@ -22,6 +22,7 @@ enum TaskState {
     kTaskFailed = 2;
     kTaskKilled = 3;
     kTaskCompleted = 4;
+    kTaskUnkown = 10;
 }
 
 message JobDescriptor {

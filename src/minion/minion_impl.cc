@@ -7,6 +7,7 @@
 
 DECLARE_string(master_nexus_path);
 DECLARE_string(nexus_addr);
+DECLARE_string(work_mode);
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -18,11 +19,20 @@ namespace shuttle {
 
 MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
                            stop_(false) {
-
+    if (FLAGS_work_mode == "map") {
+        executor_ = Executor::GetExecutor(Executor::kMap);
+    } else if (FLAGS_work_mode == "reduce") {
+        executor_ = Executor::GetExecutor(Executor::kReduce);
+    } else if (FLAGS_work_mode == "map-only") {
+        executor_ = Executor::GetExecutor(Executor::kMapOnly);
+    } else {
+        LOG(FATAL, "unkown work mode: %s", FLAGS_work_mode.c_str());
+        abort();
+    }
 }
 
 MinionImpl::~MinionImpl() {
-
+    delete executor_;
 }
 
 void MinionImpl::Query(::google::protobuf::RpcController* controller,
@@ -47,10 +57,6 @@ void MinionImpl::SetJobId(const std::string& jobid) {
     jobid_ = jobid;
 }
 
-TaskState MinionImpl::DoWork(const TaskInfo& task) {
-    return kTaskCompleted;
-}
-
 void MinionImpl::Loop() {
     Master_Stub* stub;
     rpc_client_.GetStub(master_endpoint_, &stub);
@@ -64,7 +70,7 @@ void MinionImpl::Loop() {
         bool ok = rpc_client_.SendRequest(stub, &Master_Stub::AssignTask, 
                                             &request, &response, 5, 1);
         if (!ok) {
-            LOG(FATAL, "fail to fetch task from master");
+            LOG(FATAL, "fail to fetch task from master[%s]", master_endpoint_.c_str());
             abort();            
         }
         if (response.status() == kNoMore) {
@@ -72,7 +78,9 @@ void MinionImpl::Loop() {
             break;
         }
         const TaskInfo& task = response.task();
-        TaskState task_state = DoWork(task);
+
+        TaskState task_state = executor_->Exec(task); //exec here~~
+
         ::baidu::shuttle::FinishTaskRequest fn_request;
         ::baidu::shuttle::FinishTaskResponse fn_response;
         fn_request.set_jobid(jobid_);
@@ -112,4 +120,3 @@ bool MinionImpl::Run() {
 
 }
 }
-
