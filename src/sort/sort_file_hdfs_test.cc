@@ -5,7 +5,7 @@
 using namespace baidu::shuttle;
 
 std::string g_work_dir = "/tmp";
-int total = 750000;
+int total = 7500000;
 
 TEST(HdfsTest, Put) {
     SortFileWriter* writer = new SortFileHdfsWriter();

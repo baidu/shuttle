@@ -108,6 +108,7 @@ Status SortFileHdfsReader::ReadFull(std::string* result_buf, int32_t len,
     if (result_buf == NULL) {
         return kInvalidArg;
     }
+    result_buf->reserve(len);
     Status status = kOk;
     int once_buf_size = std::min(40960, len); //at most 40K
     char* buf = (char*)malloc(once_buf_size);
@@ -143,6 +144,9 @@ Status SortFileHdfsReader::ReadFull(std::string* result_buf, int32_t len,
             status = kNoMore;
             break;
         } else {
+            if (result_buf->size() + n_read > len) {
+                n_read = len - result_buf->size();
+            }
             result_buf->append(buf, n_read);
         }
     }
