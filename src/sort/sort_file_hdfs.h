@@ -21,21 +21,39 @@ public:
         virtual const std::string& Key();
         virtual const std::string& Value();
         virtual Status Error();
+        void SetError(Status status);
+        void SetHasMore(bool has_more);
     private:
         SortFileHdfsReader* reader_;
+        bool has_more_;
+        Status error_;
+        DataBlock cur_block_;
+        int cur_offset_;
+        std::string key_;
+        std::string value_;
+        std::string start_key_;
+        std::string end_key_;
     };
-
+    virtual ~SortFileHdfsReader(){};
     virtual Status Open(const std::string& path, Param& param);
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key);
     virtual Status Close();
 private:
+    Status LoadIndexBlock(const std::string& path);
+    Status ReadFull(std::string* result_buf, int32_t len, bool is_read_data = false);
+    Status ReadNextRecord(DataBlock& data_block);
+private:
     hdfsFS fs_;
     hdfsFile fd_;
+    IndexBlock idx_block_;
+    std::string path_;
+    int64_t idx_offset_;
 };
 
 class SortFileHdfsWriter : public SortFileWriter {
 public:
     SortFileHdfsWriter();
+    virtual ~SortFileHdfsWriter(){};
     virtual Status Open(const std::string& path, Param& param);
     virtual Status Put(const std::string& key, const std::string& value);
     virtual Status Close();
