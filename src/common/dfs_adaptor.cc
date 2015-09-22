@@ -1,6 +1,7 @@
 #include "dfs_adaptor.h"
 
 #include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "logging.h"
 
@@ -11,9 +12,8 @@ DfsAdaptor::DfsAdaptor(const std::string& dfs_url, const char* options) {
     ParseHdfsPath(dfs_url);
 
     fs_ = NULL;
-    fs_ = hdfsConnect(dfs_server_.c_str(), 0);
+    Connect(dfs_server_);
     if (fs_ == NULL) {
-        LOG(WARNING, "cannot connect to hdfs server: %s", dfs_server_.c_str());
         return;
     }
 
@@ -24,10 +24,7 @@ DfsAdaptor::DfsAdaptor(const std::string& dfs_url, const char* options) {
 }
 
 DfsAdaptor::DfsAdaptor(const std::string& dfs_server) : dfs_server_(dfs_server) {
-    fs_ = hdfsConnect(dfs_server.c_str(), 0);
-    if (fs_ == NULL) {
-        LOG(WARNING, "cannot connect to hdfs server: %s", dfs_server_.c_str());
-    }
+    Connect(dfs_server);
 }
 
 DfsAdaptor::~DfsAdaptor() {
@@ -35,6 +32,40 @@ DfsAdaptor::~DfsAdaptor() {
     if (fs_ != NULL) {
         hdfsDisconnect(fs_);
     }
+}
+
+bool DfsAdaptor::Connect(const std::string& host, int port) {
+    if (fs_ != NULL) {
+        LOG(INFO, "dfs adaptor has connected");
+        return false;
+    }
+    fs_ = hdfsConnect(host.c_str(), port);
+    if (fs_ == NULL) {
+        LOG(WARNING, "cannot connect to hdfs server: %s", dfs_server_.c_str());
+        return false;
+    }
+    dfs_server_ = host + ":" + boost::lexical_cast<std::string>(port);
+    return true;
+}
+
+bool DfsAdaptor::Connect(const std::string& server) {
+    int last_colon = server.find_last_of(':');
+    std::string server_host = server.substr(0, last_colon);
+    int port = boost::lexical_cast<int>(last_colon);
+    return Connect(server_host, port);
+}
+
+bool DfsAdaptor::Disconnect() {
+    if (fs_ == NULL) {
+        LOG(INFO, "dfs adaptor has disconnected");
+        return true;
+    }
+    if (hdfsDisconnect(fs_)) {
+        LOG(WARNING, "cannot disconnect to hdfs server: %s", dfs_server_.c_str());
+        return false;
+    }
+    dfs_server_ = "";
+    return true;
 }
 
 bool DfsAdaptor::Open(const char* path, const char* options) {

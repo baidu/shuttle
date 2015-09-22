@@ -28,9 +28,14 @@ struct FileInfo {
 
 class DfsAdaptor {
 public:
+    DfsAdaptor() : fs_(NULL), current_file_(NULL) { }
     DfsAdaptor(const std::string& dfs_url, const char* options);
     DfsAdaptor(const std::string& dfs_server);
     virtual ~DfsAdaptor();
+
+    bool Connect(const std::string& host, int port);
+    bool Connect(const std::string& server);
+    bool Disconnect();
 
     bool Open(const char* path, const char* options);
     void Close();
