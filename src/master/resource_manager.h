@@ -6,6 +6,7 @@
 #include <string>
 #include <stdint.h>
 
+#include "proto/shuttle.pb.h"
 #include "common/dfs_adaptor.h"
 #include "mutex.h"
 
@@ -18,6 +19,9 @@ struct ResourceItem {
     std::string input_file;
     int64_t offset;
     int64_t size;
+    TaskState state;
+    std::string endpoint;
+
 };
 
 class ResourceManager {
@@ -27,8 +31,9 @@ public:
 
     void SetInputFiles(const std::vector<std::string>& input_files);
 
-    ResourceItem* GetItem();
+    ResourceItem* GetItem(const std::string& endpoint);
     void ReturnBackItem(int no, int attempt);
+    void SetState(int no, int attempt, TaskState state);
 
 private:
     Mutex mu_;

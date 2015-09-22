@@ -151,7 +151,7 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        ResourceItem* resource = jobtracker->Assign();
+        ResourceItem* resource = jobtracker->Assign(request->endpoint());
 
         TaskInfo* task = response->mutable_task();
         task->set_task_id(resource->no);
@@ -163,6 +163,7 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
         // task->set_job(jobtracker->GetJobDescriptor());
 
         response->set_status(kOk); 
+        delete resource;
     } else {
         LOG(WARNING, "assign task failed: job inexist: %s", job_id.c_str());
         response->set_status(kNoSuchJob);

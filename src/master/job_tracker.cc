@@ -100,8 +100,8 @@ Status JobTracker::Kill() {
     return kOk;
 }
 
-ResourceItem* JobTracker::Assign() {
-    return resource_->GetItem();
+ResourceItem* JobTracker::Assign(const std::string& endpoint) {
+    return resource_->GetItem(endpoint);
 }
 
 Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
