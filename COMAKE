@@ -68,6 +68,7 @@ executor_src = 'src/minion/executor_impl.cc \
 
 sort_test_src = 'src/sort/sort_file_hdfs.cc \
                  proto/sortfile.proto \
+		 proto/shuttle.proto \
                  src/sort/sort_file_hdfs_test.cc'
 
 Application('master', Sources(master_src))
