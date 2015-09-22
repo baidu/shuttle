@@ -20,7 +20,7 @@ public:
     Status Start();
     Status Update(const std::string& priority, int map_capacity, int reduce_capacity);
     Status Kill();
-    ResourceItem* Assign();
+    ResourceItem* Assign(const std::string& endpoint);
     Status FinishTask(int no, int attempt, TaskState state);
 
     const std::string& GetJobId() {
