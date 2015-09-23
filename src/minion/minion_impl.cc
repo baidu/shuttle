@@ -3,7 +3,7 @@
 #include <boost/function.hpp>
 #include <gflags/gflags.h>
 #include "logging.h"
-#include "proto/master.pb.h"
+#include "proto/app_master.pb.h"
 
 DECLARE_string(master_nexus_path);
 DECLARE_string(nexus_addr);

@@ -10,7 +10,7 @@
 #include "mutex.h"
 #include "thread_pool.h"
 #include "proto/shuttle.pb.h"
-#include "proto/master.pb.h"
+#include "proto/app_master.pb.h"
 #include "resource_manager.h"
 
 namespace baidu {
