@@ -13,6 +13,7 @@ enum Status {
     kInvalidArg = 8;
     kBadMagic = 9;
     kReadHdfsFail = 10;
+    kNotImplement = 11;
     kUnKnown = 20;
 }
 

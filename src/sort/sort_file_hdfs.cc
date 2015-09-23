@@ -110,7 +110,7 @@ void SortFileHdfsReader::IteratorHdfs::SetHasMore(bool has_more) {
 
 Status SortFileHdfsReader::ReadFull(std::string* result_buf, int32_t len,
                                     bool is_read_data) {
-    if (result_buf == NULL) {
+    if (result_buf == NULL || len < 0 ) {
         return kInvalidArg;
     }
     result_buf->reserve(len);
@@ -140,7 +140,7 @@ Status SortFileHdfsReader::ReadFull(std::string* result_buf, int32_t len,
     }
 
     result_buf->append(buf, n_read);
-    while (result_buf->size() < len) {
+    while (result_buf->size() < (size_t)len) {
         n_read = hdfsRead(fs_, fd_, (void*)buf, once_buf_size);
         if (n_read < 0) {
             status = kReadHdfsFail;
@@ -149,7 +149,7 @@ Status SortFileHdfsReader::ReadFull(std::string* result_buf, int32_t len,
             status = kNoMore;
             break;
         } else {
-            if (result_buf->size() + n_read > len) {
+            if (result_buf->size() + n_read > (size_t)len) {
                 n_read = len - result_buf->size();
             }
             result_buf->append(buf, n_read);
@@ -221,6 +221,9 @@ Status SortFileHdfsReader::LoadIndexBlock(const std::string& path) {
     Status status = ReadFull(&index_raw_buf, index_size);
     if (status != kOk) {
         LOG(WARNING, "read index block fail, %s", Status_Name(status).c_str());
+        if (status == kNoMore) { //empty index
+            return kOk;
+        }
         return status;
     }
     bool ret = idx_block_.ParseFromString(index_raw_buf);
@@ -233,6 +236,7 @@ Status SortFileHdfsReader::LoadIndexBlock(const std::string& path) {
 }
 
 Status SortFileHdfsReader::Open(const std::string& path, Param& param) {
+    LOG(INFO, "try to open: %s", path.c_str());
     if (param.size() == 0) {
         fs_ = hdfsConnect("default", 0);
     } else {
@@ -312,6 +316,7 @@ SortFileReader::Iterator* SortFileHdfsReader::Scan(const std::string& start_key,
 }
 
 Status SortFileHdfsReader::Close() {
+    LOG(INFO, "try close file: %s", path_.c_str());
     if (!fs_) {
         return kConnHdfsFail;
     }
