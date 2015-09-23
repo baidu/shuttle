@@ -5,7 +5,7 @@
 #include "galaxy.h"
 #include "mutex.h"
 #include "proto/shuttle.pb.h"
-#include "proto/master.pb.h"
+#include "proto/app_master.pb.h"
 #include "resource_manager.h"
 
 namespace baidu {
