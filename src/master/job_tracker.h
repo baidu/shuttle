@@ -1,6 +1,10 @@
 #ifndef _BAIDU_SHUTTLE_JOB_TRACKER_H_
 #define _BAIDU_SHUTTLE_JOB_TRACKER_H_
 #include <string>
+#include <list>
+#include <queue>
+#include <utility>
+#include <ctime>
 
 #include "galaxy.h"
 #include "mutex.h"
@@ -10,6 +14,19 @@
 
 namespace baidu {
 namespace shuttle {
+
+struct AllocateItem {
+    int resource_no;
+    int attempt;
+    std::string endpoint;
+    time_t alloc_time;
+};
+
+struct AllocateItemComparator {
+    bool operator()(AllocateItem* const& litem, AllocateItem* const& ritem) const {
+        return litem->alloc_time < ritem->alloc_time;
+    }
+};
 
 class JobTracker {
 
@@ -39,9 +56,16 @@ private:
     JobDescriptor job_descriptor_;
     std::string job_id_;
     JobState state_;
+    // Resource allocation
     ResourceManager* resource_;
+    Mutex alloc_mu_;
+    std::list<AllocateItem*> allocation_table_;
+    std::priority_queue<AllocateItem*, std::vector<AllocateItem*>, \
+                        AllocateItemComparator> time_heap_;
+    // Map resource
     std::string map_minion_;
     ::baidu::galaxy::JobDescription map_description_;
+    // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
 };

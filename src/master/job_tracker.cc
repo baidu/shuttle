@@ -4,6 +4,7 @@
 #include <gflags/gflags.h>
 
 #include "timer.h"
+#include "resource_manager.h"
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -20,10 +21,16 @@ JobTracker::JobTracker(::baidu::galaxy::Galaxy* galaxy_sdk, const JobDescriptor&
     ::baidu::common::timer::now_time_str(time_str, 32);
     job_id_ = time_str;
     job_id_ += boost::lexical_cast<std::string>(random());
-    // TODO Initialize resource manager here
+    resource_ = new ResourceManager();
 }
 
 JobTracker::~JobTracker() {
+    delete resource_;
+    MutexLock lock(&alloc_mu_);
+    for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+            it != allocation_table_.end(); ++it) {
+        delete *it;
+    }
 }
 
 Status JobTracker::Start() {
@@ -101,7 +108,19 @@ Status JobTracker::Kill() {
 }
 
 ResourceItem* JobTracker::Assign(const std::string& endpoint) {
-    return resource_->GetItem(endpoint);
+    // TODO Consider replica
+    ResourceItem* cur = resource_->GetItem();
+    AllocateItem* alloc = new AllocateItem();
+    alloc->resource_no = cur->no;
+    alloc->attempt = 1;
+    alloc->endpoint = endpoint;
+    alloc->alloc_time = std::time(NULL);
+    cur->attempt = alloc->attempt;
+
+    MutexLock lock(&alloc_mu_);
+    allocation_table_.push_back(alloc);
+    time_heap_.push(alloc);
+    return cur;
 }
 
 Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
