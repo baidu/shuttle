@@ -2,7 +2,7 @@
 #define _BAIDU_SHUTTLE_RESOURCE_MANAGER_H_
 #include <vector>
 #include <deque>
-#include <set>
+#include <list>
 #include <string>
 #include <stdint.h>
 
@@ -19,28 +19,31 @@ struct ResourceItem {
     std::string input_file;
     int64_t offset;
     int64_t size;
-    TaskState state;
-    std::string endpoint;
-
 };
 
 class ResourceManager {
 public:
+    ResourceManager();
     ResourceManager(const std::string& dfs_server);
     virtual ~ResourceManager();
 
     void SetInputFiles(const std::vector<std::string>& input_files);
 
-    ResourceItem* GetItem(const std::string& endpoint);
-    void ReturnBackItem(int no, int attempt);
-    void SetState(int no, int attempt, TaskState state);
+    ResourceItem* GetItem();
+    ResourceItem* GetCertainItem(int no);
+    void ReturnBackItem(int no);
+    void FinishItem(int no);
 
+    int SumOfItem() {
+        MutexLock lock(&mu_);
+        return resource_pool_.size();
+    }
 private:
     Mutex mu_;
     DfsAdaptor* dfs_;
     std::vector<ResourceItem*> resource_pool_;
     std::deque<ResourceItem*> pending_res_;
-    std::set<ResourceItem*> running_res_;
+    std::list<ResourceItem*> running_res_;
 };
 
 }
