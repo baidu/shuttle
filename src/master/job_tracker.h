@@ -8,6 +8,7 @@
 
 #include "galaxy.h"
 #include "mutex.h"
+#include "thread_pool.h"
 #include "proto/shuttle.pb.h"
 #include "proto/master.pb.h"
 #include "resource_manager.h"
@@ -19,6 +20,7 @@ struct AllocateItem {
     int resource_no;
     int attempt;
     std::string endpoint;
+    TaskState state;
     time_t alloc_time;
 };
 
@@ -49,6 +51,8 @@ public:
     JobState GetState() {
         return state_;
     }
+private:
+    void KeepMonitoring();
 
 private:
     ::baidu::galaxy::Galaxy* sdk_;
@@ -60,7 +64,7 @@ private:
     ResourceManager* resource_;
     Mutex alloc_mu_;
     std::list<AllocateItem*> allocation_table_;
-    std::priority_queue<AllocateItem*, std::vector<AllocateItem*>, \
+    std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;
     // Map resource
     std::string map_minion_;
@@ -68,9 +72,12 @@ private:
     // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
+    // Thread for monitoring
+    ThreadPool monitor_;
 };
 
 }
 }
 
 #endif
+

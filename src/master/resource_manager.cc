@@ -39,7 +39,7 @@ void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files)
         dfs_->ListDirectory(*it, files);
     }
     MutexLock lock(&mu_);
-    int counter = 0;
+    int counter = resource_pool_.size();
     const int block_size = FLAGS_input_block_size;
     for (std::vector<FileInfo>::iterator it = files.begin();
             it != files.end(); ++it) {
@@ -66,6 +66,9 @@ void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files)
 
 ResourceItem* ResourceManager::GetItem() {
     MutexLock lock(&mu_);
+    if (pending_res_.empty()) {
+        return NULL;
+    }
     ResourceItem* cur = pending_res_.front();
     pending_res_.pop_front();
     running_res_.push_back(cur);

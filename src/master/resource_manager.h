@@ -34,6 +34,10 @@ public:
     void ReturnBackItem(int no);
     void FinishItem(int no);
 
+    int SumOfItem() {
+        MutexLock lock(&mu_);
+        return resource_pool_.size();
+    }
 private:
     Mutex mu_;
     DfsAdaptor* dfs_;
