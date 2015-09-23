@@ -206,7 +206,7 @@ TEST(HdfsTest, Read9) {
     Status status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("key_000000251", "");
-    EXPECT_EQ(it->Error(), kOk);
+    EXPECT_EQ(it->Error(), kNoMore);
     int count = 0;
     while (!it->Done()) {
         count++;

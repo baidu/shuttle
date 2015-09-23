@@ -8,7 +8,6 @@ using baidu::common::Log;
 using baidu::common::FATAL;
 using baidu::common::INFO;
 using baidu::common::WARNING;
-using ::google::protobuf::RepeatedPtrField;
 
 namespace baidu {
 namespace shuttle {
@@ -30,13 +29,14 @@ SortFileHdfsReader::IteratorHdfs::~IteratorHdfs() {
 
 }
 
-bool SortFileHdfsReader::IteratorHdfs::Done() {
+void SortFileHdfsReader::IteratorHdfs::Init() {
     if (has_more_ && cur_block_.items_size() == 0) {
         //Initiate data for the iterator, locate to the right place
         Status status = reader_->ReadNextRecord(cur_block_);
         if (status != kOk) {
             error_ = status;
-            return true;
+            has_more_ = false;
+            return;
         }
         while (status == kOk) {
             while(cur_offset_ < cur_block_.items_size() &&
@@ -52,14 +52,19 @@ bool SortFileHdfsReader::IteratorHdfs::Done() {
         }
         if (status != kOk) {
             error_ = status;
-            return true;
+            has_more_ = false;
+            return;
         }
         key_ = cur_block_.items(cur_offset_).key();
         value_ =  cur_block_.items(cur_offset_).value();
         if (key_ >= end_key_ && !end_key_.empty()) {
-            return true;
+            has_more_ = false;
+            return;
         }
     }
+}
+
+bool SortFileHdfsReader::IteratorHdfs::Done() {
     return !has_more_;
 }
 
@@ -302,6 +307,7 @@ SortFileReader::Iterator* SortFileHdfsReader::Scan(const std::string& start_key,
     } else {
         it->SetHasMore(true);
     }
+    it->Init();
     return it;
 }
 
