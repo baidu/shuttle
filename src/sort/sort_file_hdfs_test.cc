@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <string>
-#include "sort_file_hdfs.h"
+#include "sort_file.h"
 
 using namespace baidu::shuttle;
 
@@ -8,10 +8,12 @@ std::string g_work_dir = "/tmp";
 int total = 7500000;
 
 TEST(HdfsTest, Put) {
-    SortFileWriter* writer = new SortFileHdfsWriter();
+    Status status;
+    SortFileWriter* writer = SortFileWriter::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileWriter::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
-    Status status = writer->Open(file_path, param);
+    status = writer->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     char key[256] = {'\0'};
     char value[256] = {'\0'};
@@ -30,10 +32,12 @@ TEST(HdfsTest, Put) {
 }
 
 TEST(HdfsTest, Put2) {
-    SortFileWriter* writer = new SortFileHdfsWriter();
+    Status status;
+    SortFileWriter* writer = SortFileWriter::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileWriter::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
-    Status status = writer->Open(file_path, param);
+    status = writer->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     char key[256] = {'\0'};
     char value[256] = {'\0'};
@@ -49,10 +53,12 @@ TEST(HdfsTest, Put2) {
 }
 
 TEST(HdfsTest, Read) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("key_000000123", "key_000001123");
     EXPECT_EQ(it->Error(), kOk);
@@ -68,13 +74,16 @@ TEST(HdfsTest, Read) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(n, 1123);
+    delete it;
 }
 
 TEST(HdfsTest, Read2) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("", "");
     EXPECT_EQ(it->Error(), kOk);
@@ -86,13 +95,16 @@ TEST(HdfsTest, Read2) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, total);
+    delete it;
 }
 
 TEST(HdfsTest, Read3) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("a", "b");
     EXPECT_EQ(it->Error(), kOk);
@@ -104,13 +116,16 @@ TEST(HdfsTest, Read3) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, 0);
+    delete it;
 }
 
 TEST(HdfsTest, Read4) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("key_000008888", "key_000018888");
     EXPECT_EQ(it->Error(), kOk);
@@ -122,13 +137,16 @@ TEST(HdfsTest, Read4) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, 10000);
+    delete it;
 }
 
 TEST(HdfsTest, Read5) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("a", "key_000000012");
     EXPECT_EQ(it->Error(), kOk);
@@ -140,13 +158,16 @@ TEST(HdfsTest, Read5) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, 11);
+    delete it;
 }
 
 TEST(HdfsTest, Read6) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("a", "key_000000012");
     EXPECT_EQ(it->Error(), kOk);
@@ -159,13 +180,16 @@ TEST(HdfsTest, Read6) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, 11);
+    delete it;
 }
 
 TEST(HdfsTest, Read7) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("key_000000001", "key_000000012");
     EXPECT_EQ(it->Error(), kOk);
@@ -178,13 +202,16 @@ TEST(HdfsTest, Read7) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, 11);
+    delete it;
 }
 
 TEST(HdfsTest, Read8) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("key_000000249", "");
     EXPECT_EQ(it->Error(), kOk);
@@ -200,13 +227,15 @@ TEST(HdfsTest, Read8) {
 }
 
 TEST(HdfsTest, Read9) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("key_000000251", "");
-    EXPECT_EQ(it->Error(), kOk);
+    EXPECT_EQ(it->Error(), kNoMore);
     int count = 0;
     while (!it->Done()) {
         count++;
@@ -216,13 +245,16 @@ TEST(HdfsTest, Read9) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, 0);
+    delete it;
 }
 
 TEST(HdfsTest, Read10) {
-    SortFileReader* reader = new SortFileHdfsReader();
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
     SortFileReader::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
-    Status status = reader->Open(file_path, param);
+    status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator *it = reader->Scan("key_000000251", "key_000000250");
     EXPECT_EQ(it->Error(), kInvalidArg);
@@ -236,6 +268,7 @@ TEST(HdfsTest, Read10) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, 0);
+    delete it;
 }
 
 int main(int argc, char* argv[]) {

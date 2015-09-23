@@ -8,7 +8,6 @@ using baidu::common::Log;
 using baidu::common::FATAL;
 using baidu::common::INFO;
 using baidu::common::WARNING;
-using ::google::protobuf::RepeatedPtrField;
 
 namespace baidu {
 namespace shuttle {
@@ -30,13 +29,14 @@ SortFileHdfsReader::IteratorHdfs::~IteratorHdfs() {
 
 }
 
-bool SortFileHdfsReader::IteratorHdfs::Done() {
+void SortFileHdfsReader::IteratorHdfs::Init() {
     if (has_more_ && cur_block_.items_size() == 0) {
         //Initiate data for the iterator, locate to the right place
         Status status = reader_->ReadNextRecord(cur_block_);
         if (status != kOk) {
             error_ = status;
-            return true;
+            has_more_ = false;
+            return;
         }
         while (status == kOk) {
             while(cur_offset_ < cur_block_.items_size() &&
@@ -52,14 +52,19 @@ bool SortFileHdfsReader::IteratorHdfs::Done() {
         }
         if (status != kOk) {
             error_ = status;
-            return true;
+            has_more_ = false;
+            return;
         }
         key_ = cur_block_.items(cur_offset_).key();
         value_ =  cur_block_.items(cur_offset_).value();
         if (key_ >= end_key_ && !end_key_.empty()) {
-            return true;
+            has_more_ = false;
+            return;
         }
     }
+}
+
+bool SortFileHdfsReader::IteratorHdfs::Done() {
     return !has_more_;
 }
 
@@ -105,7 +110,7 @@ void SortFileHdfsReader::IteratorHdfs::SetHasMore(bool has_more) {
 
 Status SortFileHdfsReader::ReadFull(std::string* result_buf, int32_t len,
                                     bool is_read_data) {
-    if (result_buf == NULL) {
+    if (result_buf == NULL || len < 0 ) {
         return kInvalidArg;
     }
     result_buf->reserve(len);
@@ -135,7 +140,7 @@ Status SortFileHdfsReader::ReadFull(std::string* result_buf, int32_t len,
     }
 
     result_buf->append(buf, n_read);
-    while (result_buf->size() < len) {
+    while (result_buf->size() < (size_t)len) {
         n_read = hdfsRead(fs_, fd_, (void*)buf, once_buf_size);
         if (n_read < 0) {
             status = kReadHdfsFail;
@@ -144,7 +149,7 @@ Status SortFileHdfsReader::ReadFull(std::string* result_buf, int32_t len,
             status = kNoMore;
             break;
         } else {
-            if (result_buf->size() + n_read > len) {
+            if (result_buf->size() + n_read > (size_t)len) {
                 n_read = len - result_buf->size();
             }
             result_buf->append(buf, n_read);
@@ -216,6 +221,9 @@ Status SortFileHdfsReader::LoadIndexBlock(const std::string& path) {
     Status status = ReadFull(&index_raw_buf, index_size);
     if (status != kOk) {
         LOG(WARNING, "read index block fail, %s", Status_Name(status).c_str());
+        if (status == kNoMore) { //empty index
+            return kOk;
+        }
         return status;
     }
     bool ret = idx_block_.ParseFromString(index_raw_buf);
@@ -228,6 +236,7 @@ Status SortFileHdfsReader::LoadIndexBlock(const std::string& path) {
 }
 
 Status SortFileHdfsReader::Open(const std::string& path, Param& param) {
+    LOG(INFO, "try to open: %s", path.c_str());
     if (param.size() == 0) {
         fs_ = hdfsConnect("default", 0);
     } else {
@@ -302,10 +311,12 @@ SortFileReader::Iterator* SortFileHdfsReader::Scan(const std::string& start_key,
     } else {
         it->SetHasMore(true);
     }
+    it->Init();
     return it;
 }
 
 Status SortFileHdfsReader::Close() {
+    LOG(INFO, "try close file: %s", path_.c_str());
     if (!fs_) {
         return kConnHdfsFail;
     }

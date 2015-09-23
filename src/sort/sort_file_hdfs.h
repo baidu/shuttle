@@ -8,6 +8,7 @@
 
 namespace baidu {
 namespace shuttle {
+
 class SortFileHdfsReader : public SortFileReader {
 public:
     class IteratorHdfs : public Iterator {
@@ -23,6 +24,7 @@ public:
         virtual Status Error();
         void SetError(Status status);
         void SetHasMore(bool has_more);
+        virtual void Init();
     private:
         SortFileHdfsReader* reader_;
         bool has_more_;
