@@ -76,7 +76,7 @@ void DoWrite() {
         exit(-1);
     }
     std::cerr << "Enter: key [tab] value per line" << std::endl;
-
+    int count = 0;
     while (!feof(stdin)) {
         if (fgets(g_line_buf, sizeof(g_line_buf), stdin) ==  NULL) {
             break;
@@ -96,6 +96,10 @@ void DoWrite() {
                       << std::endl;
             exit(-1);
         }
+        if (count % 10000 == 0) {
+            std::cerr << "have written " << count << " records" << std::endl;
+        }
+        count++;
     }
     status = writer->Close();
     if (status != kOk) {

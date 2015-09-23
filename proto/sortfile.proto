@@ -2,12 +2,12 @@ package baidu.shuttle;
 option cc_generic_services = true;
 
 message KeyValue {
-	required string key = 1;
-	optional string value = 2;
+	required bytes key = 1;
+	optional bytes value = 2;
 }
 
 message KeyOffset {
-	required string key = 1;
+	required bytes key = 1;
 	required int64 offset = 2;
 }
 
