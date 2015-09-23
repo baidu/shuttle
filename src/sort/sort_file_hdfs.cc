@@ -294,7 +294,7 @@ SortFileReader::Iterator* SortFileHdfsReader::Scan(const std::string& start_key,
     
     const std::string& bound_key = idx_block_.items(low).key();
     int64_t offset;
-    if (bound_key <= start_key) {
+    if (bound_key < start_key) {
         offset = idx_block_.items(low).offset();
     } else {
         if (low > 0) {
