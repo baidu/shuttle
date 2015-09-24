@@ -49,6 +49,7 @@ master_src = 'src/master/master_main.cc \
               src/master/resource_manager.cc \
               src/common/dfs_adaptor.cc \
               proto/app_master.proto \
+              proto/minion.proto \
               proto/shuttle.proto'
 
 minion_src = 'src/minion/minion_main.cc \

@@ -12,6 +12,7 @@
 #include "proto/shuttle.pb.h"
 #include "proto/app_master.pb.h"
 #include "resource_manager.h"
+#include "common/rpc_client.h"
 
 namespace baidu {
 namespace shuttle {
@@ -42,14 +43,25 @@ public:
     ResourceItem* Assign(const std::string& endpoint);
     Status FinishTask(int no, int attempt, TaskState state);
 
-    const std::string& GetJobId() {
+    std::string GetJobId() {
+        MutexLock lock(&mu_);
         return job_id_;
     }
-    const JobDescriptor& GetJobDescriptor() {
+    JobDescriptor GetJobDescriptor() {
+        MutexLock lock(&mu_);
         return job_descriptor_;
     }
     JobState GetState() {
+        MutexLock lock(&mu_);
         return state_;
+    }
+    TaskStatistics GetMapStatistics() {
+        MutexLock lock(&alloc_mu_);
+        return map_stat_;
+    }
+    TaskStatistics GetReduceStatistics() {
+        MutexLock lock(&alloc_mu_);
+        return reduce_stat_;
     }
 private:
     void KeepMonitoring();
@@ -69,11 +81,15 @@ private:
     // Map resource
     std::string map_minion_;
     ::baidu::galaxy::JobDescription map_description_;
+    TaskStatistics map_stat_;
     // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
+    TaskStatistics reduce_stat_;
     // Thread for monitoring
     ThreadPool monitor_;
+    // To communicate with minion
+    RpcClient* rpc_client_;
 };
 
 }

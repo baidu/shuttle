@@ -47,6 +47,7 @@ void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files)
         for (int i = 0; i < blocks; ++i) {
             ResourceItem* item = new ResourceItem();
             item->no = counter++;
+            item->attempt = 0;
             item->input_file = it->name;
             item->offset = i * block_size;
             item->size = block_size;
@@ -56,6 +57,7 @@ void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files)
         int rest = it->size - blocks * block_size;
         ResourceItem* item = new ResourceItem();
         item->no = counter++;
+        item->attempt = 0;
         item->input_file = it->name;
         item->offset = blocks * block_size;
         item->size = rest;
@@ -84,10 +86,10 @@ ResourceItem* ResourceManager::GetCertainItem(int no) {
         }
     }
     if (it != running_res_.end()) {
+        (*it)->attempt ++;
         return new ResourceItem(*(*it));
-    } else {
-        LOG(WARNING, "this resource has not been allocated: %d", no);
     }
+    LOG(WARNING, "this resource has not been allocated: %d", no);
     return NULL;
 }
 

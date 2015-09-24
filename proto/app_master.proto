@@ -14,7 +14,7 @@ enum JobState {
 message TaskStatistics {
     optional int32 total = 1;
     optional int32 pending = 2;
-    optional int32 runnning = 3;
+    optional int32 running = 3;
     optional int32 failed = 4;
     optional int32 killed = 5;
     optional int32 completed = 6;
