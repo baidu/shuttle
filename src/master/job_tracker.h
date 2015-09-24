@@ -54,9 +54,13 @@ public:
         MutexLock lock(&mu_);
         return state_;
     }
-    TaskStatistics GetStatistics() {
+    TaskStatistics GetMapStatistics() {
         MutexLock lock(&alloc_mu_);
-        return stat_;
+        return map_stat_;
+    }
+    TaskStatistics GetReduceStatistics() {
+        MutexLock lock(&alloc_mu_);
+        return reduce_stat_;
     }
 private:
     void KeepMonitoring();
@@ -70,16 +74,17 @@ private:
     // Resource allocation
     ResourceManager* resource_;
     Mutex alloc_mu_;
-    TaskStatistics stat_;
     std::list<AllocateItem*> allocation_table_;
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;
     // Map resource
     std::string map_minion_;
     ::baidu::galaxy::JobDescription map_description_;
+    TaskStatistics map_stat_;
     // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
+    TaskStatistics reduce_stat_;
     // Thread for monitoring
     ThreadPool monitor_;
 };

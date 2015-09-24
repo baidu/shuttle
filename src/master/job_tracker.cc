@@ -34,12 +34,13 @@ JobTracker::JobTracker(::baidu::galaxy::Galaxy* galaxy_sdk, const JobDescriptor&
     const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames = job.inputs();
     std::copy(input_filenames.begin(), input_filenames.end(), std::back_inserter(inputs));
     resource_->SetInputFiles(inputs);
-    stat_.set_total(resource_->SumOfItem());
-    stat_.set_pending(stat_.total());
-    stat_.set_running(0);
-    stat_.set_failed(0);
-    stat_.set_killed(0);
-    stat_.set_completed(0);
+    map_stat_.set_total(resource_->SumOfItem());
+    map_stat_.set_pending(map_stat_.total());
+    map_stat_.set_running(0);
+    map_stat_.set_failed(0);
+    map_stat_.set_killed(0);
+    map_stat_.set_completed(0);
+    // TODO reduce statistics initialize here
 }
 
 JobTracker::~JobTracker() {
@@ -76,11 +77,8 @@ Status JobTracker::Start() {
         {
             MutexLock lock(&mu_);
             map_minion_ = minion_id;
-        }
-        {
-            MutexLock lock(&alloc_mu_);
-            stat_.set_running(stat_.running() + 1);
-            stat_.set_pending(stat_.pending() - 1);
+            map_stat_.set_running(map_stat_.running() + 1);
+            map_stat_.set_pending(map_stat_.pending() - 1);
         }
         return kOk;
     }
@@ -197,18 +195,23 @@ void JobTracker::KeepMonitoring() {
         // TODO Return back the resource
         alloc_mu_.Lock();
         AllocateItem* top = time_heap_.top();
+        alloc_mu_.Unlock();
         if (now - top->alloc_time < FLAGS_timeout_bound) {
-            alloc_mu_.Unlock();
             break;
         }
-        switch (top->state) {
-        case kTaskCompleted: stat_.set_completed(stat_.completed() + 1); break;
-        case kTaskKilled: stat_.set_killed(stat_.killed() + 1); break;
-        case kTaskFailed: stat_.set_failed(stat_.failed() + 1); break;
-        default: break; // pass
+        {
+            MutexLock lock(&mu_);
+            switch (top->state) {
+            case kTaskCompleted: map_stat_.set_completed(map_stat_.completed() + 1); break;
+            case kTaskKilled: map_stat_.set_killed(map_stat_.killed() + 1); break;
+            case kTaskFailed: map_stat_.set_failed(map_stat_.failed() + 1); break;
+            default: break; // pass
+            }
         }
-        time_heap_.pop();
-        alloc_mu_.Unlock();
+        {
+            MutexLock lock(&alloc_mu_);
+            time_heap_.pop();
+        }
         if (top->state != kTaskRunning) {
             continue;
         }

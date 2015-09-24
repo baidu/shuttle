@@ -101,11 +101,11 @@ void MasterImpl::ListJobs(::google::protobuf::RpcController* /*controller*/,
     std::map<std::string, JobTracker*>::iterator it;
     for (it = job_trackers_.begin(); it != job_trackers_.end(); ++it) {
         JobOverview* job = response->add_jobs();
-        // TODO Find out a copy method
-        // job->set_desc(it->second->GetJobDescriptor());
+        job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
         job->set_jobid(it->first);
         job->set_state(it->second->GetState());
-        // TODO Statistics
+        job->mutable_map_stat()->CopyFrom(it->second->GetMapStatistics());
+        job->mutable_reduce_stat()->CopyFrom(it->second->GetReduceStatistics());
     }
     done->Run();
 }
@@ -126,10 +126,11 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
     if (jobtracker != NULL) {
         response->set_status(kOk);
         JobOverview* job = response->mutable_job();
-        // job->set_desc(jobtracker->GetJobDescriptor());
+        job->mutable_desc()->CopyFrom(jobtracker->GetJobDescriptor());
         job->set_jobid(job_id);
         job->set_state(jobtracker->GetState());
-        // TODO Statistics
+        job->mutable_map_stat()->CopyFrom(jobtracker->GetMapStatistics());
+        job->mutable_reduce_stat()->CopyFrom(jobtracker->GetReduceStatistics());
     } else {
         LOG(WARNING, "try to access an inexist job: %s", job_id.c_str());
         response->set_status(kNoSuchJob);
@@ -152,6 +153,11 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
     }
     if (jobtracker != NULL) {
         ResourceItem* resource = jobtracker->Assign(request->endpoint());
+        if (resource == NULL) {
+            response->set_status(kNoMore);
+            done->Run();
+            return;
+        }
 
         TaskInfo* task = response->mutable_task();
         task->set_task_id(resource->no);
@@ -160,7 +166,7 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
         input->set_input_file(resource->input_file);
         input->set_input_offset(resource->offset);
         input->set_input_size(resource->size);
-        // task->set_job(jobtracker->GetJobDescriptor());
+        task->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
 
         response->set_status(kOk); 
         delete resource;
