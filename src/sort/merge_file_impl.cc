@@ -10,7 +10,7 @@ namespace baidu {
 namespace shuttle {
 
 Status MergeFileReader::Open(const std::vector<std::string>& files, 
-                             SortFileReader::Param& param,
+                             FileSystem::Param param,
                              FileType file_type) {
     if (files.size() == 0) {
         return kInvalidArg;

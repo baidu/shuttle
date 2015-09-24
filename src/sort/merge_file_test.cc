@@ -15,7 +15,7 @@ TEST(Merge, Put1) {
     SortFileWriter* writer3 = SortFileWriter::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
 
-    SortFileWriter::Param param;
+    FileSystem::Param param;
     std::string file_path_1 = g_work_dir + "/merge_test1.data";
     status = writer1->Open(file_path_1, param);
     EXPECT_EQ(status, kOk);
@@ -64,7 +64,7 @@ TEST(Merge, Read1) {
     file_names.push_back(file_path_1);
     file_names.push_back(file_path_2);
     file_names.push_back(file_path_3);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     Status status = reader->Open(file_names, param, kHdfsFile);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator* it = reader->Scan("", "");
@@ -89,7 +89,7 @@ TEST(Merge, Put2) {
     SortFileWriter* writer3 = SortFileWriter::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
 
-    SortFileWriter::Param param;
+    FileSystem::Param param;
     std::string file_path_1 = g_work_dir + "/merge_test1.data";
     status = writer1->Open(file_path_1, param);
     EXPECT_EQ(status, kOk);
@@ -138,7 +138,7 @@ TEST(Merge, Read2) {
     file_names.push_back(file_path_1);
     file_names.push_back(file_path_2);
     file_names.push_back(file_path_3);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     Status status = reader->Open(file_names, param, kHdfsFile);
     EXPECT_EQ(status, kOk);
     int ct = 0;

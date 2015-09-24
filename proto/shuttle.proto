@@ -6,13 +6,12 @@ enum Status {
     kGalaxyError = 1;
     kNoSuchJob = 2;
     kNoMore = 3;
-    kConnHdfsFail = 4;
-    kOpenHdfsFileFail = 5;
+    kOpenFileFail = 5;
     kCloseFileFail = 6;
-    kWriteHdfsFileFail = 7;
+    kWriteFileFail = 7;
     kInvalidArg = 8;
     kBadMagic = 9;
-    kReadHdfsFail = 10;
+    kReadFileFail = 10;
     kNotImplement = 11;
     kUnKnown = 20;
 }

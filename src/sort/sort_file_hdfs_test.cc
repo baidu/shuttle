@@ -11,7 +11,7 @@ TEST(HdfsTest, Put) {
     Status status;
     SortFileWriter* writer = SortFileWriter::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileWriter::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
     status = writer->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -35,7 +35,7 @@ TEST(HdfsTest, Put2) {
     Status status;
     SortFileWriter* writer = SortFileWriter::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileWriter::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
     status = writer->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -56,7 +56,7 @@ TEST(HdfsTest, PutSameKey) {
     Status status;
     SortFileWriter* writer = SortFileWriter::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileWriter::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test_same.data";
     status = writer->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -76,7 +76,7 @@ TEST(HdfsTest, Read) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -101,7 +101,7 @@ TEST(HdfsTest, Read2) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -122,7 +122,7 @@ TEST(HdfsTest, Read3) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -143,7 +143,7 @@ TEST(HdfsTest, Read4) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -164,7 +164,7 @@ TEST(HdfsTest, Read5) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -185,7 +185,7 @@ TEST(HdfsTest, Read6) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -207,7 +207,7 @@ TEST(HdfsTest, Read7) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -229,7 +229,7 @@ TEST(HdfsTest, Read8) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -250,7 +250,7 @@ TEST(HdfsTest, Read9) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -272,7 +272,7 @@ TEST(HdfsTest, Read10) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test2.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);
@@ -295,7 +295,7 @@ TEST(HdfsTest, ReadSameKey) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
     EXPECT_EQ(status, kOk);
-    SortFileReader::Param param;
+    FileSystem::Param param;
     std::string file_path = g_work_dir + "/put_test_same.data";
     status = reader->Open(file_path, param);
     EXPECT_EQ(status, kOk);

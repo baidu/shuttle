@@ -29,7 +29,7 @@ void DoRead() {
         exit(-1);
     }
     MergeFileReader* reader = new MergeFileReader();
-    SortFileReader::Param param; //TODO
+    FileSystem::Param param; //TODO
     Status status = reader->Open(file_names, param, kHdfsFile);
     if (status != kOk) {
         std::cerr << "fail to open: " << FLAGS_file << std::endl;
@@ -69,7 +69,7 @@ void DoWrite() {
         std::cerr << "fail to create writer" << std::endl;
         exit(-1);
     }
-    SortFileWriter::Param param; //TODO
+    FileSystem::Param param; //TODO
     status = writer->Open(FLAGS_file, param);
     if (status != kOk) {
         std::cerr << "fail to open for write:" << FLAGS_file << std::endl;
@@ -120,7 +120,7 @@ void DoSeek() {
         std::cerr << "fail to create reader" << std::endl;
         exit(-1);
     }
-    SortFileReader::Param param; //TODO
+    FileSystem::Param param; //TODO
     status = reader->Open(FLAGS_file, param);
     if (status != kOk) {
         std::cerr << "fail to open for read:" << FLAGS_file << std::endl;

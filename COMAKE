@@ -74,10 +74,11 @@ executor_src = 'src/minion/executor_impl.cc \
 
 sort_src = 'proto/sortfile.proto \
             proto/shuttle.proto \
-            src/sort/sort_file_hdfs.cc'
+            src/sort/filesystem.cc \
+            src/sort/sort_file_impl.cc'
 
 sort_test_src = 'proto/sortfile.proto \
-		   proto/shuttle.proto \
+                 proto/shuttle.proto \
                  src/sort/sort_file_impl.cc \
                  src/sort/sort_file_hdfs_test.cc'
 
@@ -88,8 +89,8 @@ merge_test_src = 'src/sort/sort_file_impl.cc \
                   src/sort/merge_file_test.cc'
 
 sf_tool_src = 'src/sort/sf_tool.cc \
-	       src/sort/sort_file_impl.cc \
-	       src/sort/merge_file_impl.cc'
+               src/sort/sort_file_impl.cc \
+               src/sort/merge_file_impl.cc'
 
 Application('master', Sources(master_src))
 Application('minion', Sources(minion_src, executor_src))
