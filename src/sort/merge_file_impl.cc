@@ -16,26 +16,24 @@ Status MergeFileReader::Open(const std::vector<std::string>& files,
         return kInvalidArg;
     }
     Status status = kOk;
-    if (file_type != kHdfsFile) {
-        status = kNotImplement;
-    } else {
-        std::vector<std::string>::const_iterator it;
-        for (it = files.begin(); it != files.end(); it++) {
-            const std::string& file_name = *it;
-            Status st;
-            SortFileReader* reader = SortFileReader::Create(file_type, &st);
-            if (st == kOk) {
-                st = reader->Open(file_name, param);
-            }
-            if (st != kOk) {
-                status = st;
-                LOG(WARNING, "failed to open %s, status: %s", 
-                    file_name.c_str(), Status_Name(st).c_str());
-                break;
-            }
-            readers_.push_back(reader);
+
+    std::vector<std::string>::const_iterator it;
+    for (it = files.begin(); it != files.end(); it++) {
+        const std::string& file_name = *it;
+        Status st;
+        SortFileReader* reader = SortFileReader::Create(file_type, &st);
+        if (st == kOk) {
+            st = reader->Open(file_name, param);
         }
+        if (st != kOk) {
+            status = st;
+            LOG(WARNING, "failed to open %s, status: %s", 
+                file_name.c_str(), Status_Name(st).c_str());
+            break;
+        }
+        readers_.push_back(reader);
     }
+    
     return status;
 }
 
