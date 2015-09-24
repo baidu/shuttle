@@ -58,6 +58,12 @@ minion_src = 'src/minion/minion_main.cc \
               proto/app_master.proto \
               proto/shuttle.proto'
 
+sdk_src = 'src/sdk/shuttle.cc \
+           proto/app_master.proto \
+           proto/shuttle.proto'
+
+sdk_header = 'src/sdk/shuttle.h'
+
 client_src = 'src/client/shuttle_main.cc \
               src/client/shuttle_flags.cc'
 
@@ -87,7 +93,8 @@ sf_tool_src = 'src/sort/sf_tool.cc \
 
 Application('master', Sources(master_src))
 Application('minion', Sources(minion_src, executor_src))
-Application('shuttle', Sources(client_src))
+Application('shuttle', Sources(client_src, sdk_src))
 Application('sort_test', Sources(sort_test_src, sort_src))
 Application('merge_test', Sources(merge_test_src, sort_src))
 Application('sf_tool', Sources(sort_src, sf_tool_src))
+StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
