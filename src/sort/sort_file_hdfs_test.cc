@@ -52,6 +52,26 @@ TEST(HdfsTest, Put2) {
     printf("done\n");
 }
 
+TEST(HdfsTest, PutSameKey) {
+    Status status;
+    SortFileWriter* writer = SortFileWriter::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
+    SortFileWriter::Param param;
+    std::string file_path = g_work_dir + "/put_test_same.data";
+    status = writer->Open(file_path, param);
+    EXPECT_EQ(status, kOk);
+    char value[256] = {'\0'};
+    writer->Put("abc", "123");
+    for (int i = 1; i <= 100000; i++) {
+        snprintf(value, sizeof(value), "value_%d", i*2);
+        status = writer->Put("key_999", value);
+        EXPECT_EQ(status, kOk);
+    }
+    status = writer->Close();
+    EXPECT_EQ(status, kOk);
+    printf("done\n");
+}
+
 TEST(HdfsTest, Read) {
     Status status;
     SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
@@ -268,6 +288,28 @@ TEST(HdfsTest, Read10) {
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     EXPECT_EQ(count, 0);
+    delete it;
+}
+
+TEST(HdfsTest, ReadSameKey) {
+    Status status;
+    SortFileReader* reader = SortFileReader::Create(kHdfsFile, &status);
+    EXPECT_EQ(status, kOk);
+    SortFileReader::Param param;
+    std::string file_path = g_work_dir + "/put_test_same.data";
+    status = reader->Open(file_path, param);
+    EXPECT_EQ(status, kOk);
+    SortFileReader::Iterator *it = reader->Scan("key_999", "key_999z");
+    EXPECT_EQ(it->Error(), kOk);
+    int count = 0;
+    while (!it->Done()) {
+        count++;
+        it->Next();
+    }
+    EXPECT_TRUE(it->Error() == kOk || it->Error() == kNoMore);
+    status = reader->Close();
+    EXPECT_EQ(status, kOk);
+    EXPECT_EQ(count, 100000);
     delete it;
 }
 
