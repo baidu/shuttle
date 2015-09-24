@@ -241,7 +241,7 @@ void JobTracker::KeepMonitoring() {
         bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::CancelTask,
                                            &request, &response, 2, 1);
         if (!ok) {
-            LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
+            LOG(WARNING, "failed to rpc: %s", top->endpoint.c_str());
         }
         // TODO Maybe check returned state here?
         map_stat_.set_killed(map_stat_.killed());
