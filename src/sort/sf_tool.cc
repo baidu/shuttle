@@ -11,6 +11,7 @@ DEFINE_string(mode, "read", "work mode: read/write/seek");
 DEFINE_string(file, "", "file path, use ',' to seperate multiple files");
 DEFINE_string(start, "", "start key, in 'read' mode");
 DEFINE_string(end, "", "end key, in 'read' mode");
+DEFINE_string(fs, "hdfs", "filesytem: 'hdfs' or 'local' ");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -19,6 +20,7 @@ using baidu::common::WARNING;
 using namespace baidu::shuttle;
 
 char g_line_buf[40960];
+FileType g_file_type;
 
 void DoRead() {
     std::vector<std::string> file_names;
@@ -30,7 +32,7 @@ void DoRead() {
     }
     MergeFileReader* reader = new MergeFileReader();
     FileSystem::Param param; //TODO
-    Status status = reader->Open(file_names, param, kHdfsFile);
+    Status status = reader->Open(file_names, param, g_file_type);
     if (status != kOk) {
         std::cerr << "fail to open: " << FLAGS_file << std::endl;
         exit(-1);
@@ -64,7 +66,7 @@ void DoWrite() {
         exit(-1);
     }
     Status status;
-    SortFileWriter * writer = SortFileWriter::Create(kHdfsFile, &status);
+    SortFileWriter * writer = SortFileWriter::Create(g_file_type, &status);
     if (status != kOk) {
         std::cerr << "fail to create writer" << std::endl;
         exit(-1);
@@ -115,7 +117,7 @@ void DoSeek() {
         exit(-1);
     }
     Status status;
-    SortFileReader * reader = SortFileReader::Create(kHdfsFile, &status);
+    SortFileReader * reader = SortFileReader::Create(g_file_type, &status);
     if (status != kOk) {
         std::cerr << "fail to create reader" << std::endl;
         exit(-1);
@@ -167,6 +169,14 @@ int main(int argc, char* argv[]) {
     baidu::common::SetLogFile("./sf_tool.log");
     baidu::common::SetWarningFile("./sf_tool.log.wf");
     google::ParseCommandLineFlags(&argc, &argv, true);
+    if (FLAGS_fs == "hdfs") {
+        g_file_type = kHdfsFile;
+    } else if (FLAGS_fs == "local") {
+        g_file_type = kLocalFile;
+    } else {
+        std::cerr << "unkonw file type: " << FLAGS_fs << std::endl;
+        return -1;
+    }
     if (FLAGS_mode == "read") {
         DoRead();
     } else if (FLAGS_mode == "write") {

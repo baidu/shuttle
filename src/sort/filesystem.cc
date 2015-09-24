@@ -1,3 +1,8 @@
+#include <fcntl.h> 
+#include <stdio.h> 
+#include <sys/stat.h> 
+#include <sys/types.h> 
+#include <unistd.h> 
 #include "filesystem.h"
 #include "hdfs.h" //for hdfs of inf
 #include "logging.h"
@@ -19,14 +24,37 @@ public:
     int32_t Write(void* buf, size_t len);
     int64_t Tell();
     int64_t GetSize();
+    virtual ~InfHdfs(){};
 private:
     hdfsFS fs_;
     hdfsFile fd_;
     std::string path_;
 };
 
+
+class LocalFs : public FileSystem {
+public:
+    bool Open(const std::string& path, 
+              Param param,
+              OpenMode mode);
+    bool Close();
+    bool Seek(int64_t pos);
+    int32_t Read(void* buf, size_t len);
+    int32_t Write(void* buf, size_t len);
+    int64_t Tell();
+    int64_t GetSize();
+    virtual ~LocalFs(){};
+private:
+    int fd_;
+    std::string path_;
+};
+
 FileSystem* FileSystem::CreateInfHdfs() {
     return new InfHdfs();
+}
+
+FileSystem* FileSystem::CreateLocalFs() {
+    return new LocalFs();
 }
 
 bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
@@ -101,6 +129,57 @@ int64_t InfHdfs::GetSize() {
     int64_t file_size = info->mSize;
     hdfsFreeFileInfo(info, 1);
     return file_size;
+}
+
+bool LocalFs::Open(const std::string& path, 
+                   Param param,
+                   OpenMode mode) {
+    path_ = path;
+    mode_t acl = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH; 
+    if (mode == kReadFile) {
+        fd_ = ::open(path.c_str(), O_RDONLY);
+        if (fd_ < 0) {
+            LOG(WARNING, "open %s fail, %s", path.c_str(), strerror(errno));
+            return false;
+        }
+    } else if (mode == kWriteFile) {
+        fd_ = ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, acl);
+        if (fd_ < 0) {
+            LOG(WARNING, "open %s fail, %s", path.c_str(), strerror(errno));
+            return false;
+        }
+    } else {
+        LOG(WARNING, "unkown open mode");
+        return false;
+    }
+    return true;
+}
+
+bool LocalFs::Close() {
+    return ::close(fd_) == 0;
+}
+
+bool LocalFs::Seek(int64_t pos) {
+    return ::lseek(fd_, pos, SEEK_SET) >= 0; 
+}
+
+int32_t LocalFs::Read(void* buf, size_t len) {
+    return ::read(fd_, buf, len);
+}
+
+int32_t LocalFs::Write(void* buf, size_t len) {
+    return ::write(fd_, buf, len);
+}
+
+int64_t LocalFs::Tell() {
+    return lseek(fd_, 0, SEEK_CUR);
+}
+
+int64_t LocalFs::GetSize() {
+    struct stat buf;
+    fstat(fd_, &buf);
+    int64_t size = buf.st_size;
+    return size;
 }
 
 } //namespace shuttle

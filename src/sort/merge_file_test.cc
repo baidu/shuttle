@@ -5,14 +5,15 @@
 using namespace baidu::shuttle;
 
 std::string g_work_dir = "/tmp";
+FileType g_file_type = kHdfsFile;
 
 TEST(Merge, Put1) {
     Status status;
-    SortFileWriter* writer1 = SortFileWriter::Create(kHdfsFile, &status);
+    SortFileWriter* writer1 = SortFileWriter::Create(g_file_type, &status);
     EXPECT_EQ(status, kOk);
-    SortFileWriter* writer2 = SortFileWriter::Create(kHdfsFile, &status);
+    SortFileWriter* writer2 = SortFileWriter::Create(g_file_type, &status);
     EXPECT_EQ(status, kOk);
-    SortFileWriter* writer3 = SortFileWriter::Create(kHdfsFile, &status);
+    SortFileWriter* writer3 = SortFileWriter::Create(g_file_type, &status);
     EXPECT_EQ(status, kOk);
 
     FileSystem::Param param;
@@ -65,7 +66,7 @@ TEST(Merge, Read1) {
     file_names.push_back(file_path_2);
     file_names.push_back(file_path_3);
     FileSystem::Param param;
-    Status status = reader->Open(file_names, param, kHdfsFile);
+    Status status = reader->Open(file_names, param, g_file_type);
     EXPECT_EQ(status, kOk);
     SortFileReader::Iterator* it = reader->Scan("", "");
     while (!it->Done()) {
@@ -82,11 +83,11 @@ TEST(Merge, Read1) {
 
 TEST(Merge, Put2) {
     Status status;
-    SortFileWriter* writer1 = SortFileWriter::Create(kHdfsFile, &status);
+    SortFileWriter* writer1 = SortFileWriter::Create(g_file_type, &status);
     EXPECT_EQ(status, kOk);
-    SortFileWriter* writer2 = SortFileWriter::Create(kHdfsFile, &status);
+    SortFileWriter* writer2 = SortFileWriter::Create(g_file_type, &status);
     EXPECT_EQ(status, kOk);
-    SortFileWriter* writer3 = SortFileWriter::Create(kHdfsFile, &status);
+    SortFileWriter* writer3 = SortFileWriter::Create(g_file_type, &status);
     EXPECT_EQ(status, kOk);
 
     FileSystem::Param param;
@@ -139,7 +140,7 @@ TEST(Merge, Read2) {
     file_names.push_back(file_path_2);
     file_names.push_back(file_path_3);
     FileSystem::Param param;
-    Status status = reader->Open(file_names, param, kHdfsFile);
+    Status status = reader->Open(file_names, param, g_file_type);
     EXPECT_EQ(status, kOk);
     int ct = 0;
     SortFileReader::Iterator* it = reader->Scan("", "");
@@ -178,8 +179,15 @@ TEST(Merge, Read2) {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        printf("./merge_test [hdfs work dir]\n");
+        printf("./merge_test [hdfs work dir] [filetype](optional) \n");
         return -1;
+    }
+    if (argc == 3) {
+        if (strcmp(argv[2], "hdfs") == 0) {
+            g_file_type = kHdfsFile;
+        } else if (strcmp(argv[2], "local") == 0) {
+            g_file_type = kLocalFile;
+        }
     }
     g_work_dir = argv[1];
     testing::InitGoogleTest(&argc, argv);
