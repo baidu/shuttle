@@ -60,6 +60,13 @@ message JobOverview {
     optional TaskStatistics reduce_stat = 5;
 }
 
+message TaskOverview {
+    optional TaskInfo info = 1;
+    optional TaskState  state = 2;
+    optional string minion_addr = 3;
+    optional float progress = 4;
+}
+
 message ListJobsResponse {
     optional Status status = 1;
     repeated JobOverview jobs = 2;
@@ -72,6 +79,7 @@ message ShowJobRequest {
 message ShowJobResponse {
     optional Status status = 1;
     optional JobOverview job = 2;
+    repeated TaskOverview tasks = 3;
 }
 
 message AssignTaskRequest {
