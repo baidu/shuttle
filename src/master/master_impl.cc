@@ -3,11 +3,17 @@
 #include <string>
 #include <stdlib.h>
 #include <time.h>
+#include <assert.h>
+#include <sys/utsname.h>
 #include <gflags/gflags.h>
 
 #include "logging.h"
 
 DECLARE_string(galaxy_address);
+DECLARE_string(master_port);
+DECLARE_string(master_lock_path);
+DECLARE_string(master_key);
+DECLARE_string(nexus_server_list);
 
 namespace baidu {
 namespace shuttle {
@@ -15,10 +21,18 @@ namespace shuttle {
 MasterImpl::MasterImpl() {
     srand(time(NULL));
     galaxy_sdk_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
+    nexus_ = new ::galaxy::ins::sdk::InsSDK(FLAGS_nexus_server_list);
 }
 
 MasterImpl::~MasterImpl() {
     delete galaxy_sdk_;
+}
+
+void MasterImpl::Init() {
+    AcquireMasterLock();
+    LOG(INFO, "master alive, recovering");
+    Reload();
+    LOG(INFO, "master recovered");
 }
 
 void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
@@ -200,6 +214,44 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
         response->set_status(kNoSuchJob);
     }
     done->Run();
+}
+
+void MasterImpl::AcquireMasterLock() {
+    std::string master_lock = FLAGS_master_lock_path;
+    ::galaxy::ins::sdk::SDKError err;
+    nexus_->RegisterSessionTimeout(&OnMasterSessionTimeout, this);
+    bool ret = nexus_->Lock(master_lock, &err);
+    assert(ret && err == ::galaxy::ins::sdk::kOK);
+    std::string master_key = FLAGS_master_key;
+    std::string master_endpoint = SelfEndpoint();
+    ret = nexus_->Put(master_key, master_endpoint, &err);
+    assert(ret && err == ::galaxy::ins::sdk::kOK);
+    // TODO Maybe watch own lock?
+    LOG(INFO, "master lock acquired. %s -> %s", master_key.c_str(), master_endpoint.c_str());
+}
+
+void MasterImpl::Reload() {
+    // TODO Reload saved meta data
+}
+
+void MasterImpl::OnMasterSessionTimeout(void* ctx) {
+    MasterImpl* master = static_cast<MasterImpl*>(ctx);
+    master->OnSessionTimeout();
+}
+
+void MasterImpl::OnSessionTimeout() {
+    LOG(FATAL, "master lost session with nexus, die");
+    abort();
+}
+
+std::string MasterImpl::SelfEndpoint() {
+    std::string hostname = "";
+    struct utsname buf;
+    if (0 != uname(&buf)) {
+        *buf.nodename = '\0';
+    }
+    hostname = buf.nodename;
+    return hostname + ":" + FLAGS_master_port;
 }
 
 }
