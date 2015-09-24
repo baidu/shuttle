@@ -42,14 +42,21 @@ public:
     ResourceItem* Assign(const std::string& endpoint);
     Status FinishTask(int no, int attempt, TaskState state);
 
-    const std::string& GetJobId() {
+    std::string GetJobId() {
+        MutexLock lock(&mu_);
         return job_id_;
     }
-    const JobDescriptor& GetJobDescriptor() {
+    JobDescriptor GetJobDescriptor() {
+        MutexLock lock(&mu_);
         return job_descriptor_;
     }
     JobState GetState() {
+        MutexLock lock(&mu_);
         return state_;
+    }
+    TaskStatistics GetStatistics() {
+        MutexLock lock(&alloc_mu_);
+        return stat_;
     }
 private:
     void KeepMonitoring();
@@ -63,6 +70,7 @@ private:
     // Resource allocation
     ResourceManager* resource_;
     Mutex alloc_mu_;
+    TaskStatistics stat_;
     std::list<AllocateItem*> allocation_table_;
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;

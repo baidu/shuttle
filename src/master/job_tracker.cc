@@ -3,9 +3,13 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/bind.hpp>
 #include <gflags/gflags.h>
+#include <algorithm>
+#include <iterator>
 
+#include "google/protobuf/repeated_field.h"
 #include "timer.h"
 #include "resource_manager.h"
+#include "logging.h"
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -26,6 +30,16 @@ JobTracker::JobTracker(::baidu::galaxy::Galaxy* galaxy_sdk, const JobDescriptor&
     job_id_ = time_str;
     job_id_ += boost::lexical_cast<std::string>(random());
     resource_ = new ResourceManager();
+    std::vector<std::string> inputs;
+    const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames = job.inputs();
+    std::copy(input_filenames.begin(), input_filenames.end(), std::back_inserter(inputs));
+    resource_->SetInputFiles(inputs);
+    stat_.set_total(resource_->SumOfItem());
+    stat_.set_pending(stat_.total());
+    stat_.set_running(0);
+    stat_.set_failed(0);
+    stat_.set_killed(0);
+    stat_.set_completed(0);
 }
 
 JobTracker::~JobTracker() {
@@ -59,8 +73,15 @@ Status JobTracker::Start() {
     std::string minion_id;
     if (sdk_->SubmitJob(galaxy_job, &minion_id)) {
         monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
-        MutexLock lock(&mu_);
-        map_minion_ = minion_id;
+        {
+            MutexLock lock(&mu_);
+            map_minion_ = minion_id;
+        }
+        {
+            MutexLock lock(&alloc_mu_);
+            stat_.set_running(stat_.running() + 1);
+            stat_.set_pending(stat_.pending() - 1);
+        }
         return kOk;
     }
     return kGalaxyError;
@@ -115,24 +136,27 @@ Status JobTracker::Kill() {
 ResourceItem* JobTracker::Assign(const std::string& endpoint) {
     static int last_no = -1;
     static int last_attempt = 0;
+    ResourceItem* cur = NULL;
+    AllocateItem* alloc = new AllocateItem();
+    alloc->endpoint = endpoint;
+    alloc->state = kTaskRunning;
     if (resource_->SumOfItem() - last_no > FLAGS_replica_begin &&
             last_attempt <= FLAGS_replica_num) {
-        // TODO Need consideration
-        AllocateItem* alloc = new AllocateItem();
+        cur = resource_->GetCertainItem(last_no);
+        if (cur == NULL) {
+            return NULL;
+        }
         alloc->resource_no = last_no;
-        alloc->attempt = ++last_attempt;
-        alloc->endpoint = endpoint;
-        alloc->alloc_time = std::time(NULL);
-        return resource_->GetCertainItem(alloc->resource_no);
+        alloc->attempt = cur->attempt;
+    } else {
+        cur = resource_->GetItem();
+        if (cur == NULL) {
+            return NULL;
+        }
+        alloc->resource_no = cur->no;
+        alloc->attempt = cur->attempt;
     }
-    ResourceItem* cur = resource_->GetItem();
-    AllocateItem* alloc = new AllocateItem();
-    alloc->resource_no = cur->no;
-    alloc->attempt = 1;
-    alloc->endpoint = endpoint;
     alloc->alloc_time = std::time(NULL);
-    cur->attempt = alloc->attempt;
-    // TODO Need Consideration
     last_no = cur->no;
     last_attempt = cur->attempt;
 
@@ -143,16 +167,54 @@ ResourceItem* JobTracker::Assign(const std::string& endpoint) {
 }
 
 Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
-    // TODO finish a map/reduce task
-    return kOk;
+    MutexLock lock(&alloc_mu_);
+    std::list<AllocateItem*>::iterator it;
+    for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
+        if ((*it)->resource_no == no && (*it)->attempt == attempt) {
+            break;
+        }
+    }
+    if (it != allocation_table_.end()) {
+        (*it)->state = state;
+        if (state == kTaskFailed) {
+            // TODO Check replica or pull up another replica
+        }
+        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+                it != allocation_table_.end(); ++it) {
+            if ((*it)->resource_no == no) {
+            // TODO Kill useless replica
+            }
+        }
+        return kOk;
+    }
+    LOG(WARNING, "try to finish an inexist task: < no - %d, attempt - %d", no, attempt);
+    return kNoMore;
 }
 
 void JobTracker::KeepMonitoring() {
-    // TODO Check top of heap, manage timeout job
     time_t now = std::time(NULL);
-    AllocateItem* cur = NULL;
-    while (now - ((cur = time_heap_.top())->alloc_time) > FLAGS_timeout_bound) {
+    while (!time_heap_.empty()) {
         // TODO Return back the resource
+        alloc_mu_.Lock();
+        AllocateItem* top = time_heap_.top();
+        if (now - top->alloc_time < FLAGS_timeout_bound) {
+            alloc_mu_.Unlock();
+            break;
+        }
+        switch (top->state) {
+        case kTaskCompleted: stat_.set_completed(stat_.completed() + 1); break;
+        case kTaskKilled: stat_.set_killed(stat_.killed() + 1); break;
+        case kTaskFailed: stat_.set_failed(stat_.failed() + 1); break;
+        default: break; // pass
+        }
+        time_heap_.pop();
+        alloc_mu_.Unlock();
+        if (top->state != kTaskRunning) {
+            continue;
+        }
+        resource_->ReturnBackItem(top->resource_no);
+        // TODO Kill useless task
+        // Remember to update statistics
     }
     monitor_.DelayTask(FLAGS_timeout_bound * 1000,
                        boost::bind(&JobTracker::KeepMonitoring, this));
