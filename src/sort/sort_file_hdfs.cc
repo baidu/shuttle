@@ -42,9 +42,11 @@ void SortFileHdfsReader::IteratorHdfs::Init() {
             while(cur_offset_ < cur_block_.items_size() &&
                   cur_block_.items(cur_offset_).key() < start_key_) {
                 cur_offset_ ++;
+                //printf("%d\n", cur_offset_);
             } //skip the items less than start_key
             if (cur_offset_ >= cur_block_.items_size()) {
                 status = reader_->ReadNextRecord(cur_block_);
+                cur_offset_ = 0;
                 //read the next block
             } else {
                 break;
@@ -291,7 +293,7 @@ SortFileReader::Iterator* SortFileHdfsReader::Scan(const std::string& start_key,
             high = mid;
         }
     }
-    
+
     const std::string& bound_key = idx_block_.items(low).key();
     int64_t offset;
     if (bound_key < start_key) {

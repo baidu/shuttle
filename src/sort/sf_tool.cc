@@ -7,7 +7,7 @@
 #include "sort_file.h"
 #include "logging.h"
 
-DEFINE_string(mode, "read", "work mode: read/write");
+DEFINE_string(mode, "read", "work mode: read/write/seek");
 DEFINE_string(file, "", "file path, use ',' to seperate multiple files");
 DEFINE_string(start, "", "start key, in 'read' mode");
 DEFINE_string(end, "", "end key, in 'read' mode");
@@ -109,6 +109,61 @@ void DoWrite() {
     std::cerr << "== Write Done ==" << std::endl;
 }
 
+void DoSeek() {
+    if (FLAGS_file.empty()) {
+        std::cerr << "use -file to specify input file" << std::endl;
+        exit(-1);
+    }
+    Status status;
+    SortFileReader * reader = SortFileReader::Create(kHdfsFile, &status);
+    if (status != kOk) {
+        std::cerr << "fail to create reader" << std::endl;
+        exit(-1);
+    }
+    SortFileReader::Param param; //TODO
+    status = reader->Open(FLAGS_file, param);
+    if (status != kOk) {
+        std::cerr << "fail to open for read:" << FLAGS_file << std::endl;
+        exit(-1);
+    }
+    std::cerr << "Enter: key per line" << std::endl;
+    while (!feof(stdin)) {
+        if (fgets(g_line_buf, sizeof(g_line_buf), stdin) ==  NULL) {
+            break;
+        }
+        int span = strcspn(g_line_buf, "\t");
+        std::string line(g_line_buf);
+        if (line.size() > 0 && line[line.size()-1] == '\n') {
+            line.erase(line.size() - 1);
+        }
+        std::string key = line.substr(0, span);
+        std::cerr << "your key: " << key << std::endl;
+        SortFileReader::Iterator* it = reader->Scan(key, key + "\1");
+        int ct = 0;
+        while (!it->Done()) {
+            if (it->Error() != kOk && it->Error() != kNoMore) {
+                std::cerr << "error ocurrs, status: " 
+                          << Status_Name(it->Error())
+                          << std::endl;
+            } else {
+                std::cout << key << "\t" << it->Value() << std::endl;
+                ct++;
+            }
+            it->Next();
+        }
+        if (ct == 0 ) {
+            std::cerr << key << "\tNOT_FOUND" << std::endl; 
+        } 
+        delete it;
+    }
+    status = reader->Close();
+    if (status != kOk) {
+        std::cerr << "fail to close: " << FLAGS_file << std::endl;
+        exit(-1);
+    }
+    std::cerr << "== Seek Done ==" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     baidu::common::SetLogFile("./sf_tool.log");
     baidu::common::SetWarningFile("./sf_tool.log.wf");
@@ -117,6 +172,8 @@ int main(int argc, char* argv[]) {
         DoRead();
     } else if (FLAGS_mode == "write") {
         DoWrite();
+    } else if (FLAGS_mode == "seek") {
+        DoSeek();
     } else {
         std::cerr << "unkown work mode:" << FLAGS_mode << std::endl;
         return 1;
