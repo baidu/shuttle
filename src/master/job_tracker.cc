@@ -2,14 +2,16 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/bind.hpp>
+#include <boost/scoped_ptr.hpp>
 #include <gflags/gflags.h>
 #include <algorithm>
 #include <iterator>
 
 #include "google/protobuf/repeated_field.h"
 #include "timer.h"
-#include "resource_manager.h"
 #include "logging.h"
+#include "proto/minion.pb.h"
+#include "resource_manager.h"
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -29,6 +31,7 @@ JobTracker::JobTracker(::baidu::galaxy::Galaxy* galaxy_sdk, const JobDescriptor&
     ::baidu::common::timer::now_time_str(time_str, 32);
     job_id_ = time_str;
     job_id_ += boost::lexical_cast<std::string>(random());
+    rpc_client_ = new RpcClient();
     resource_ = new ResourceManager();
     std::vector<std::string> inputs;
     const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames = job.inputs();
@@ -53,7 +56,6 @@ JobTracker::~JobTracker() {
 }
 
 Status JobTracker::Start() {
-    // TODO Start reduce at proper time
     ::baidu::galaxy::JobDescription galaxy_job;
     galaxy_job.job_name = job_descriptor_.name() + "@minion";
     galaxy_job.type = "kBatch";
@@ -165,6 +167,7 @@ ResourceItem* JobTracker::Assign(const std::string& endpoint) {
 }
 
 Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
+    // TODO Pull up reduce task sometime?
     MutexLock lock(&alloc_mu_);
     std::list<AllocateItem*>::iterator it;
     for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
@@ -177,10 +180,23 @@ Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
         if (state == kTaskFailed) {
             // TODO Check replica or pull up another replica
         }
+        Minion_Stub* stub = NULL;
+        CancelTaskRequest request;
+        CancelTaskResponse response;
+        request.set_job_id(job_id_);
         for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
                 it != allocation_table_.end(); ++it) {
-            if ((*it)->resource_no == no) {
-            // TODO Kill useless replica
+            if ((*it)->resource_no == no && (*it)->attempt != attempt) {
+                rpc_client_->GetStub((*it)->endpoint, &stub);
+                boost::scoped_ptr<Minion_Stub> stub_guard(stub);
+                request.set_task_id((*it)->resource_no);
+                request.set_attempt_id((*it)->attempt);
+                bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::CancelTask,
+                                                   &request, &response, 2, 1);
+                if (!ok) {
+                    LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
+                }
+                // TODO Maybe check returned state here?
             }
         }
         return kOk;
@@ -192,32 +208,45 @@ Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
 void JobTracker::KeepMonitoring() {
     time_t now = std::time(NULL);
     while (!time_heap_.empty()) {
-        // TODO Return back the resource
         alloc_mu_.Lock();
         AllocateItem* top = time_heap_.top();
-        alloc_mu_.Unlock();
         if (now - top->alloc_time < FLAGS_timeout_bound) {
+            alloc_mu_.Unlock();
             break;
         }
-        {
-            MutexLock lock(&mu_);
-            switch (top->state) {
-            case kTaskCompleted: map_stat_.set_completed(map_stat_.completed() + 1); break;
-            case kTaskKilled: map_stat_.set_killed(map_stat_.killed() + 1); break;
-            case kTaskFailed: map_stat_.set_failed(map_stat_.failed() + 1); break;
-            default: break; // pass
-            }
-        }
-        {
-            MutexLock lock(&alloc_mu_);
-            time_heap_.pop();
-        }
+        time_heap_.pop();
+        alloc_mu_.Unlock();
         if (top->state != kTaskRunning) {
+            {
+                MutexLock lock(&mu_);
+                switch (top->state) {
+                case kTaskCompleted: map_stat_.set_completed(map_stat_.completed() + 1); break;
+                case kTaskKilled: map_stat_.set_killed(map_stat_.killed() + 1); break;
+                case kTaskFailed: map_stat_.set_failed(map_stat_.failed() + 1); break;
+                default: break; // pass
+                }
+            }
+            delete top;
             continue;
         }
         resource_->ReturnBackItem(top->resource_no);
-        // TODO Kill useless task
-        // Remember to update statistics
+        Minion_Stub* stub = NULL;
+        rpc_client_->GetStub(top->endpoint, &stub);
+        boost::scoped_ptr<Minion_Stub> stub_guard(stub);
+        CancelTaskRequest request;
+        CancelTaskResponse response;
+        request.set_job_id(job_id_);
+        request.set_task_id(top->resource_no);
+        request.set_attempt_id(top->attempt);
+        bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::CancelTask,
+                                           &request, &response, 2, 1);
+        if (!ok) {
+            LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
+        }
+        // TODO Maybe check returned state here?
+        map_stat_.set_killed(map_stat_.killed());
+
+        delete top;
     }
     monitor_.DelayTask(FLAGS_timeout_bound * 1000,
                        boost::bind(&JobTracker::KeepMonitoring, this));

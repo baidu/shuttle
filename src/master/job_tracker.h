@@ -12,6 +12,7 @@
 #include "proto/shuttle.pb.h"
 #include "proto/app_master.pb.h"
 #include "resource_manager.h"
+#include "rpc_client.h"
 
 namespace baidu {
 namespace shuttle {
@@ -87,6 +88,8 @@ private:
     TaskStatistics reduce_stat_;
     // Thread for monitoring
     ThreadPool monitor_;
+    // To communicate with minion
+    RpcClient rpc_client_;
 };
 
 }
