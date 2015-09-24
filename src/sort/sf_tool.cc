@@ -137,7 +137,6 @@ void DoSeek() {
             line.erase(line.size() - 1);
         }
         std::string key = line.substr(0, span);
-        std::cerr << "your key: " << key << std::endl;
         SortFileReader::Iterator* it = reader->Scan(key, key + "\1");
         int ct = 0;
         while (!it->Done()) {
