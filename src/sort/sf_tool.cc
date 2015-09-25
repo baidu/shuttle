@@ -94,7 +94,10 @@ void DoWrite() {
             line.erase(line.size() - 1);
         }
         std::string key = line.substr(0, span);
-        std::string value = line.substr(span + 1);
+        std::string value;
+        if (span + 1 < (int)line.size()) {
+            value = line.substr(span + 1);
+        }
         status = writer->Put(key, value);
         if (status != kOk) {
             std::cerr << "fail to put: " 
