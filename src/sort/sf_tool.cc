@@ -38,6 +38,11 @@ void DoRead() {
         exit(-1);
     }
     SortFileReader::Iterator* it = reader->Scan(FLAGS_start, FLAGS_end);
+    if (it->Error() != kOk && it->Error() != kNoMore) {
+        std::cerr << "fail top scan: " << FLAGS_file 
+                  << ", " << Status_Name(it->Error()) << std::endl;
+        exit(-1);
+    }
     while (!it->Done()) {
         if (it->Error() != kOk && it->Error() != kNoMore) {
             std::cerr << "error happen in reading: " 
@@ -89,7 +94,10 @@ void DoWrite() {
             line.erase(line.size() - 1);
         }
         std::string key = line.substr(0, span);
-        std::string value = line.substr(span + 1);
+        std::string value;
+        if (span + 1 < (int)line.size()) {
+            value = line.substr(span + 1);
+        }
         status = writer->Put(key, value);
         if (status != kOk) {
             std::cerr << "fail to put: " 
@@ -140,6 +148,11 @@ void DoSeek() {
         }
         std::string key = line.substr(0, span);
         SortFileReader::Iterator* it = reader->Scan(key, key + "\1");
+        if (it->Error() != kOk && it->Error() != kNoMore) {
+            std::cerr << "fail top scan: " << FLAGS_file 
+                      << ", " << Status_Name(it->Error()) << std::endl;
+            exit(-1);
+        }
         int ct = 0;
         while (!it->Done()) {
             if (it->Error() != kOk && it->Error() != kNoMore) {

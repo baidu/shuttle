@@ -41,11 +41,10 @@ public:
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key);
     virtual Status Close();
 private:
-    Status LoadIndexBlock();
+    Status LoadIndexBlock(IndexBlock* idx_block);
     Status ReadFull(std::string* result_buf, int32_t len, bool is_read_data = false);
     Status ReadNextRecord(DataBlock& data_block);
 private:
-    IndexBlock idx_block_;
     std::string path_;
     int64_t idx_offset_;
     FileSystem* fs_;
