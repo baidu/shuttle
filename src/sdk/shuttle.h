@@ -36,7 +36,7 @@ enum TaskState {
 struct TaskStatistics {
     int32_t total;
     int32_t pending;
-    int32_t runnning;
+    int32_t running;
     int32_t failed;
     int32_t killed;
     int32_t completed;
@@ -53,7 +53,7 @@ struct JobDescription {
     std::string output;
     std::string map_command;
     std::string reduce_command;
-    int32_t milicores;
+    int32_t millicores;
     int64_t memory;
 };
 
@@ -81,7 +81,8 @@ class Shuttle {
 public:
     static Shuttle* Connect(const std::string& master_addr);
 
-    virtual bool SubmitJob(const sdk::JobDescription& job_desc) = 0;
+    virtual bool SubmitJob(const sdk::JobDescription& job_desc,
+                           std::string* job_id) = 0;
     virtual bool UpdateJob(const std::string& job_id, 
                            const sdk::JobDescription& job_desc) = 0;
     virtual bool KillJob(const std::string& job_id) = 0;

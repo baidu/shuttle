@@ -27,6 +27,7 @@ MasterImpl::MasterImpl() {
 
 MasterImpl::~MasterImpl() {
     delete galaxy_sdk_;
+    delete nexus_;
 }
 
 void MasterImpl::Init() {
