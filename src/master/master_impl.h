@@ -4,6 +4,7 @@
 #include <map>
 
 #include "galaxy.h"
+#include "ins_sdk.h"
 #include "mutex.h"
 #include "proto/app_master.pb.h"
 #include "job_tracker.h"
@@ -16,6 +17,8 @@ public:
 
     MasterImpl();
     virtual ~MasterImpl();
+
+    void Init();
 
     void SubmitJob(::google::protobuf::RpcController* controller,
                    const ::baidu::shuttle::SubmitJobRequest* request,
@@ -47,9 +50,18 @@ public:
                     ::google::protobuf::Closure* done);
 
 private:
+    void AcquireMasterLock();
+    void Reload();
+    static void OnMasterSessionTimeout(void* ctx);
+    void OnSessionTimeout();
+    std::string SelfEndpoint();
+
+private:
     ::baidu::galaxy::Galaxy* galaxy_sdk_;
     Mutex tracker_mu_;
     std::map<std::string, JobTracker*> job_trackers_;
+    // For persistent of meta data and addressing of minion
+    ::galaxy::ins::sdk::InsSDK* nexus_;
 };
 
 }
