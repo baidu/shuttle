@@ -204,7 +204,7 @@ Status SortFileReaderImpl::ReadNextRecord(DataBlock& data_block) {
     return kOk;
 }
 
-Status SortFileReaderImpl::LoadIndexBlock() {
+Status SortFileReaderImpl::LoadIndexBlock(IndexBlock* idx_block) {
     int64_t file_size = fs_->GetSize();
     int32_t magic_number;
     int64_t index_offset;
@@ -244,12 +244,14 @@ Status SortFileReaderImpl::LoadIndexBlock() {
         }
         return status;
     }
-    bool ret = idx_block_.ParseFromString(index_raw_buf);
+    std::string tmp_buf;
+    snappy::Uncompress(index_raw_buf.data(), index_raw_buf.size(), &tmp_buf);
+    bool ret = idx_block->ParseFromString(tmp_buf);
     if (!ret) {
         LOG(WARNING, "unserialize index block fail, %s", path_.c_str());
         return kUnKnown;
     }
-    //printf("debug: %s\n", idx_block_.DebugString().c_str());
+    //printf("debug: %s\n", idx_block->DebugString().c_str());
     return kOk;
 }
 
@@ -258,10 +260,6 @@ Status SortFileReaderImpl::Open(const std::string& path, FileSystem::Param param
     path_ = path;
     if (!fs_->Open(path, param, kReadFile)) {
         return kOpenFileFail;
-    }
-    Status status = LoadIndexBlock();
-    if (status != kOk) {
-        return status;
     }
     return kOk;
 }
@@ -276,10 +274,21 @@ SortFileReader::Iterator* SortFileReaderImpl::Scan(const std::string& start_key,
             start_key.c_str(), end_key.c_str());
         return it; 
     }
-    int low = 0;
-    int high = idx_block_.items_size() - 1;
 
-    if (low > high || (end_key <= idx_block_.items(low).key() && !end_key.empty()) ) {
+    IndexBlock idx_block;
+    Status status = LoadIndexBlock(&idx_block);
+    if (status != kOk) {
+        LOG(WARNING, "faild to load index block, %s", path_.c_str());
+        IteratorImpl* it = new IteratorImpl(start_key, end_key, this);
+        it->SetHasMore(false);
+        it->SetError(kReadFileFail);
+        return it;
+    }
+
+    int low = 0;
+    int high = idx_block.items_size() - 1;
+
+    if (low > high || (end_key <= idx_block.items(low).key() && !end_key.empty()) ) {
         IteratorImpl* it = new IteratorImpl(start_key, end_key, this);
         it->SetHasMore(false);
         return it; //return an empty iterator
@@ -287,7 +296,7 @@ SortFileReader::Iterator* SortFileReaderImpl::Scan(const std::string& start_key,
 
     while (low < high) {
         int mid = low + (high - low) / 2;
-        const std::string& mid_key = idx_block_.items(mid).key();
+        const std::string& mid_key = idx_block.items(mid).key();
         if (mid_key < start_key) {
             low = mid + 1;
         } else {
@@ -295,15 +304,15 @@ SortFileReader::Iterator* SortFileReaderImpl::Scan(const std::string& start_key,
         }
     }
 
-    const std::string& bound_key = idx_block_.items(low).key();
+    const std::string& bound_key = idx_block.items(low).key();
     int64_t offset;
     if (bound_key < start_key) {
-        offset = idx_block_.items(low).offset();
+        offset = idx_block.items(low).offset();
     } else {
         if (low > 0) {
-            offset = idx_block_.items(low-1).offset();
+            offset = idx_block.items(low-1).offset();
         } else {
-            offset = idx_block_.items(0).offset();
+            offset = idx_block.items(0).offset();
         }
     }
     IteratorImpl* it = new IteratorImpl(start_key, end_key, this);
@@ -358,12 +367,13 @@ Status SortFileWriterImpl::Put(const std::string& key, const std::string& value)
 }
 
 Status SortFileWriterImpl::FlushIdxBlock() {
-    std::string raw_buf;
-    bool ret = idx_block_.SerializeToString(&raw_buf);
+    std::string raw_buf, tmp_buf;
+    bool ret = idx_block_.SerializeToString(&tmp_buf);
     if (!ret) {
         LOG(WARNING, "serialize index fail");
         return kUnKnown;
     }
+    snappy::Compress(tmp_buf.data(), tmp_buf.size(), &raw_buf);
     int64_t offset = fs_->Tell();
     if (offset == -1) {
         LOG(WARNING, "get offset fail");
