@@ -12,6 +12,7 @@ DEFINE_string(file, "", "file path, use ',' to seperate multiple files");
 DEFINE_string(start, "", "start key, in 'read' mode");
 DEFINE_string(end, "", "end key, in 'read' mode");
 DEFINE_string(fs, "hdfs", "filesytem: 'hdfs' or 'local' ");
+DEFINE_string(replica, "3", "the replication number on dfs");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -76,7 +77,8 @@ void DoWrite() {
         std::cerr << "fail to create writer" << std::endl;
         exit(-1);
     }
-    FileSystem::Param param; //TODO
+    FileSystem::Param param;
+    param["replica"] = std::string(FLAGS_replica);
     status = writer->Open(FLAGS_file, param);
     if (status != kOk) {
         std::cerr << "fail to open for write:" << FLAGS_file << std::endl;

@@ -60,7 +60,7 @@ FileSystem* FileSystem::CreateLocalFs() {
 bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
     LOG(INFO, "try to open: %s", path.c_str());
     path_ = path;
-    if (param.size() == 0) {
+    if (param.find("user") == param.end()) {
         fs_ = hdfsConnect("default", 0);
     } else {
         const std::string& user = param["user"];
@@ -76,7 +76,12 @@ bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
     if (mode == kReadFile) {
         fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
     } else if (mode == kWriteFile) {
-        fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, 0, 0);
+        short replica = 3;
+        if (param.find("replica") != param.end()) {
+            replica = atoi(param["replica"].c_str());
+        }
+        //printf("replica: %d, %s\n", replica, path.c_str());
+        fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
     } else {
         LOG(WARNING, "unkonw open mode.");
         return false;

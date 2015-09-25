@@ -53,6 +53,28 @@ TEST(HdfsTest, Put2) {
     printf("done\n");
 }
 
+TEST(HdfsTest, PutWithReplica) {
+    Status status;
+    SortFileWriter* writer = SortFileWriter::Create(g_file_type, &status);
+    EXPECT_EQ(status, kOk);
+    FileSystem::Param param;
+    param["replica"] = "2";
+    std::string file_path = g_work_dir + "/put_test_rep.data";
+    status = writer->Open(file_path, param);
+    EXPECT_EQ(status, kOk);
+    char key[256] = {'\0'};
+    char value[256] = {'\0'};
+    for (int i = 1; i <= 250; i++) {
+        snprintf(key, sizeof(key), "key_%09d", i);
+        snprintf(value, sizeof(value), "value_%d", i*2);
+        status = writer->Put(key, value);
+        EXPECT_EQ(status, kOk);
+    }
+    status = writer->Close();
+    EXPECT_EQ(status, kOk);
+    printf("done\n");
+}
+
 TEST(HdfsTest, PutSameKey) {
     Status status;
     SortFileWriter* writer = SortFileWriter::Create(g_file_type, &status);
