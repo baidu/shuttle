@@ -10,9 +10,10 @@
 #include "logging.h"
 
 DECLARE_string(galaxy_address);
+DECLARE_string(nexus_root_path);
 DECLARE_string(master_port);
 DECLARE_string(master_lock_path);
-DECLARE_string(master_key);
+DECLARE_string(master_path);
 DECLARE_string(nexus_server_list);
 
 namespace baidu {
@@ -26,6 +27,7 @@ MasterImpl::MasterImpl() {
 
 MasterImpl::~MasterImpl() {
     delete galaxy_sdk_;
+    delete nexus_;
 }
 
 void MasterImpl::Init() {
@@ -217,16 +219,17 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
 }
 
 void MasterImpl::AcquireMasterLock() {
-    std::string master_lock = FLAGS_master_lock_path;
+    std::string master_lock = FLAGS_nexus_root_path + FLAGS_master_lock_path;
     ::galaxy::ins::sdk::SDKError err;
     nexus_->RegisterSessionTimeout(&OnMasterSessionTimeout, this);
     bool ret = nexus_->Lock(master_lock, &err);
     assert(ret && err == ::galaxy::ins::sdk::kOK);
-    std::string master_key = FLAGS_master_key;
+    std::string master_key = FLAGS_nexus_root_path + FLAGS_master_path;
     std::string master_endpoint = SelfEndpoint();
     ret = nexus_->Put(master_key, master_endpoint, &err);
     assert(ret && err == ::galaxy::ins::sdk::kOK);
-    // TODO Maybe watch own lock?
+    ret = nexus_->Watch(master_lock, &OnMasterLockChange, this, &err);
+    assert(ret && err == ::galaxy::ins::sdk::kOK);
     LOG(INFO, "master lock acquired. %s -> %s", master_key.c_str(), master_endpoint.c_str());
 }
 
@@ -242,6 +245,20 @@ void MasterImpl::OnMasterSessionTimeout(void* ctx) {
 void MasterImpl::OnSessionTimeout() {
     LOG(FATAL, "master lost session with nexus, die");
     abort();
+}
+
+void MasterImpl::OnMasterLockChange(const ::galaxy::ins::sdk::WatchParam& param,
+                                    ::galaxy::ins::sdk::SDKError /*err*/) {
+    MasterImpl* master = static_cast<MasterImpl*>(param.context);
+    master->OnLockChange(param.value);
+}
+
+void MasterImpl::OnLockChange(const std::string& lock_session_id) {
+    std::string self_session_id = nexus_->GetSessionID();
+    if (self_session_id != lock_session_id) {
+        LOG(FATAL, "master lost lock, die");
+        abort();
+    }
 }
 
 std::string MasterImpl::SelfEndpoint() {

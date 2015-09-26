@@ -54,6 +54,9 @@ private:
     void Reload();
     static void OnMasterSessionTimeout(void* ctx);
     void OnSessionTimeout();
+    static void OnMasterLockChange(const ::galaxy::ins::sdk::WatchParam& param,
+                                   ::galaxy::ins::sdk::SDKError err);
+    void OnLockChange(const std::string& lock_session_id);
     std::string SelfEndpoint();
 
 private:
