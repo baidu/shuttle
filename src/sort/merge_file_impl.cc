@@ -42,6 +42,7 @@ Status MergeFileReader::Close() {
     Status status = kOk;
     for (it = readers_.begin(); it != readers_.end(); it++) {
         Status st = (*it)->Close();
+        delete (*it);
         if (st != kOk) {
             status = st;
             break;

@@ -32,6 +32,17 @@ enum TaskState {
     kTaskUnkown = 10;
 }
 
+enum Partition {
+    kHashPartitioner = 0;
+    kIntHashPartitioner = 1;
+}
+
+enum WorkMode {
+    kMap = 0;
+    kReduce = 1;
+    kMapOnly = 3;
+};
+
 message JobDescriptor {
     optional string name = 1;
     optional string user = 2;
@@ -45,6 +56,9 @@ message JobDescriptor {
     repeated string files = 10;
     optional string map_command = 11;
     optional string reduce_command = 12;
+    optional Partition partition = 13;
+    optional int32 map_total = 14;
+    optional int32 reduce_total = 15;
 }
 
 message TaskInput {

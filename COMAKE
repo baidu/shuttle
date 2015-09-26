@@ -93,10 +93,17 @@ sf_tool_src = 'src/sort/sf_tool.cc \
                src/sort/sort_file_impl.cc \
                src/sort/merge_file_impl.cc'
 
+input_tool_src = 'src/sort/input_reader.cc \
+                  src/sort/input_tool.cc \
+                  src/sort/filesystem.cc \
+                  proto/shuttle.proto'
+
 Application('master', Sources(master_src))
 Application('minion', Sources(minion_src, executor_src))
 Application('shuttle', Sources(client_src, sdk_src))
 Application('sort_test', Sources(sort_test_src, sort_src))
 Application('merge_test', Sources(merge_test_src, sort_src))
 Application('sf_tool', Sources(sort_src, sf_tool_src))
+Application('input_tool', Sources(input_tool_src))
+
 StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
