@@ -33,10 +33,12 @@ TEST(InputReader, Split1) {
     int block_size = 12580;
     int start_offset = 0;
     int line_count = 0;
+    int bytes_count = 0;
     while (start_offset < g_total_bytes) {
         InputReader::Iterator* it = reader->Read(start_offset, block_size);
         while (!it->Done()) {
             line_count++;
+            bytes_count += (it->Line().size() + 1);
             it->Next();
         }
         EXPECT_EQ(it->Error(), kNoMore);
@@ -44,6 +46,7 @@ TEST(InputReader, Split1) {
         start_offset += block_size;
     }
     EXPECT_EQ(line_count, g_total_line);
+    EXPECT_EQ(g_total_bytes, bytes_count);
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     delete reader;
@@ -57,10 +60,12 @@ TEST(InputReader, Split2) {
     int block_size = 45678;
     int start_offset = 0;
     int line_count = 0;
+    int bytes_count = 0;
     while (start_offset < g_total_bytes) {
         InputReader::Iterator* it = reader->Read(start_offset, block_size);
         while (!it->Done()) {
             line_count++;
+            bytes_count += (it->Line().size() + 1);
             it->Next();
         }
         EXPECT_EQ(it->Error(), kNoMore);
@@ -68,6 +73,7 @@ TEST(InputReader, Split2) {
         start_offset += block_size;
     }
     EXPECT_EQ(line_count, g_total_line);
+    EXPECT_EQ(g_total_bytes, bytes_count);
     status = reader->Close();
     EXPECT_EQ(status, kOk);
     delete reader;

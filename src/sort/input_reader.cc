@@ -10,6 +10,44 @@ using baidu::common::WARNING;
 namespace baidu {
 namespace shuttle {
 
+class LineBuffer {
+public:
+    LineBuffer() : head_(0) {}
+    void Reset() {
+        data_.erase();
+        head_ = 0;
+    }
+    void Append(char* new_data, size_t len) {
+        data_.append(new_data, len);
+    }
+    void FillRemain(std::string* line) {
+        line->assign(data_, head_, data_.size() - head_);
+    }
+    bool ReadLine(std::string* line) {
+        if (head_ == data_.size()) {
+            return false;
+        }
+        for (size_t i = head_; i < data_.size(); i++) {
+            if (data_[i] == '\n') {
+                line->assign(data_, head_, i - head_);
+                head_ = i + 1;
+                return true;
+            }
+        }
+        if (head_ > 0) {
+            data_.erase(0, head_);
+            head_ = 0;
+        }
+        return false;
+    }
+    size_t Size() {
+        return data_.size() - head_;
+    }
+private:
+    std::string data_;
+    size_t head_;
+};
+
 class TextReader : public InputReader {
 public:
     class IteratorImpl : public InputReader::Iterator {
@@ -40,7 +78,7 @@ private:
     Status ReadNextLine(std::string* line);    
 private:
     FileSystem* fs_;
-    std::string buf_;
+    LineBuffer buf_;
     int64_t offset_;
     int64_t len_;
     int64_t read_bytes_;
@@ -76,7 +114,7 @@ InputReader::Iterator* TextReader::Read(int64_t offset, int64_t len) {
     offset_ = offset;
     len_ = len;
     read_bytes_ = 0;
-    buf_.erase();
+    buf_.Reset();
     reach_eof_ = false;
     IteratorImpl* it = new IteratorImpl(this);
     char byte_prev;
@@ -119,21 +157,18 @@ Status TextReader::Close() {
 
 Status TextReader::ReadNextLine(std::string* line) {
     assert(line);
-    size_t pos = 0;
     //printf("read_bytes: %ld\n", read_bytes_);
     if (read_bytes_ >= len_ || reach_eof_) {
         return kNoMore;
     }
-    if ( (pos = buf_.find("\n")) != std::string::npos) {
-        *line = buf_.substr(0, pos);
-        buf_.erase(0, pos + 1);
+    if (buf_.ReadLine(line)) {
+        //read a line success
     } else {
         int one_size = std::min(40960L, len_);
         char* one_buf = (char*)malloc(one_size);;
         int n_ret = 0;
         while ( (n_ret = fs_->Read((void*)one_buf, one_size)) > 0) {
-            //printf("n_ret: %d\n", n_ret);
-            buf_.append(one_buf, n_ret);
+            buf_.Append(one_buf, n_ret);
             if (memchr(one_buf, '\n', n_ret) != NULL) {
                 break;
             }
@@ -142,19 +177,16 @@ Status TextReader::ReadNextLine(std::string* line) {
         if (n_ret < 0) {
             return kReadFileFail;
         } else if (n_ret == 0) {
-            if (buf_.size() > 0) { //sometimes, the last line has no EOL
-                *line = buf_;
-                read_bytes_ += buf_.size();
+            if (buf_.Size() > 0) { //sometimes, the last line has no EOL
+                buf_.FillRemain(line);
+                read_bytes_ += line->size();
                 reach_eof_ = true;
                 return kOk;
             } else {
                 return kNoMore;
             }
         } else {
-            pos = buf_.find("\n");
-            assert(pos != std::string::npos);
-            *line = buf_.substr(0, pos);
-            buf_.erase(0, pos + 1);
+           assert(buf_.ReadLine(line));
         }
     }
     read_bytes_ += (line->size() + 1);

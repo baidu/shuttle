@@ -15,9 +15,18 @@ using namespace baidu::shuttle;
 DEFINE_string(file, "", "input file path");
 DEFINE_int64(offset, 0, "offset to start read");
 DEFINE_int64(len, 1024, "bytes at most read");
+DEFINE_string(fs, "hdfs", "file system");
 
 void DoRead() {
-    InputReader * reader = InputReader::CreateHdfsTextReader();
+    InputReader * reader;
+    if (FLAGS_fs == "hdfs") {
+        reader = InputReader::CreateHdfsTextReader();
+    } else if (FLAGS_fs == "local") {
+        reader = InputReader::CreateLocalTextReader();
+    } else {
+        std::cerr << "unkown file system:" << FLAGS_fs << std::endl;
+        exit(-1);
+    }
     FileSystem::Param param;
     Status status = reader->Open(FLAGS_file, param);
     if (status != kOk) {
