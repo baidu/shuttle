@@ -31,7 +31,7 @@ public:
         TextReader* reader_;
     };
 
-    TextReader(FileSystem* fs) : fs_(fs), read_bytes_(0) {}
+    TextReader(FileSystem* fs) : fs_(fs), read_bytes_(0), reach_eof_(false) {}
     virtual ~TextReader() {delete fs_;}
     Status Open(const std::string& path, FileSystem::Param param);
     Iterator* Read(int64_t offset, int64_t len);
@@ -44,10 +44,15 @@ private:
     int64_t offset_;
     int64_t len_;
     int64_t read_bytes_;
+    bool reach_eof_;
 };
 
 InputReader* InputReader::CreateHdfsTextReader() {
     return new TextReader(FileSystem::CreateInfHdfs());
+}
+
+InputReader* InputReader::CreateLocalTextReader() {
+    return new TextReader(FileSystem::CreateLocalFs());
 }
 
 void TextReader::IteratorImpl::Next() {
@@ -72,6 +77,7 @@ InputReader::Iterator* TextReader::Read(int64_t offset, int64_t len) {
     len_ = len;
     read_bytes_ = 0;
     buf_.erase();
+    reach_eof_ = false;
     IteratorImpl* it = new IteratorImpl(this);
     char byte_prev;
     if (offset > 0) {
@@ -114,18 +120,19 @@ Status TextReader::Close() {
 Status TextReader::ReadNextLine(std::string* line) {
     assert(line);
     size_t pos = 0;
-    if (read_bytes_ > len_) {
+    //printf("read_bytes: %ld\n", read_bytes_);
+    if (read_bytes_ >= len_ || reach_eof_) {
         return kNoMore;
     }
     if ( (pos = buf_.find("\n")) != std::string::npos) {
         *line = buf_.substr(0, pos);
-        buf_ = buf_.substr(pos + 1);
+        buf_.erase(0, pos + 1);
     } else {
         int one_size = std::min(40960L, len_);
         char* one_buf = (char*)malloc(one_size);;
         int n_ret = 0;
         while ( (n_ret = fs_->Read((void*)one_buf, one_size)) > 0) {
-            read_bytes_ += n_ret;
+            //printf("n_ret: %d\n", n_ret);
             buf_.append(one_buf, n_ret);
             if (memchr(one_buf, '\n', n_ret) != NULL) {
                 break;
@@ -135,14 +142,22 @@ Status TextReader::ReadNextLine(std::string* line) {
         if (n_ret < 0) {
             return kReadFileFail;
         } else if (n_ret == 0) {
-            return kNoMore;
+            if (buf_.size() > 0) { //sometimes, the last line has no EOL
+                *line = buf_;
+                read_bytes_ += buf_.size();
+                reach_eof_ = true;
+                return kOk;
+            } else {
+                return kNoMore;
+            }
         } else {
             pos = buf_.find("\n");
             assert(pos != std::string::npos);
             *line = buf_.substr(0, pos);
-            buf_ = buf_.substr(pos + 1);
+            buf_.erase(0, pos + 1);
         }
     }
+    read_bytes_ += (line->size() + 1);
     return kOk;
 }
 

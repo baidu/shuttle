@@ -10,6 +10,8 @@ namespace shuttle {
 class InputReader {
 public:
     static InputReader* CreateHdfsTextReader();
+    static InputReader* CreateLocalTextReader();
+
     class Iterator {
     public:
         virtual bool Done() = 0;
