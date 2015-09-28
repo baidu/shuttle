@@ -65,8 +65,7 @@ sdk_src = 'src/sdk/shuttle.cc \
 
 sdk_header = 'src/sdk/shuttle.h'
 
-client_src = 'src/client/shuttle_main.cc \
-              src/client/shuttle_flags.cc'
+client_src = 'src/client/shuttle_main.cc'
 
 executor_src = 'src/minion/executor_impl.cc \
                 src/minion/executor_map.cc \
