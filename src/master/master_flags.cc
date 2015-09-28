@@ -12,4 +12,6 @@ DEFINE_string(nexus_root_path, "/", "root of nexus path, compatible with galaxy 
 DEFINE_string(master_lock_path, "master_lock", "the key used for master to lock");
 DEFINE_string(master_path, "master", "the key used for minion to find master");
 DEFINE_string(nexus_server_list, "", "server list for nexus to store meta data");
+DEFINE_int32(gc_interval, 30, "time interval for master recycle outdated job");
+DEFINE_int32(retry_bound, 3, "retry times when a certain task failed before the job is considered failed");
 

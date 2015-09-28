@@ -6,6 +6,7 @@
 #include "galaxy.h"
 #include "ins_sdk.h"
 #include "mutex.h"
+#include "thread_pool.h"
 #include "proto/app_master.pb.h"
 #include "job_tracker.h"
 
@@ -49,6 +50,8 @@ public:
                     ::baidu::shuttle::FinishTaskResponse* response,
                     ::google::protobuf::Closure* done);
 
+    void RetractJob(const std::string& jobid);
+
 private:
     void AcquireMasterLock();
     void Reload();
@@ -58,11 +61,15 @@ private:
                                    ::galaxy::ins::sdk::SDKError err);
     void OnLockChange(const std::string& lock_session_id);
     std::string SelfEndpoint();
+    void KeepGarbageCollecting();
 
 private:
     ::baidu::galaxy::Galaxy* galaxy_sdk_;
     Mutex tracker_mu_;
     std::map<std::string, JobTracker*> job_trackers_;
+    Mutex dead_mu_;
+    std::map<std::string, JobTracker*> dead_trackers_;
+    ThreadPool gc_;
     // For persistent of meta data and addressing of minion
     ::galaxy::ins::sdk::InsSDK* nexus_;
 };

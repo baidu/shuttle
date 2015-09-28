@@ -17,6 +17,8 @@
 namespace baidu {
 namespace shuttle {
 
+class MasterImpl;
+
 struct AllocateItem {
     int resource_no;
     int attempt;
@@ -34,7 +36,8 @@ struct AllocateItemComparator {
 class JobTracker {
 
 public:
-    JobTracker(::baidu::galaxy::Galaxy* galaxy_sdk, const JobDescriptor& job);
+    JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
+               const JobDescriptor& job);
     virtual ~JobTracker();
 
     Status Start();
@@ -67,6 +70,7 @@ private:
     void KeepMonitoring();
 
 private:
+    MasterImpl* master_;
     ::baidu::galaxy::Galaxy* sdk_;
     Mutex mu_;
     JobDescriptor job_descriptor_;

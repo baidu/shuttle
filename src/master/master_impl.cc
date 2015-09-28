@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <sys/utsname.h>
 #include <gflags/gflags.h>
+#include <boost/bind.hpp>
 
 #include "logging.h"
 
@@ -15,6 +16,7 @@ DECLARE_string(master_port);
 DECLARE_string(master_lock_path);
 DECLARE_string(master_path);
 DECLARE_string(nexus_server_list);
+DECLARE_int32(gc_interval);
 
 namespace baidu {
 namespace shuttle {
@@ -23,9 +25,18 @@ MasterImpl::MasterImpl() {
     srand(time(NULL));
     galaxy_sdk_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
     nexus_ = new ::galaxy::ins::sdk::InsSDK(FLAGS_nexus_server_list);
+    gc_.AddTask(boost::bind(&MasterImpl::KeepGarbageCollecting, this));
 }
 
 MasterImpl::~MasterImpl() {
+    MutexLock lock(&(tracker_mu_));
+    std::map<std::string, JobTracker*>::iterator it;
+    for (it = job_trackers_.begin(); it != job_trackers_.end(); ++it) {
+        delete it->second;
+    }
+    for (it = dead_trackers_.begin(); it != dead_trackers_.end(); ++it) {
+        delete it->second;
+    }
     delete galaxy_sdk_;
     delete nexus_;
 }
@@ -42,7 +53,7 @@ void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
                            ::baidu::shuttle::SubmitJobResponse* response,
                            ::google::protobuf::Closure* done) {
     const JobDescriptor& job = request->job();
-    JobTracker* jobtracker = new JobTracker(galaxy_sdk_, job);
+    JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
     Status status = jobtracker->Start();
     const std::string& job_id = jobtracker->GetJobId();
     {
@@ -101,6 +112,7 @@ void MasterImpl::KillJob(::google::protobuf::RpcController* /*controller*/,
     }
     if (jobtracker != NULL) {
         Status status = jobtracker->Kill();
+        RetractJob(job_id);
         response->set_status(status);
     } else {
         LOG(WARNING, "try to kill an inexist job: %s", job_id.c_str());
@@ -218,6 +230,19 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
     done->Run();
 }
 
+void MasterImpl::RetractJob(const std::string& jobid) {
+    MutexLock lock(&(tracker_mu_));
+    std::map<std::string, JobTracker*>::iterator it = job_trackers_.find(jobid);
+    if (it == job_trackers_.end()) {
+        LOG(WARNING, "retract job failed: job inexist: %s", jobid.c_str());
+    }
+
+    JobTracker* jobtracker = it->second;
+    job_trackers_.erase(it);
+    MutexLock lock2(&(dead_mu_));
+    dead_trackers_[jobid] = jobtracker;
+}
+
 void MasterImpl::AcquireMasterLock() {
     std::string master_lock = FLAGS_nexus_root_path + FLAGS_master_lock_path;
     ::galaxy::ins::sdk::SDKError err;
@@ -269,6 +294,17 @@ std::string MasterImpl::SelfEndpoint() {
     }
     hostname = buf.nodename;
     return hostname + ":" + FLAGS_master_port;
+}
+
+void MasterImpl::KeepGarbageCollecting() {
+    MutexLock lock(&(dead_mu_));
+    for (std::map<std::string, JobTracker*>::iterator it = dead_trackers_.begin();
+            it != dead_trackers_.end(); ++it) {
+        delete it->second;
+    }
+    dead_trackers_.clear();
+    gc_.DelayTask(FLAGS_gc_interval * 1000,
+                  boost::bind(&MasterImpl::KeepGarbageCollecting, this));
 }
 
 }
