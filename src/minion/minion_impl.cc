@@ -78,7 +78,7 @@ void MinionImpl::Loop() {
             break;
         }
         const TaskInfo& task = response.task();
-
+        executor_->SetEnv(jobid_, task);
         TaskState task_state = executor_->Exec(task); //exec here~~
 
         ::baidu::shuttle::FinishTaskRequest fn_request;
@@ -93,6 +93,7 @@ void MinionImpl::Loop() {
             LOG(FATAL, "fail to send task state to master");
             abort();            
         }
+        sleep(10);
     }
 
     {
