@@ -26,16 +26,11 @@ ResourceManager::~ResourceManager() {
 
 void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files) {
     std::vector<FileInfo> files;
-    std::string last_dfs_server;
+    dfs_->Disconnect();
+    dfs_->Connect(DfsAdaptor::GetServerFromPath(input_files[0]));
     for (std::vector<std::string>::const_iterator it = input_files.begin();
             it != input_files.end(); ++it) {
-        const std::string& cur_server = DfsAdaptor::GetServerFromPath(*it);
-        if (cur_server != last_dfs_server) {
-            dfs_->Disconnect();
-            // May need to check return values
-            dfs_->Connect(cur_server);
-            last_dfs_server = cur_server;
-        }
+        // TODO XXX Need to test if ListDirectory supports wildcards
         dfs_->ListDirectory(*it, files);
     }
     MutexLock lock(&mu_);
@@ -72,6 +67,7 @@ ResourceItem* ResourceManager::GetItem() {
         return NULL;
     }
     ResourceItem* cur = pending_res_.front();
+    cur->attempt ++;
     pending_res_.pop_front();
     running_res_.push_back(cur);
     return new ResourceItem(*cur);
