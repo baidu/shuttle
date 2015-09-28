@@ -14,12 +14,6 @@ namespace shuttle {
 
 class Executor {
 public:
-    enum WorkMode {
-        kMap = 0,
-        kReduce = 1,
-        kMapOnly = 3
-    };
-    
     virtual ~Executor();
     static Executor* GetExecutor(WorkMode mode);
     virtual TaskState Exec(const TaskInfo& task) = 0;

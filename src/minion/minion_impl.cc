@@ -20,11 +20,11 @@ namespace shuttle {
 MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
                            stop_(false) {
     if (FLAGS_work_mode == "map") {
-        executor_ = Executor::GetExecutor(Executor::kMap);
+        executor_ = Executor::GetExecutor(kMap);
     } else if (FLAGS_work_mode == "reduce") {
-        executor_ = Executor::GetExecutor(Executor::kReduce);
+        executor_ = Executor::GetExecutor(kReduce);
     } else if (FLAGS_work_mode == "map-only") {
-        executor_ = Executor::GetExecutor(Executor::kMapOnly);
+        executor_ = Executor::GetExecutor(kMapOnly);
     } else {
         LOG(FATAL, "unkown work mode: %s", FLAGS_work_mode.c_str());
         abort();
