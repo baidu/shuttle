@@ -28,6 +28,8 @@ public:
     virtual int32_t Write(void* buf, size_t len) = 0;
     virtual int64_t Tell() = 0;
     virtual int64_t GetSize() = 0;
+    virtual bool Rename(const std::string& old_name, const std::string& new_name) = 0;
+    bool WriteAll(void* buf, size_t len);
 };
 
 } //namespace shuttle

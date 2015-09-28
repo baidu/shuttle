@@ -2,6 +2,7 @@
 #define _BAIDU_SHUTTLE_EXECUTOR_H_
 
 #include <logging.h>
+#include "sort/filesystem.h"
 #include "proto/shuttle.pb.h"
 
 using baidu::common::Log;
@@ -16,6 +17,10 @@ class Executor {
 public:
     virtual ~Executor();
     static Executor* GetExecutor(WorkMode mode);
+    void SetEnv(const std::string& jobid, const TaskInfo& task);
+    const std::string GetMapOutputFilename(const TaskInfo& task);
+    const std::string GetReduceOutputFilename(const TaskInfo& task);
+    bool MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
     virtual TaskState Exec(const TaskInfo& task) = 0;
 protected:
     Executor() ;

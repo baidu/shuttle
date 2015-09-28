@@ -24,6 +24,7 @@ public:
     int32_t Write(void* buf, size_t len);
     int64_t Tell();
     int64_t GetSize();
+    bool Rename(const std::string& old_name, const std::string& new_name);
     virtual ~InfHdfs(){};
 private:
     hdfsFS fs_;
@@ -43,6 +44,7 @@ public:
     int32_t Write(void* buf, size_t len);
     int64_t Tell();
     int64_t GetSize();
+    bool Rename(const std::string& old_name, const std::string& new_name);
     virtual ~LocalFs(){};
 private:
     int fd_;
@@ -55,6 +57,19 @@ FileSystem* FileSystem::CreateInfHdfs() {
 
 FileSystem* FileSystem::CreateLocalFs() {
     return new LocalFs();
+}
+
+bool FileSystem::WriteAll(void* buf, size_t len) {
+    int start = 0;
+    char* str = (char*)buf;
+    while (start < len) {
+        int write_bytes = Write(&str[start], len - start);
+        if ( write_bytes < 0){
+            return false;
+        }
+        start += write_bytes;
+    }
+    return true;
 }
 
 bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
@@ -136,6 +151,10 @@ int64_t InfHdfs::GetSize() {
     return file_size;
 }
 
+bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
+    return hdfsRename(fs_, old_name.c_str(), new_name.c_str()) == 0;
+}
+
 bool LocalFs::Open(const std::string& path, 
                    Param param,
                    OpenMode mode) {
@@ -185,6 +204,10 @@ int64_t LocalFs::GetSize() {
     fstat(fd_, &buf);
     int64_t size = buf.st_size;
     return size;
+}
+
+bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
+    return ::rename(old_name.c_str(), new_name.c_str()) == 0;
 }
 
 } //namespace shuttle
