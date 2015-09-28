@@ -6,7 +6,7 @@ namespace baidu {
 namespace shuttle {
 
 Executor::Executor() {
-
+    
 }
 
 Executor::~Executor() {

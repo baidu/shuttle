@@ -5,7 +5,7 @@ namespace baidu {
 namespace shuttle {
 
 ReduceExecutor::ReduceExecutor() {
-	::setenv("mapred_task_is_map", "false", 1);
+    ::setenv("mapred_task_is_map", "false", 1);
 }
 
 ReduceExecutor::~ReduceExecutor() {

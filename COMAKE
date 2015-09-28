@@ -56,6 +56,7 @@ minion_src = 'src/minion/minion_main.cc \
               src/minion/minion_impl.cc \
               src/minion/minion_flags.cc \
               src/sort/filesystem.cc \
+              src/minion/partition.cc \
               proto/minion.proto \
               proto/app_master.proto \
               proto/shuttle.proto'

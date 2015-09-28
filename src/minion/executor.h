@@ -2,6 +2,9 @@
 #define _BAIDU_SHUTTLE_EXECUTOR_H_
 
 #include <logging.h>
+#include <string>
+#include <vector>
+#include <utility>
 #include "sort/filesystem.h"
 #include "proto/shuttle.pb.h"
 
@@ -26,11 +29,29 @@ protected:
     Executor() ;
 };
 
+struct EmitItem {
+    int reduce_no;
+    std::string key;
+    std::string line;
+    bool operator<(const EmitItem& other) {
+        if (reduce_no < other.reduce_no) {
+            return true;
+        } else if (reduce_no == other.reduce_no) {
+            return key < other.key;
+        } else {
+            return false;
+        }
+    }
+};
+
 class MapExecutor : public Executor {
 public:
     MapExecutor();
     virtual TaskState Exec(const TaskInfo& task);
     virtual ~MapExecutor();
+private:
+    char* line_buf_;
+    std::vector<EmitItem> emit_buf_;
 };
 
 class ReduceExecutor : public Executor {

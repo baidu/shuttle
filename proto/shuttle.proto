@@ -33,7 +33,7 @@ enum TaskState {
 }
 
 enum Partition {
-    kHashPartitioner = 0;
+    kKeyFieldBasedPartitioner = 0;
     kIntHashPartitioner = 1;
 }
 
@@ -59,6 +59,9 @@ message JobDescriptor {
     optional Partition partition = 13;
     optional int32 map_total = 14;
     optional int32 reduce_total = 15;
+    optional string key_separator = 16;
+    optional int32 key_fields_num = 17;
+    optional int32 partition_fields_num = 18;
 }
 
 message TaskInput {
