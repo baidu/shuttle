@@ -349,7 +349,8 @@ Status SortFileWriterImpl::Open(const std::string& path, FileSystem::Param param
 
 Status SortFileWriterImpl::Put(const std::string& key, const std::string& value) {
     if (key < last_key_) {
-        LOG(WARNING, "try to put a un-ordered key: %s", key.c_str());
+        LOG(WARNING, "try to put a un-ordered key: %s \n last: %s",
+            key.c_str(), last_key_.c_str());
         return kInvalidArg;
     }
     if (cur_block_size_ >= sBlockSize) {

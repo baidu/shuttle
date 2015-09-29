@@ -56,7 +56,7 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
             1);
 }
 
-const std::string Executor::GetMapOutputFilename(const TaskInfo& task) {
+const std::string Executor::GetMapWorkFilename(const TaskInfo& task) {
     char output_file_name[4096];
     snprintf(output_file_name, sizeof(output_file_name), 
             "%s/_temporary/map_%d/attempt_%d/part-%05d",
@@ -68,7 +68,18 @@ const std::string Executor::GetMapOutputFilename(const TaskInfo& task) {
     return output_file_name;
 }
 
-const std::string Executor::GetReduceOutputFilename(const TaskInfo& task) {
+const std::string Executor::GetMapWorkDir(const TaskInfo& task) {
+    char output_file_name[4096];
+    snprintf(output_file_name, sizeof(output_file_name), 
+            "%s/_temporary/map_%d/attempt_%d",
+            task.job().output().c_str(),
+            task.task_id(),
+            task.attempt_id()
+            );
+    return output_file_name;
+}
+
+const std::string Executor::GetReduceWorkFilename(const TaskInfo& task) {
     char output_file_name[4096];
     snprintf(output_file_name, sizeof(output_file_name), 
             "%s/_temporary/reduce_%d/attempt_%d/part-%05d",
@@ -83,9 +94,9 @@ const std::string Executor::GetReduceOutputFilename(const TaskInfo& task) {
 bool Executor::MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map) {
     std::string old_name;
     if (is_map) {
-        old_name = GetMapOutputFilename(task);
+        old_name = GetMapWorkFilename(task);
     } else {
-        old_name = GetReduceOutputFilename(task);
+        old_name = GetReduceWorkFilename(task);
     }
     char new_name[4096];
     snprintf(new_name, sizeof(new_name), "%s/part-%05d", 

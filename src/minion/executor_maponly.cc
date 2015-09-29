@@ -30,7 +30,7 @@ TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
     FileSystem* fs = FileSystem::CreateInfHdfs();
     boost::scoped_ptr<FileSystem> fs_guard(fs);
     FileSystem::Param param;
-    const std::string temp_file_name = GetMapOutputFilename(task);
+    const std::string temp_file_name = GetMapWorkFilename(task);
     bool ok = fs->Open(temp_file_name, param, kWriteFile);
     if (!ok) {
         LOG(WARNING, "create output file fail, %s", temp_file_name.c_str());

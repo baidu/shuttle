@@ -108,7 +108,7 @@ input_test_src = 'src/sort/input_test.cc'
 partition_test_src = 'src/minion/partition_test.cc'
 
 Application('master', Sources(master_src))
-Application('minion', Sources(minion_src, executor_src))
+Application('minion', Sources(minion_src, executor_src, sort_src))
 Application('shuttle', Sources(client_src, sdk_src))
 Application('sort_test', Sources(sort_test_src, sort_src))
 Application('merge_test', Sources(merge_test_src, sort_src))
