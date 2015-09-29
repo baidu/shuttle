@@ -171,24 +171,7 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
                             ::baidu::shuttle::AssignTaskResponse* response,
                             ::google::protobuf::Closure* done) {
     const std::string& job_id = request->jobid();
-    //debug start
-    {
-        TaskInfo* task = response->mutable_task();
-        task->mutable_job()->set_output("/user/spider/dlb-linkbase/data/junyi/haha");
-        task->set_task_id(123);
-        task->set_attempt_id(1);
-        task->mutable_job()->set_map_command("cat");
-        task->mutable_job()->set_reduce_total(100);
-        TaskInput* input = task->mutable_input();
-        input->set_input_file("/user/spider/dlb-linkbase/data/2/data/__all_index__/part-00000");
-        input->set_input_offset(100);
-        input->set_input_size(1024000000);
-        response->set_status(kOk);
-        done->Run();
-        return;
-    }
-    //debug end;
-
+    
     JobTracker* jobtracker = NULL;
     {
         MutexLock lock(&(tracker_mu_));
