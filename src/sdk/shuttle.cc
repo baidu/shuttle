@@ -54,17 +54,19 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_reduce_capacity(job_desc.reduce_capacity);
     job->set_millicores(job_desc.millicores);
     job->set_memory(job_desc.memory);
-    for (std::vector<std::string>::const_iterator it = job_desc.inputs.begin();
-            it != job_desc.inputs.end(); ++it) {
-        job->add_inputs(*it);
-    }
+    std::copy(job_desc.inputs.begin(), job_desc.inputs.end(),
+              ::google::protobuf::RepeatedFieldBackInserter(job->mutable_inputs()));
     job->set_output(job_desc.output);
-    for (std::vector<std::string>::const_iterator it = job_desc.files.begin();
-            it != job_desc.files.end(); ++it) {
-        job->add_files(*it);
-    }
+    std::copy(job_desc.files.begin(), job_desc.files.end(),
+              ::google::protobuf::RepeatedFieldBackInserter(job->mutable_files()));
     job->set_map_command(job_desc.map_command);
     job->set_reduce_command(job_desc.reduce_command);
+    job->set_partition((Partition)job_desc.partition);
+    job->set_map_total(job_desc.map_total);
+    job->set_reduce_total(job_desc.reduce_total);
+    job->set_key_separator(job_desc.key_separator);
+    job->set_key_fields_num(job_desc.key_fields_num);
+    job->set_partition_fields_num(job_desc.partition_fields_num);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, 2, 1);
@@ -150,6 +152,12 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
               std::back_inserter(job.desc.files));
     job.desc.map_command = desc.map_command();
     job.desc.reduce_command = desc.reduce_command();
+    job.desc.partition = (sdk::PartitionMethod)desc.partition();
+    job.desc.map_total = desc.map_total();
+    job.desc.reduce_total = desc.reduce_total();
+    job.desc.key_separator = desc.key_separator();
+    job.desc.key_fields_num = desc.key_fields_num();
+    job.desc.partition_fields_num = desc.partition_fields_num();
 
     job.jobid = joboverview.jobid();
     job.state = (sdk::JobState)joboverview.state();
@@ -216,6 +224,12 @@ bool ShuttleImpl::ListJobs(std::vector<sdk::JobInstance>& jobs) {
                   std::back_inserter(job.desc.files));
         job.desc.map_command = desc.map_command();
         job.desc.reduce_command = desc.reduce_command();
+        job.desc.partition = (sdk::PartitionMethod)desc.partition();
+        job.desc.map_total = desc.map_total();
+        job.desc.reduce_total = desc.reduce_total();
+        job.desc.key_separator = desc.key_separator();
+        job.desc.key_fields_num = desc.key_fields_num();
+        job.desc.partition_fields_num = desc.partition_fields_num();
 
         job.jobid = it->jobid();
         job.state = (sdk::JobState)it->state();
