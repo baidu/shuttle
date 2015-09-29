@@ -9,6 +9,13 @@ using baidu::common::WARNING;
 namespace baidu {
 namespace shuttle {
 
+MergeFileReader::~MergeFileReader() {
+    std::vector<SortFileReader*>::iterator it;
+    for (it = readers_.begin(); it != readers_.end(); it++) {
+        delete (*it);
+    }
+}
+
 Status MergeFileReader::Open(const std::vector<std::string>& files, 
                              FileSystem::Param param,
                              FileType file_type) {
@@ -42,7 +49,6 @@ Status MergeFileReader::Close() {
     Status status = kOk;
     for (it = readers_.begin(); it != readers_.end(); it++) {
         Status st = (*it)->Close();
-        delete (*it);
         if (st != kOk) {
             status = st;
             break;
@@ -70,11 +76,11 @@ MergeFileReader::MergeIterator::MergeIterator(const std::vector<SortFileReader::
         iters_.push_back(reader_it);
         if (!reader_it->Done()) {
             queue_.push(MergeItem(reader_it->Key(), reader_it->Value(), offset));
+            offset++;
         }
         if (reader_it->Error() != kOk) {
             status_ = reader_it->Error();
         }
-        offset++;
     }
     if (status_ == kOk && !queue_.empty()) {
         key_ = queue_.top().key_;

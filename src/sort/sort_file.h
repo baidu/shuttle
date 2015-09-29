@@ -77,6 +77,7 @@ public:
         std::priority_queue<MergeItem> queue_;
     };
 
+    ~MergeFileReader();
     Status Open(const std::vector<std::string>& files, 
                 FileSystem::Param param,
                 FileType file_type);
