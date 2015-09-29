@@ -21,7 +21,10 @@ enum JobPriority {
     kVeryHigh = 0,
     kHigh = 1,
     kNormal = 2,
-    kLow = 3
+    kLow = 3,
+    // In update interface, the undefined means not to update priority
+    // Otherwise, it has the exact meaning as kNormal
+    kUndefined = 10
 };
 
 enum TaskState {
@@ -30,7 +33,7 @@ enum TaskState {
     kTaskFailed = 2,
     kTaskKilled = 3,
     kTaskCompleted = 4,
-    kTaskUnkown = 10
+    kTaskUnknown = 10
 };
 
 struct TaskStatistics {
@@ -82,14 +85,16 @@ public:
     static Shuttle* Connect(const std::string& master_addr);
 
     virtual bool SubmitJob(const sdk::JobDescription& job_desc,
-                           std::string* job_id) = 0;
-    virtual bool UpdateJob(const std::string& job_id, 
-                           const sdk::JobDescription& job_desc) = 0;
+                           std::string& job_id) = 0;
+    virtual bool UpdateJob(const std::string& job_id,
+                           const sdk::JobPriority& priority,
+                           const int map_capacity,
+                           const int reduce_capacity) = 0;
     virtual bool KillJob(const std::string& job_id) = 0;
     virtual bool ShowJob(const std::string& job_id, 
-                         sdk::JobInstance* job,
-                         std::vector<sdk::TaskInstance>* tasks) = 0;
-    virtual bool ListJobs(std::vector<sdk::JobInstance>* jobs) = 0;
+                         sdk::JobInstance& job,
+                         std::vector<sdk::TaskInstance>& tasks) = 0;
+    virtual bool ListJobs(std::vector<sdk::JobInstance>& jobs) = 0;
 };
 
 } //namespace shuttle

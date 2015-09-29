@@ -9,8 +9,11 @@
 
 #include "sdk/shuttle.h"
 #include "ins_sdk.h"
+#include "tprinter.h"
 
 namespace config {
+
+std::string param;
 
 std::string input;
 std::string output;
@@ -18,12 +21,17 @@ std::string file;
 std::string map;
 std::string reduce;
 std::string jobconf;
+std::string nexus;
+std::string nexus_root = "/";
+std::string master = "master";
+
 std::string job_name = "map_reduce_job";
-std::string job_priority;
+::baidu::shuttle::sdk::JobPriority job_priority = \
+    ::baidu::shuttle::sdk::kUndefined;
 int job_cpu = 10;
 int job_memory = 1000;
-int map_capacity = 10;
-int reduce_capacity = 10;
+int map_capacity = -1; // default value assigned during submitting
+int reduce_capacity = -1; // default value assigned during submitting
 int map_tasks = 5000;
 int reduce_tasks = 1;
 
@@ -51,7 +59,20 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.reduce.capacity\tSpecify the slot number that reduce tasks can use\n"
         "\t  mapred.job.map.tasks\t\tSpecify the number of map tasks\n"
         "\t  mapred.job.reduce.tasks\tSpecify the number of reduce tasks\n"
+        "\t-nexus <servers>[,...]\t\tSpecify the hosts of nexus server\n"
+        "\t-nexus-root <path>\t\t\tSpecify the root path of nexus\n"
+        "\t-master <path>\t\t\tSpecify the master path in nexus\n"
 ;
+
+static const char* priority_string[] = {
+    "Very High", "High",
+    "Normal", "Low"
+};
+
+static const char* state_string[] = {
+    "Pending", "Running", "Failed",
+    "Killed", "Completed"
+};
 
 static int ParseCommandLineFlags(int* argc, char***argv) {
     char **opt = *argv;
@@ -99,6 +120,15 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
                 config::jobconf += ",";
             }
             config::jobconf += opt[++i];
+        } else if (!strcmp(ctx, "nexus")) {
+            if (!config::nexus.empty()) {
+                config::nexus += ",";
+            }
+            config::nexus += opt[++i];
+        } else if (!strcmp(ctx, "nexus-root")) {
+            config::nexus_root = opt[++i];
+        } else if (!strcmp(ctx, "master")) {
+            config::master = opt[++i];
         } else {
             continue;
         }
@@ -122,6 +152,19 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
     return ret;
 }
 
+static ::baidu::shuttle::sdk::JobPriority ParsePriority(const std::string& priority) {
+    if (boost::iequals(priority, "veryhigh")) {
+        return ::baidu::shuttle::sdk::kVeryHigh;
+    } else if (boost::iequals(priority, "high")) {
+        return ::baidu::shuttle::sdk::kHigh;
+    } else if (boost::iequals(priority, "normal")) {
+        return ::baidu::shuttle::sdk::kNormal;
+    } else if (boost::iequals(priority, "low")) {
+        return ::baidu::shuttle::sdk::kLow;
+    }
+    return ::baidu::shuttle::sdk::kUndefined;
+}
+
 static void ParseJobConfig() {
     std::vector<std::string> opts;
     boost::split(opts, config::jobconf, boost::is_any_of(","));
@@ -131,7 +174,7 @@ static void ParseJobConfig() {
         if (boost::starts_with(*it, "mapred.job.name=")) {
             config::job_name = it->substr(strlen("mapred.job.name="));
         } else if (boost::starts_with(*it, "mapred.job.priority=")) {
-            config::job_priority = it->substr(strlen("mapred.job.priority="));
+            config::job_priority = ParsePriority(it->substr(strlen("mapred.job.priority=")));
         } else if (boost::starts_with(*it, "mapred.job.cpu.millicores=")) {
             config::job_cpu = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.job.cpu.millicores=")));
@@ -154,23 +197,230 @@ static void ParseJobConfig() {
     }
 }
 
+static std::string GetMasterAddr() {
+    ::galaxy::ins::sdk::SDKError err;
+    ::galaxy::ins::sdk::InsSDK nexus(config::nexus);
+    std::string master_path_key = config::nexus_root + config::master;
+    std::string master_addr;
+    bool ok = nexus.Get(master_path_key, &master_addr, &err);
+    if (!ok) {
+        return "";
+    }
+    return master_addr;
+}
+
+static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
+    printf("Job Name: %s\n", job.desc.name.c_str());
+    printf("Job ID: %s\n", job.jobid.c_str());
+    printf("User: %s\n", job.desc.user.c_str());
+    printf("priority: %s\n", priority_string[job.desc.priority]);
+    printf("State: %s\n", state_string[job.state]);
+    printf("====================\n");
+    ::baidu::common::TPrinter tp(7);
+    tp.AddRow(7, "", "total", "pending", "running", "failed", "killed", "completed");
+    tp.AddRow(7, "Map", boost::lexical_cast<std::string>(job.map_stat.total).c_str(),
+              boost::lexical_cast<std::string>(job.map_stat.pending).c_str(),
+              boost::lexical_cast<std::string>(job.map_stat.running).c_str(),
+              boost::lexical_cast<std::string>(job.map_stat.failed).c_str(),
+              boost::lexical_cast<std::string>(job.map_stat.killed).c_str(),
+              boost::lexical_cast<std::string>(job.map_stat.completed).c_str());
+    tp.AddRow(7, "Reduce", boost::lexical_cast<std::string>(job.reduce_stat.total).c_str(),
+              boost::lexical_cast<std::string>(job.reduce_stat.pending).c_str(),
+              boost::lexical_cast<std::string>(job.reduce_stat.running).c_str(),
+              boost::lexical_cast<std::string>(job.reduce_stat.failed).c_str(),
+              boost::lexical_cast<std::string>(job.reduce_stat.killed).c_str(),
+              boost::lexical_cast<std::string>(job.reduce_stat.completed).c_str());
+    printf("%s\n", tp.ToString().c_str());
+}
+
+static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
+    ::baidu::common::TPrinter tp(5);
+    tp.AddRow(5, "task id", "attempt id", "state", "minion address", "progress");
+    for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
+            it != tasks.end(); ++it) {
+        tp.AddRow(5, boost::lexical_cast<std::string>(it->task_id).c_str(),
+                  boost::lexical_cast<std::string>(it->attempt_id).c_str(),
+                  (it->state == ::baidu::shuttle::sdk::kTaskUnknown) ?
+                      "Unknown" : state_string[it->state],
+                  it->minion_addr.c_str(),
+                  boost::lexical_cast<std::string>(it->progress).c_str());
+    }
+    printf("%s\n", tp.ToString().c_str());
+}
+
+static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
+    ::baidu::common::TPrinter tp(4);
+    tp.AddRow(4, "job id", "state", "map running", "reduce running");
+    for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_iterator it = jobs.begin();
+            it != jobs.end(); ++it) {
+        std::string map_running = boost::lexical_cast<std::string>(it->map_stat.running) + "/"
+            + boost::lexical_cast<std::string>(it->map_stat.total);
+        std::string reduce_running = boost::lexical_cast<std::string>(it->reduce_stat.running)
+            + "/" + boost::lexical_cast<std::string>(it->reduce_stat.total);
+        tp.AddRow(4, it->jobid.c_str(), state_string[it->state],
+                  map_running.c_str(), reduce_running.c_str());
+    }
+    printf("%s\n", tp.ToString().c_str());
+}
+
 static int SubmitJob() {
+    std::string master_endpoint = GetMasterAddr();
+    if (master_endpoint.empty()) {
+        fprintf(stderr, "fail to get master endpoint\n");
+        return -1;
+    }
+    if (config::param.empty()) {
+        fprintf(stderr, "job file is required\n");
+        return -1;
+    }
+    if (config::param[0] == '-') {
+        fprintf(stderr, "invalid flag detected\n");
+        return -1;
+    }
+
+    if (config::file.empty()) {
+        fprintf(stderr, "file flag is needed, use --file to specify\n");
+        return -1;
+    }
+    if (config::input.empty()) {
+        fprintf(stderr, "input flag is needed, use --input to specify\n");
+        return -1;
+    }
+    if (config::output.empty()) {
+        fprintf(stderr, "output flag is needed, use --output to specify\n");
+        return -1;
+    }
+    if (config::map.empty()) {
+        fprintf(stderr, "map flag is needed, use --map to specify\n");
+        return -1;
+    }
+    if (config::reduce.empty()) {
+        fprintf(stderr, "reduce flag is needed, use --reduce to specify\n");
+        return -1;
+    }
+    if (config::map_capacity == -1) {
+        config::map_capacity = 100;
+    }
+    if (config::reduce_capacity == -1) {
+        config::reduce_capacity = 10;
+    }
+    ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
+    ::baidu::shuttle::sdk::JobDescription job_desc;
+    job_desc.name = config::job_name;
+    job_desc.priority = config::job_priority;
+    job_desc.map_capacity = config::map_capacity;
+    job_desc.reduce_capacity = config::reduce_capacity;
+    // TODO you should save files to dfs
+    boost::split(job_desc.files, config::file, boost::is_any_of(","));
+    boost::split(job_desc.inputs, config::input, boost::is_any_of(","));
+    job_desc.output = config::output;
+    job_desc.map_command = config::map;
+    job_desc.reduce_command = config::reduce;
+    job_desc.millicores = config::job_cpu;
+    job_desc.memory = config::job_memory;
+
+    std::string jobid;
+    bool ok = shuttle->SubmitJob(job_desc, jobid);
+    if (!ok) {
+        fprintf(stderr, "submit job failed\n");
+        return 1;
+    }
+    printf("job successfully submitted, id: %s\n", jobid.c_str());
     return 0;
 }
 
 static int UpdateJob() {
+    std::string master_endpoint = GetMasterAddr();
+    if (master_endpoint.empty()) {
+        fprintf(stderr, "fail to get master endpoint\n");
+        return -1;
+    }
+    if (config::param.empty()) {
+        fprintf(stderr, "job id is required\n");
+        return -1;
+    }
+    if (config::param[0] == '-') {
+        fprintf(stderr, "invalid flag detected\n");
+        return -1;
+    }
+    ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
+
+    bool ok = shuttle->UpdateJob(config::param, config::job_priority,
+                                 config::map_capacity, config::reduce_capacity);
+    if (!ok) {
+        fprintf(stderr, "update job failed\n");
+        return 1;
+    }
     return 0;
 }
 
 static int KillJob() {
+    std::string master_endpoint = GetMasterAddr();
+    if (master_endpoint.empty()) {
+        fprintf(stderr, "fail to get master endpoint\n");
+        return -1;
+    }
+    if (config::param.empty()) {
+        fprintf(stderr, "job id is required\n");
+        return -1;
+    }
+    if (config::param[0] == '-') {
+        fprintf(stderr, "invalid flag detected\n");
+        return -1;
+    }
+    ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
+
+    bool ok = shuttle->KillJob(config::param);
+    if (!ok) {
+        fprintf(stderr, "kill job failed\n");
+        return 1;
+    }
     return 0;
 }
 
 static int ListJobs() {
+    std::string master_endpoint = GetMasterAddr();
+    if (master_endpoint.empty()) {
+        fprintf(stderr, "fail to get master endpoint\n");
+        return -1;
+    }
+    ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
+
+    std::vector< ::baidu::shuttle::sdk::JobInstance > jobs;
+    bool ok = shuttle->ListJobs(jobs);
+    if (!ok) {
+        fprintf(stderr, "list job failed\n");
+        return 1;
+    }
+    PrintJobsInfo(jobs);
     return 0;
 }
 
 static int ShowJob() {
+    std::string master_endpoint = GetMasterAddr();
+    if (master_endpoint.empty()) {
+        fprintf(stderr, "fail to get master endpoint\n");
+        return -1;
+    }
+    if (config::param.empty()) {
+        fprintf(stderr, "job id is required\n");
+        return -1;
+    }
+    if (config::param[0] == '-') {
+        fprintf(stderr, "invalid flag detected\n");
+        return -1;
+    }
+    ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
+
+    ::baidu::shuttle::sdk::JobInstance job;
+    std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
+    bool ok = shuttle->ShowJob(config::param, job, tasks);
+    if (!ok) {
+        fprintf(stderr, "show job status failed\n");
+        return 1;
+    }
+    PrintJobDetails(job);
+    PrintTasksInfo(tasks);
     return 0;
 }
 
@@ -181,6 +431,10 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "%s", error_message.c_str());
         return -1;
     }
+    if (argc > 2) {
+        config::param = argv[2];
+    }
+
     if (!strcmp(argv[1], "submit")) {
         return SubmitJob();
     } else if (!strcmp(argv[1], "update")) {
