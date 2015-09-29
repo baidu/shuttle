@@ -10,6 +10,7 @@ namespace shuttle {
 class Partitioner {
 public:
     virtual int Calc(const std::string& line, std::string* key) = 0;
+    int HashCode(const std::string& str);
 };
 
 class KeyFieldBasedPartitioner : public Partitioner {
@@ -31,6 +32,7 @@ public:
     int Calc(const std::string& line, std::string* key);
 private:
     int reduce_total_;
+    std::string separator_;
 };
 
 } //namespace shuttle

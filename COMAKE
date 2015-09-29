@@ -98,9 +98,14 @@ input_reader_src = 'src/sort/input_reader.cc \
                     src/sort/filesystem.cc \
                     proto/shuttle.proto'
 
+partition_src = 'src/minion/partition.cc \
+                 proto/shuttle.proto'
+
 input_tool_src = 'src/sort/input_tool.cc'
 
 input_test_src = 'src/sort/input_test.cc'
+
+partition_test_src = 'src/minion/partition_test.cc'
 
 Application('master', Sources(master_src))
 Application('minion', Sources(minion_src, executor_src))
@@ -110,5 +115,6 @@ Application('merge_test', Sources(merge_test_src, sort_src))
 Application('sf_tool', Sources(sort_src, sf_tool_src))
 Application('input_tool', Sources(input_tool_src, input_reader_src))
 Application('input_test', Sources(input_test_src, input_reader_src))
+Application('partition_test', Sources(partition_src, partition_test_src))
 
 StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
