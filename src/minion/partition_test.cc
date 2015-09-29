@@ -16,10 +16,10 @@ TEST(Partitioner, KeyBased) {
     std::string key;
     int reduce_no = kf_parti.Calc("abc 555 zzzzz", &key);
     EXPECT_EQ(key, "abc 555");
-    EXPECT_EQ(reduce_no, 5);
+    EXPECT_EQ(reduce_no, kf_parti.HashCode("abc") % 10);
     reduce_no = kf_parti.Calc("sjy", &key);
     EXPECT_EQ(key, "sjy");
-    EXPECT_EQ(reduce_no, 3);
+    EXPECT_EQ(reduce_no, kf_parti.HashCode("sjy") % 10);
     reduce_no = kf_parti.Calc("", &key);
     EXPECT_EQ(key, "");
     EXPECT_EQ(reduce_no, 0);
@@ -36,7 +36,7 @@ TEST(Partitioner, KeyBasedInvalid) {
     std::string key;
     int reduce_no = kf_parti.Calc("k1\tk2", &key);
     EXPECT_EQ(key, "k1\tk2");
-    EXPECT_EQ(reduce_no, 27);
+    EXPECT_EQ(reduce_no, kf_parti.HashCode("k1") % 100);
 }
 
 TEST(Partitioner, KeyDefault) {
@@ -46,7 +46,7 @@ TEST(Partitioner, KeyDefault) {
     std::string key;
     int reduce_no = kf_parti.Calc("k1\tk2", &key);
     EXPECT_EQ(key, "k1");
-    EXPECT_EQ(reduce_no, 27);
+    EXPECT_EQ(reduce_no, kf_parti.HashCode("k1") % 100);
 }
 
 TEST(Partitioner, IntHash) {
