@@ -159,6 +159,11 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
         job->set_state(jobtracker->GetState());
         job->mutable_map_stat()->CopyFrom(jobtracker->GetMapStatistics());
         job->mutable_reduce_stat()->CopyFrom(jobtracker->GetReduceStatistics());
+
+        ::google::protobuf::internal::RepeatedPtrFieldBackInsertIterator<TaskOverview>
+            back_it = ::google::protobuf::RepeatedFieldBackInserter(response->mutable_tasks());
+        jobtracker->Check(back_it);
+        // TODO Query progress here
     } else {
         LOG(WARNING, "try to access an inexist job: %s", job_id.c_str());
         response->set_status(kNoSuchJob);

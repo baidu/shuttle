@@ -22,7 +22,7 @@ std::string map;
 std::string reduce;
 std::string jobconf;
 std::string nexus;
-std::string nexus_root = "/";
+std::string nexus_root = "/shuttle/";
 std::string master = "master";
 
 std::string job_name = "map_reduce_job";
@@ -44,18 +44,19 @@ int partition_fields_num = 1;
 
 const std::string error_message = "shuttle client - A fast computing framework base on Galaxy\n"
         "Usage:\n"
-        "\tshuttle submit <jobfile> [flags]\n"
+        "\tshuttle submit [flags]\n"
         "\tshuttle update <jobid> [new flags]\n"
         "\tshuttle kill <jobid>\n"
         "\tshuttle list\n"
         "\tshuttle status <jobid>\n"
         "Options:\n"
+        "\t-h  --help\t\t\tShow this information\n"
         "\t-input <file>\t\t\tSpecify the input file, using a hdfs path\n"
         "\t-output <path>\t\t\tSpecify the output path, which must be empty\n"
         "\t-file <file>[,...]\t\tSpecify the files needed by your program\n"
         "\t-map <file>\t\t\tSpecify the map program\n"
         "\t-reduce <file>\t\t\tSpecify the reduce program\n"
-        "\t-partitioner <partitioner>\t\tSpecify the partitioner used when shuffling\n"
+        "\t-partitioner <partitioner>\tSpecify the partitioner used when shuffling\n"
         "\t-jobconf <key>=<value>[,...]\tSpecify the configuration of the job\n"
         "\t  mapred.job.name\t\tName the submitting job\n"
         "\t  mapred.job.priority\t\tSpecify the priority of the job\n"
@@ -69,7 +70,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  stream.num.map.output.key.fields\tSpecify the output fields number of key after mapper\n"
         "\t  num.key.fields.for.partition\tSpecify the first n fields in key in partitioning\n"
         "\t-nexus <servers>[,...]\t\tSpecify the hosts of nexus server\n"
-        "\t-nexus-root <path>\t\t\tSpecify the root path of nexus\n"
+        "\t-nexus-root <path>\t\tSpecify the root path of nexus\n"
         "\t-master <path>\t\t\tSpecify the master path in nexus\n"
 ;
 
@@ -152,6 +153,9 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
             config::nexus_root = opt[++i];
         } else if (!strcmp(ctx, "master")) {
             config::master = opt[++i];
+        } else if (!strcmp(ctx, "help") || !strcmp(ctx, "h")) {
+            fprintf(stderr, "%s\n", error_message.c_str());
+            exit(0);
         } else {
             continue;
         }
