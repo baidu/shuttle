@@ -60,7 +60,7 @@ FileSystem* FileSystem::CreateLocalFs() {
 }
 
 bool FileSystem::WriteAll(void* buf, size_t len) {
-    int start = 0;
+    size_t start = 0;
     char* str = (char*)buf;
     while (start < len) {
         int write_bytes = Write(&str[start], len - start);
@@ -158,6 +158,7 @@ bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
 bool LocalFs::Open(const std::string& path, 
                    Param param,
                    OpenMode mode) {
+    (void)param;
     path_ = path;
     mode_t acl = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH; 
     if (mode == kReadFile) {
