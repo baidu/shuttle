@@ -41,7 +41,7 @@ bool DfsAdaptor::Connect(const std::string& host, int port) {
     }
     fs_ = hdfsConnect(host.c_str(), port);
     if (fs_ == NULL) {
-        LOG(WARNING, "cannot connect to hdfs server: %s", dfs_server_.c_str());
+        LOG(WARNING, "cannot connect to hdfs server: %s:%d", host.c_str(), port);
         return false;
     }
     dfs_server_ = host + ":" + boost::lexical_cast<std::string>(port);
@@ -51,7 +51,7 @@ bool DfsAdaptor::Connect(const std::string& host, int port) {
 bool DfsAdaptor::Connect(const std::string& server) {
     int last_colon = server.find_last_of(':');
     std::string server_host = server.substr(0, last_colon);
-    int port = boost::lexical_cast<int>(last_colon);
+    int port = boost::lexical_cast<int>(server.substr(last_colon + 1));
     return Connect(server_host, port);
 }
 
@@ -118,15 +118,16 @@ void DfsAdaptor::Flush() {
 }
 
 bool DfsAdaptor::ListDirectory(const std::string& dir, std::vector<FileInfo>& files) {
-    if (!hdfsExists(fs_, dir.c_str())) {
-        LOG(WARNING, "directory not exist: %s", dir.c_str());
+    ParseHdfsPath(dir);
+    if (hdfsExists(fs_, dfs_path_.c_str())) {
+        LOG(WARNING, "directory not exist: %s", dfs_path_.c_str());
         return false;
     }
 
     int file_num = 0;
-    hdfsFileInfo* file_list = hdfsListDirectory(fs_, dir.c_str(), &file_num);
+    hdfsFileInfo* file_list = hdfsListDirectory(fs_, dfs_path_.c_str(), &file_num);
     if (file_list == NULL) {
-        LOG(WARNING, "unexpected error in listing directory: %s", dir.c_str());
+        LOG(WARNING, "unexpected error in listing directory: %s", dfs_path_.c_str());
         return false;
     }
     for (int i = 0; i < file_num; i++) {

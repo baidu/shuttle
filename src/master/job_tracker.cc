@@ -3,9 +3,12 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/bind.hpp>
 #include <boost/scoped_ptr.hpp>
+#include <boost/algorithm/string.hpp>
 #include <gflags/gflags.h>
 #include <algorithm>
 #include <iterator>
+#include <string>
+#include <sstream>
 
 #include "google/protobuf/repeated_field.h"
 #include "timer.h"
@@ -20,6 +23,7 @@ DECLARE_int32(timeout_bound);
 DECLARE_int32(replica_num);
 DECLARE_int32(replica_begin);
 DECLARE_int32(retry_bound);
+DECLARE_string(nexus_server_list);
 
 namespace baidu {
 namespace shuttle {
@@ -30,8 +34,10 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                        const JobDescriptor& job) :
                       master_(master),
                       sdk_(galaxy_sdk) {
-    char time_str[32];
-    ::baidu::common::timer::now_time_str(time_str, 32);
+    char time_chars[32];
+    ::baidu::common::timer::now_time_str(time_chars, 32);
+    std::string time_str = time_chars;
+    boost::replace_all(time_str, " ", "-");
     job_id_ = time_str;
     job_id_ += boost::lexical_cast<std::string>(random());
     job_descriptor_.CopyFrom(job);
@@ -72,16 +78,18 @@ Status JobTracker::Start() {
     galaxy_job.type = "kBatch";
     galaxy_job.priority = "kOnline";
     galaxy_job.replica = job_descriptor_.map_capacity();
-    galaxy_job.label = shuttle_label;
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
     galaxy_job.pod.requirement.millicores = job_descriptor_.millicores();
     galaxy_job.pod.requirement.memory = job_descriptor_.memory();
+    std::stringstream ss;
+    ss << "app_package=" << job_descriptor_.files(0) << " ./minion_boot.sh"
+       << " -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+       << " -work_mode=" << "map-only";
     ::baidu::galaxy::TaskDescription minion;
     minion.offset = 1;
     minion.binary = FLAGS_minion_path;
     minion.source_type = "kSourceTypeFTP";
-    // TODO minion flags
-    minion.start_cmd = "./minion";
+    minion.start_cmd = ss.str().c_str();
     minion.requirement = galaxy_job.pod.requirement;
     galaxy_job.pod.tasks.push_back(minion);
     std::string minion_id;
@@ -152,7 +160,7 @@ ResourceItem* JobTracker::Assign(const std::string& endpoint) {
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
     alloc->state = kTaskRunning;
-    if (resource_->SumOfItem() - last_no > FLAGS_replica_begin &&
+    if (resource_->SumOfItem() - last_no < FLAGS_replica_begin &&
             last_attempt <= FLAGS_replica_num) {
         cur = resource_->GetCertainItem(last_no);
         if (cur == NULL) {

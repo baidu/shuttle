@@ -38,6 +38,7 @@ int main(int argc, char* argv[]) {
     }
     signal(SIGINT, SignalIntHandler);
     signal(SIGTERM, SignalIntHandler);
+    master->Init();
     LOG(INFO, "master started.");
     while (!s_quit) {
         sleep(1);

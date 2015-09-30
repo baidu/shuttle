@@ -26,7 +26,6 @@ ResourceManager::~ResourceManager() {
 
 void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files) {
     std::vector<FileInfo> files;
-    dfs_->Disconnect();
     dfs_->Connect(DfsAdaptor::GetServerFromPath(input_files[0]));
     for (std::vector<std::string>::const_iterator it = input_files.begin();
             it != input_files.end(); ++it) {
