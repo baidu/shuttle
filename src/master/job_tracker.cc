@@ -42,6 +42,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames = job.inputs();
     std::copy(input_filenames.begin(), input_filenames.end(), std::back_inserter(inputs));
     resource_->SetInputFiles(inputs);
+    job_descriptor_.set_map_total(resource_->SumOfItem());
     map_stat_.set_total(resource_->SumOfItem());
     map_stat_.set_pending(map_stat_.total());
     map_stat_.set_running(0);

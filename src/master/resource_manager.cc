@@ -121,6 +121,21 @@ void ResourceManager::FinishItem(int no) {
     }
 }
 
+ResourceItem* const ResourceManager::CheckCertainItem(int no) {
+    MutexLock lock(&mu_);
+    std::list<ResourceItem*>::iterator it;
+    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
+        if ((*it)->no == no) {
+            break;
+        }
+    }
+    if (it != running_res_.end()) {
+        return *it;
+    }
+    LOG(WARNING, "resource may have been finished: %d", no);
+    return NULL;
+}
+
 }
 }
 

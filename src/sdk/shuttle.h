@@ -36,6 +36,11 @@ enum TaskState {
     kTaskUnknown = 10
 };
 
+enum PartitionMethod {
+    kKeyFieldBased = 1,
+    kIntHash = 2
+};
+
 struct TaskStatistics {
     int32_t total;
     int32_t pending;
@@ -51,13 +56,19 @@ struct JobDescription {
     JobPriority priority;
     int32_t map_capacity;
     int32_t reduce_capacity;
+    int32_t millicores;
+    int64_t memory;
     std::vector<std::string> files;
     std::vector<std::string> inputs;
     std::string output;
     std::string map_command;
     std::string reduce_command;
-    int32_t millicores;
-    int64_t memory;
+    PartitionMethod partition;
+    int32_t map_total;
+    int32_t reduce_total;
+    std::string key_separator;
+    int32_t key_fields_num;
+    int32_t partition_fields_num;
 };
 
 struct  TaskInstance {

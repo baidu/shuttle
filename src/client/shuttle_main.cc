@@ -28,12 +28,17 @@ std::string master = "master";
 std::string job_name = "map_reduce_job";
 ::baidu::shuttle::sdk::JobPriority job_priority = \
     ::baidu::shuttle::sdk::kUndefined;
+::baidu::shuttle::sdk::PartitionMethod partitioner = \
+    ::baidu::shuttle::sdk::kKeyFieldBased;
 int job_cpu = 10;
 int job_memory = 1000;
 int map_capacity = -1; // default value assigned during submitting
 int reduce_capacity = -1; // default value assigned during submitting
 int map_tasks = 5000;
 int reduce_tasks = 1;
+std::string key_separator = ",";
+int key_fields_num = 1;
+int partition_fields_num = 1;
 
 }
 
@@ -50,6 +55,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t-file <file>[,...]\t\tSpecify the files needed by your program\n"
         "\t-map <file>\t\t\tSpecify the map program\n"
         "\t-reduce <file>\t\t\tSpecify the reduce program\n"
+        "\t-partitioner <partitioner>\t\tSpecify the partitioner used when shuffling\n"
         "\t-jobconf <key>=<value>[,...]\tSpecify the configuration of the job\n"
         "\t  mapred.job.name\t\tName the submitting job\n"
         "\t  mapred.job.priority\t\tSpecify the priority of the job\n"
@@ -59,6 +65,9 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.reduce.capacity\tSpecify the slot number that reduce tasks can use\n"
         "\t  mapred.job.map.tasks\t\tSpecify the number of map tasks\n"
         "\t  mapred.job.reduce.tasks\tSpecify the number of reduce tasks\n"
+        "\t  map.key.field.separator\tSpecify the separator for key field in shuffling\n"
+        "\t  stream.num.map.output.key.fields\tSpecify the output fields number of key after mapper\n"
+        "\t  num.key.fields.for.partition\tSpecify the first n fields in key in partitioning\n"
         "\t-nexus <servers>[,...]\t\tSpecify the hosts of nexus server\n"
         "\t-nexus-root <path>\t\t\tSpecify the root path of nexus\n"
         "\t-master <path>\t\t\tSpecify the master path in nexus\n"
@@ -73,6 +82,18 @@ static const char* state_string[] = {
     "Pending", "Running", "Failed",
     "Killed", "Completed"
 };
+
+static inline ::baidu::shuttle::sdk::PartitionMethod
+ParsePartitioner(const std::string& partitioner) {
+    if (boost::iequals(partitioner, "keyfieldbased") ||
+            boost::iequals(partitioner, "keyfieldbasedpartitioner")) {
+        return ::baidu::shuttle::sdk::kKeyFieldBased;
+    } else if (boost::iequals(partitioner, "inthash") ||
+            boost::iequals(partitioner, "inthashpartitioner")) {
+        return ::baidu::shuttle::sdk::kIntHash;
+    }
+    return ::baidu::shuttle::sdk::kKeyFieldBased;
+}
 
 static int ParseCommandLineFlags(int* argc, char***argv) {
     char **opt = *argv;
@@ -115,6 +136,8 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
                 config::reduce += ",";
             }
             config::reduce += opt[++i];
+        } else if (!strcmp(ctx, "partitioner")) {
+            config::partitioner = ParsePartitioner(opt[++i]);
         } else if (!strcmp(ctx, "jobconf")) {
             if (!config::jobconf.empty()) {
                 config::jobconf += ",";
@@ -152,7 +175,7 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
     return ret;
 }
 
-static ::baidu::shuttle::sdk::JobPriority ParsePriority(const std::string& priority) {
+static inline ::baidu::shuttle::sdk::JobPriority ParsePriority(const std::string& priority) {
     if (boost::iequals(priority, "veryhigh")) {
         return ::baidu::shuttle::sdk::kVeryHigh;
     } else if (boost::iequals(priority, "high")) {
@@ -193,6 +216,14 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.job.reduce.tasks=")) {
             config::reduce_tasks = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.job.reduce.tasks=")));
+        } else if (boost::starts_with(*it, "map.key.field.separator=")) {
+            config::key_separator = it->substr(strlen("map.key.field.separator="));
+        } else if (boost::starts_with(*it, "stream.num.map.output.key.fields=")) {
+            config::key_fields_num = boost::lexical_cast<int>(
+                    it->substr(strlen("stream.num.map.output.key.fields=")));
+        } else if (boost::starts_with(*it, "num.key.fields.for.partition=")) {
+            config::partition_fields_num = boost::lexical_cast<int>(
+                    it->substr(strlen("num.key.fields.for.partition=")));
         }
     }
 }
@@ -310,14 +341,19 @@ static int SubmitJob() {
     job_desc.priority = config::job_priority;
     job_desc.map_capacity = config::map_capacity;
     job_desc.reduce_capacity = config::reduce_capacity;
-    // TODO you should save files to dfs
+    job_desc.millicores = config::job_cpu;
+    job_desc.memory = config::job_memory;
     boost::split(job_desc.files, config::file, boost::is_any_of(","));
     boost::split(job_desc.inputs, config::input, boost::is_any_of(","));
     job_desc.output = config::output;
     job_desc.map_command = config::map;
     job_desc.reduce_command = config::reduce;
-    job_desc.millicores = config::job_cpu;
-    job_desc.memory = config::job_memory;
+    job_desc.partition = config::partitioner;
+    job_desc.map_total = config::map_tasks;
+    job_desc.reduce_total = config::reduce_tasks;
+    job_desc.key_separator = config::key_separator;
+    job_desc.key_fields_num = config::key_fields_num;
+    job_desc.partition_fields_num = config::partition_fields_num;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);
