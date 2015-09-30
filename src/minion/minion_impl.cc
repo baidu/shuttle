@@ -39,12 +39,20 @@ void MinionImpl::Query(::google::protobuf::RpcController* controller,
                        const ::baidu::shuttle::QueryRequest* request,
                        ::baidu::shuttle::QueryResponse* response,
                        ::google::protobuf::Closure* done) {
+    (void)controller; //TODO ...
+    (void)request;
+    (void)response;
+    done->Run();
 }
 
 void MinionImpl::CancelTask(::google::protobuf::RpcController* controller,
                             const ::baidu::shuttle::CancelTaskRequest* request,
                             ::baidu::shuttle::CancelTaskResponse* response,
                             ::google::protobuf::Closure* done) {
+    (void)controller; //TODO ...
+    (void)request;
+    (void)response;
+    done->Run();
 }
 
 void MinionImpl::SetEndpoint(const std::string& endpoint) {

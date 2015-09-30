@@ -19,7 +19,7 @@ CPPFLAGS('-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DVERSION=\\\"_TEST_VERSION_\\\" -
 CFLAGS('-g -pipe -W -Wall -Werror -fPIC')
 
 #C++编译参数.
-CXXFLAGS('-g -pipe -W -Wall -fPIC')
+CXXFLAGS('-g -pipe -W -Wall -Werror -fPIC')
 
 # protoc
 PROTOC('../../third-64/protobuf/bin/protoc')

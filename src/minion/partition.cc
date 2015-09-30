@@ -44,13 +44,13 @@ int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) {
     for (int i = 0; i < N; i++) {
         if (i < num_key_fields_) {
             if (p1 >= end) {
-                continue;
+                break;
             }
             p1 += (strcspn(p1, separator_.c_str()) + 1);
         }
         if (i < num_partition_fields_) {
             if (p2 >= end) {
-                continue;
+                break;
             }
             p2 += (strcspn(p2, separator_.c_str()) + 1);
         }

@@ -14,6 +14,7 @@ ReduceExecutor::~ReduceExecutor() {
 
 TaskState ReduceExecutor::Exec(const TaskInfo& task) {
     LOG(INFO, "exec reduce task");
+    (void)task; //TODO ...
     return kTaskCompleted;
 }
 
