@@ -107,6 +107,12 @@ input_test_src = 'src/sort/input_test.cc'
 
 partition_test_src = 'src/minion/partition_test.cc'
 
+resourcemanager_test_src = 'src/master/resource_manager.cc \
+                            src/master/resource_manager_test.cc \
+                            src/master/master_flags.cc \
+                            src/common/dfs_adaptor.cc \
+                            proto/shuttle.proto'
+
 Application('master', Sources(master_src))
 Application('minion', Sources(minion_src, executor_src, sort_src))
 Application('sort_test', Sources(sort_test_src, sort_src))
@@ -115,6 +121,7 @@ Application('sf_tool', Sources(sort_src, sf_tool_src))
 Application('input_tool', Sources(input_tool_src, input_reader_src))
 Application('input_test', Sources(input_test_src, input_reader_src))
 Application('partition_test', Sources(partition_src, partition_test_src))
+Application('resourcemanager_test', Sources(resourcemanager_test_src))
 
 StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
 Directory('src/client', Prefixes('libshuttle.a'))
