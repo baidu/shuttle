@@ -43,14 +43,15 @@ TEST(ResManTest, GetCertainItemTest) {
     input_files.push_back(input_file);
     resman.SetInputFiles(input_files);
     int sum = resman.SumOfItem();
-    int last_size = 0;
-    for (int i = 0; i < sum; ++i) {
+    int64_t last_size = 0;
+    delete resman.GetItem();
+    for (int i = 2; i < sum + 2; ++i) {
         ResourceItem* cur = resman.GetCertainItem(0);
         EXPECT_EQ(cur->no, 0);
         EXPECT_EQ(cur->attempt, i);
         EXPECT_EQ(cur->input_file, input_file);
         EXPECT_EQ(cur->offset, 0);
-        EXPECT_TRUE(cur->size == 0 || cur->size == last_size);
+        EXPECT_TRUE(last_size == 0 || cur->size == last_size);
         last_size = cur->size;
         delete cur;
     }
@@ -62,22 +63,24 @@ TEST(ResManTest, ReturnBackItemTest) {
     std::vector<std::string> input_files;
     input_files.push_back(input_file);
     resman.SetInputFiles(input_files);
+    int last_end = 0;
     ResourceItem* cur = resman.GetItem();
     EXPECT_EQ(cur->no, 0);
     EXPECT_EQ(cur->attempt, 1);
     EXPECT_EQ(cur->input_file, input_file);
     EXPECT_EQ(cur->offset, 0);
+    last_end = cur->size;
     delete cur;
     cur = resman.GetItem();
     EXPECT_EQ(cur->no, 1);
     EXPECT_EQ(cur->attempt, 1);
     EXPECT_EQ(cur->input_file, input_file);
-    EXPECT_EQ(cur->offset, 0);
+    EXPECT_EQ(cur->offset, last_end);
     delete cur;
     resman.ReturnBackItem(0);
     cur = resman.GetItem();
     EXPECT_EQ(cur->no, 0);
-    EXPECT_EQ(cur->attempt, 1);
+    EXPECT_EQ(cur->attempt, 2);
     EXPECT_EQ(cur->input_file, input_file);
     EXPECT_EQ(cur->offset, 0);
     delete cur;
