@@ -1,23 +1,25 @@
 #include "resource_manager.h"
 
+#include <boost/lexical_cast.hpp>
 #include <gtest/gtest.h>
 #include <cstdio>
 
 using namespace baidu::shuttle;
 
 std::string hdfs_path = "hdfs://0.0.0.0:0/users/";
+int sum_of_items = 0;
 
 TEST(ResManTest, SetInputFilesTest) {
     ResourceManager resman;
     std::vector<std::string> input_files;
-    input_files.push_back(hdfs_path + "1.txt");
+    input_files.push_back(hdfs_path);
     resman.SetInputFiles(input_files);
-    EXPECT_TRUE(resman.SumOfItem() == 30);
+    EXPECT_EQ(resman.SumOfItem(), sum_of_items);
 }
 
 TEST(ResManTest, GetItemTest) {
     ResourceManager resman;
-    std::string input_file = hdfs_path + "1.txt";
+    std::string input_file = hdfs_path;
     std::vector<std::string> input_files;
     input_files.push_back(input_file);
     resman.SetInputFiles(input_files);
@@ -25,10 +27,10 @@ TEST(ResManTest, GetItemTest) {
     int last_offset = 0;
     for (int i = 0; i < sum; ++i) {
         ResourceItem* cur = resman.GetItem();
-        EXPECT_TRUE(cur->no == i);
-        EXPECT_TRUE(cur->attempt == 0);
-        EXPECT_TRUE(cur->input_file == input_file);
-        EXPECT_TRUE(cur->offset == last_offset);
+        EXPECT_EQ(cur->no, i);
+        EXPECT_EQ(cur->attempt, 1);
+        EXPECT_EQ(cur->input_file, input_file);
+        EXPECT_EQ(cur->offset, last_offset);
         last_offset = cur->offset + cur->size;
         delete cur;
     }
@@ -36,7 +38,7 @@ TEST(ResManTest, GetItemTest) {
 
 TEST(ResManTest, GetCertainItemTest) {
     ResourceManager resman;
-    std::string input_file = hdfs_path + "1.txt";
+    std::string input_file = hdfs_path;
     std::vector<std::string> input_files;
     input_files.push_back(input_file);
     resman.SetInputFiles(input_files);
@@ -44,10 +46,10 @@ TEST(ResManTest, GetCertainItemTest) {
     int last_size = 0;
     for (int i = 0; i < sum; ++i) {
         ResourceItem* cur = resman.GetCertainItem(0);
-        EXPECT_TRUE(cur->no == 0);
-        EXPECT_TRUE(cur->attempt == i);
-        EXPECT_TRUE(cur->input_file == input_file);
-        EXPECT_TRUE(cur->offset == 0);
+        EXPECT_EQ(cur->no, 0);
+        EXPECT_EQ(cur->attempt, i);
+        EXPECT_EQ(cur->input_file, input_file);
+        EXPECT_EQ(cur->offset, 0);
         EXPECT_TRUE(cur->size == 0 || cur->size == last_size);
         last_size = cur->size;
         delete cur;
@@ -56,37 +58,38 @@ TEST(ResManTest, GetCertainItemTest) {
 
 TEST(ResManTest, ReturnBackItemTest) {
     ResourceManager resman;
-    std::string input_file = hdfs_path + "1.txt";
+    std::string input_file = hdfs_path;
     std::vector<std::string> input_files;
     input_files.push_back(input_file);
     resman.SetInputFiles(input_files);
     ResourceItem* cur = resman.GetItem();
-    EXPECT_TRUE(cur->no == 0);
-    EXPECT_TRUE(cur->attempt == 0);
-    EXPECT_TRUE(cur->input_file == input_file);
-    EXPECT_TRUE(cur->offset == 0);
+    EXPECT_EQ(cur->no, 0);
+    EXPECT_EQ(cur->attempt, 1);
+    EXPECT_EQ(cur->input_file, input_file);
+    EXPECT_EQ(cur->offset, 0);
     delete cur;
     cur = resman.GetItem();
-    EXPECT_TRUE(cur->no == 1);
-    EXPECT_TRUE(cur->attempt == 0);
-    EXPECT_TRUE(cur->input_file == input_file);
-    EXPECT_TRUE(cur->offset == 0);
+    EXPECT_EQ(cur->no, 1);
+    EXPECT_EQ(cur->attempt, 1);
+    EXPECT_EQ(cur->input_file, input_file);
+    EXPECT_EQ(cur->offset, 0);
     delete cur;
     resman.ReturnBackItem(0);
     cur = resman.GetItem();
-    EXPECT_TRUE(cur->no == 0);
-    EXPECT_TRUE(cur->attempt == 1);
-    EXPECT_TRUE(cur->input_file == input_file);
-    EXPECT_TRUE(cur->offset == 0);
+    EXPECT_EQ(cur->no, 0);
+    EXPECT_EQ(cur->attempt, 1);
+    EXPECT_EQ(cur->input_file, input_file);
+    EXPECT_EQ(cur->offset, 0);
     delete cur;
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        printf("Usage: resman_test [hdfs work dir]\n");
+    if (argc != 3) {
+        printf("Usage: resman_test [hdfs work dir] [sum of items]\n");
         return -1;
     }
     hdfs_path = argv[1];
+    sum_of_items = boost::lexical_cast<int>(argv[2]);
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
