@@ -13,6 +13,19 @@ Executor::~Executor() {
 
 }
 
+void Executor::Stop(int32_t task_id) {
+    MutexLock locker(&mu_);
+    stop_task_ids_.insert(task_id);
+}
+
+bool Executor::ShouldStop(int32_t task_id) {
+    MutexLock locker(&mu_);
+    if (stop_task_ids_.find(task_id) != stop_task_ids_.end()) {
+        return true;
+    }
+    return false;
+}
+
 Executor* Executor::GetExecutor(WorkMode mode) {
     Executor* executor;
     switch(mode) {
@@ -102,6 +115,21 @@ bool Executor::MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_ma
     snprintf(new_name, sizeof(new_name), "%s/part-%05d", 
              task.job().output().c_str(), task.task_id());
     return fs->Rename(old_name, new_name);
+}
+
+bool Executor::MoveTempToShuffle(const TaskInfo& task) {
+    std::string old_dir = GetMapWorkDir(task);
+    char new_dir[4096];
+    snprintf(new_dir, sizeof(new_dir), 
+            "%s/_temporary/shuffle/map_%d",
+            task.job().output().c_str(),
+            task.task_id());
+    FileSystem::Param param;
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    LOG(INFO, "rename %s -> %s", old_dir.c_str(), new_dir);
+    bool ret = fs->Rename(old_dir, new_dir);
+    delete fs;
+    return ret;
 }
 
 } //namespace shuttle

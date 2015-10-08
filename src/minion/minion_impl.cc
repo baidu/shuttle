@@ -29,6 +29,9 @@ MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
         LOG(FATAL, "unkown work mode: %s", FLAGS_work_mode.c_str());
         abort();
     }
+    cur_task_id_ = -1;
+    cur_attempt_id_ = -1;
+    cur_task_state_ = kTaskUnknown;
 }
 
 MinionImpl::~MinionImpl() {
@@ -39,9 +42,13 @@ void MinionImpl::Query(::google::protobuf::RpcController* controller,
                        const ::baidu::shuttle::QueryRequest* request,
                        ::baidu::shuttle::QueryResponse* response,
                        ::google::protobuf::Closure* done) {
-    (void)controller; //TODO ...
+    (void)controller;
     (void)request;
-    (void)response;
+    MutexLock locker(&mu_);
+    response->set_job_id(jobid_);
+    response->set_task_id(cur_task_id_);
+    response->set_attempt_id(cur_attempt_id_);
+    response->set_task_state(cur_task_state_);
     done->Run();
 }
 
@@ -49,9 +56,17 @@ void MinionImpl::CancelTask(::google::protobuf::RpcController* controller,
                             const ::baidu::shuttle::CancelTaskRequest* request,
                             ::baidu::shuttle::CancelTaskResponse* response,
                             ::google::protobuf::Closure* done) {
-    (void)controller; //TODO ...
-    (void)request;
-    (void)response;
+    (void)controller;
+    int32_t task_id = request->task_id();
+    {
+        MutexLock locker(&mu_);
+        if (task_id != cur_task_id_) {
+            response->set_status(kNoSuchTask);
+        } else {
+            executor_->Stop(task_id);
+            response->set_status(kOk);
+        }
+    }
     done->Run();
 }
 
@@ -69,7 +84,7 @@ void MinionImpl::Loop() {
     Master_Stub* stub;
     rpc_client_.GetStub(master_endpoint_, &stub);
     int task_count = 0;
-    while (true) {
+    while (!stop_) {
         LOG(INFO, "======== task:%d ========", ++task_count);
         ::baidu::shuttle::AssignTaskRequest request;
         ::baidu::shuttle::AssignTaskResponse response;
@@ -84,11 +99,23 @@ void MinionImpl::Loop() {
         if (response.status() == kNoMore) {
             LOG(INFO, "master has no more task for minion, so exit.");
             break;
+        } else if (response.status() != kOk) {
+            LOG(FATAL, "invalid responst status: %s",
+                Status_Name(response.status()).c_str());
         }
         const TaskInfo& task = response.task();
         executor_->SetEnv(jobid_, task);
+        {
+            MutexLock locker(&mu_);
+            cur_task_id_ = task.task_id();
+            cur_attempt_id_ = task.attempt_id();
+            cur_task_state_ = kTaskRunning;
+        }
         TaskState task_state = executor_->Exec(task); //exec here~~
-
+        {
+            MutexLock locker(&mu_);
+            cur_task_state_ = task_state;
+        }
         ::baidu::shuttle::FinishTaskRequest fn_request;
         ::baidu::shuttle::FinishTaskResponse fn_response;
         fn_request.set_jobid(jobid_);
@@ -101,7 +128,6 @@ void MinionImpl::Loop() {
             LOG(FATAL, "fail to send task state to master");
             abort();            
         }
-        sleep(10);
     }
 
     {

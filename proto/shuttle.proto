@@ -13,6 +13,7 @@ enum Status {
     kBadMagic = 9;
     kReadFileFail = 10;
     kNotImplement = 11;
+    kNoSuchTask = 12;
     kUnKnown = 20;
 }
 
@@ -29,7 +30,8 @@ enum TaskState {
     kTaskFailed = 2;
     kTaskKilled = 3;
     kTaskCompleted = 4;
-    kTaskUnkown = 10;
+    kTaskCanceled = 5;
+    kTaskUnknown = 10;
 }
 
 enum Partition {

@@ -40,6 +40,11 @@ TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
     const size_t buf_size = 40960;
     char* buf = (char*)malloc(buf_size);
     while (!feof(user_app)) {
+        if (ShouldStop(task.task_id())) {
+            LOG(WARNING, "task: %d is canceled.", task.task_id());
+            free(buf);
+            return kTaskCanceled;
+        }
         size_t n_read = fread(buf, sizeof(char), buf_size, user_app);
         if (n_read != buf_size ) {
             if (feof(user_app)) {

@@ -5,8 +5,10 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <set>
 #include "sort/filesystem.h"
 #include "proto/shuttle.pb.h"
+#include "mutex.h"
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -25,9 +27,15 @@ public:
     const std::string GetReduceWorkFilename(const TaskInfo& task);
     const std::string GetMapWorkDir(const TaskInfo& task);
     bool MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
+    bool MoveTempToShuffle(const TaskInfo& task);
     virtual TaskState Exec(const TaskInfo& task) = 0;
+    void Stop(int32_t task_id);
 protected:
     Executor() ;
+    bool ShouldStop(int32_t task_id);
+private:
+    std::set<int32_t> stop_task_ids_;
+    Mutex mu_;
 };
 
 class MapExecutor : public Executor {

@@ -94,6 +94,10 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
         if (fgets(line_buf_, sLineBufSize, user_app) == NULL) {
             break;
         }
+        if (ShouldStop(task.task_id())) {
+            LOG(WARNING, "task: %d is canceled.", task.task_id());
+            return kTaskCanceled;
+        }
         std::string line(line_buf_);
         std::string key;
         int reduce_no;
@@ -118,7 +122,10 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
         LOG(WARNING, "user app fail, cmd is %s, ret: %d", cmd.c_str(), ret);
         return kTaskFailed;
     }
-    //TODO Move Temp Directory
+    if (!MoveTempToShuffle(task)) {
+        LOG(WARNING, "move map result to shuffle dir fail");
+        return kTaskFailed;
+    }
     return kTaskCompleted;
 }
 

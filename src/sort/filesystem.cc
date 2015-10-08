@@ -15,6 +15,8 @@ namespace shuttle {
 
 class InfHdfs : public FileSystem {
 public:
+    InfHdfs();
+    void Connect(Param param);
     bool Open(const std::string& path, 
               Param param,
               OpenMode mode);
@@ -35,6 +37,7 @@ private:
 
 class LocalFs : public FileSystem {
 public:
+    LocalFs();
     bool Open(const std::string& path, 
               Param param,
               OpenMode mode);
@@ -55,6 +58,12 @@ FileSystem* FileSystem::CreateInfHdfs() {
     return new InfHdfs();
 }
 
+FileSystem* FileSystem::CreateInfHdfs(Param param) {
+    InfHdfs* fs = new InfHdfs();
+    fs->Connect(param);
+    return fs;
+}
+
 FileSystem* FileSystem::CreateLocalFs() {
     return new LocalFs();
 }
@@ -72,9 +81,11 @@ bool FileSystem::WriteAll(void* buf, size_t len) {
     return true;
 }
 
-bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
-    LOG(INFO, "try to open: %s", path.c_str());
-    path_ = path;
+InfHdfs::InfHdfs() : fs_(NULL), fd_(NULL) {
+
+}
+
+void InfHdfs::Connect(Param param) {
     if (param.find("user") == param.end()) {
         fs_ = hdfsConnect("default", 0);
     } else {
@@ -85,6 +96,12 @@ bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
         fs_ = hdfsConnectAsUser(host.c_str(), atoi(port.c_str()),
                                 user.c_str(), password.c_str());
     }
+}
+
+bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
+    LOG(INFO, "try to open: %s", path.c_str());
+    path_ = path;
+    Connect(param);
     if (!fs_) {
         return false;
     }
@@ -153,6 +170,10 @@ int64_t InfHdfs::GetSize() {
 
 bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
     return hdfsRename(fs_, old_name.c_str(), new_name.c_str()) == 0;
+}
+
+LocalFs::LocalFs() : fd_(0) {
+
 }
 
 bool LocalFs::Open(const std::string& path, 

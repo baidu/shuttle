@@ -17,6 +17,7 @@ class FileSystem {
 public:
     typedef std::map<std::string, std::string> Param;
     static FileSystem* CreateInfHdfs();
+    static FileSystem* CreateInfHdfs(Param param);
     static FileSystem* CreateLocalFs();
 
     virtual bool Open(const std::string& path,
