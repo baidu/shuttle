@@ -164,12 +164,14 @@ ResourceItem* JobTracker::Assign(const std::string& endpoint) {
             last_alloc_attempt_ <= FLAGS_replica_num) {
         cur = resource_->GetCertainItem(last_alloc_no_);
         if (cur == NULL) {
+            delete alloc;
             return NULL;
         }
         alloc->resource_no = last_alloc_no_;
     } else {
         cur = resource_->GetItem();
         if (cur == NULL) {
+            delete alloc;
             return NULL;
         }
         alloc->resource_no = cur->no;
@@ -180,12 +182,13 @@ ResourceItem* JobTracker::Assign(const std::string& endpoint) {
     last_alloc_attempt_ = cur->attempt;
 
     int attempt_bound = FLAGS_retry_bound;
-    if (resource_->SumOfItem() - cur->no > FLAGS_replica_begin) {
+    if (resource_->SumOfItem() - cur->no < FLAGS_replica_begin) {
         attempt_bound += FLAGS_replica_num;
     }
     if (cur->attempt > attempt_bound) {
         master_->RetractJob(job_id_);
         state_ = kFailed;
+        delete alloc;
         return NULL;
     }
     MutexLock lock(&alloc_mu_);
@@ -196,15 +199,37 @@ ResourceItem* JobTracker::Assign(const std::string& endpoint) {
 
 Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
     // TODO Pull up reduce task sometime?
-    MutexLock lock(&alloc_mu_);
-    std::list<AllocateItem*>::iterator it;
-    for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
-        if ((*it)->resource_no == no && (*it)->attempt == attempt) {
-            break;
+    AllocateItem* cur = NULL;
+    {
+        MutexLock lock(&alloc_mu_);
+        std::list<AllocateItem*>::iterator it;
+        for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
+            if ((*it)->resource_no == no && (*it)->attempt == attempt) {
+                cur = *it;
+            }
         }
     }
-    if (it != allocation_table_.end()) {
-        (*it)->state = state;
+    if (cur != NULL) {
+        cur->state = state;
+        {
+            MutexLock lock(&mu_);
+            switch (state) {
+            case kTaskCompleted:
+                map_stat_.set_completed(map_stat_.completed() + 1);
+                if (map_stat_.completed() == resource_->SumOfItem()) {
+                    master_->RetractJob(job_id_);
+                    state_ = kCompleted;
+                }
+                break;
+            case kTaskKilled: map_stat_.set_killed(map_stat_.killed() + 1); break;
+            case kTaskFailed:
+                map_stat_.set_failed(map_stat_.failed() + 1);
+                resource_->ReturnBackItem(cur->resource_no);
+                break;
+            case kTaskCanceled: break; // TODO Think carefully
+            default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
+            }
+        }
         if (state != kTaskCompleted) {
             return kOk;
         }
@@ -212,6 +237,7 @@ Status JobTracker::FinishTask(int no, int attempt, TaskState state) {
         CancelTaskRequest request;
         CancelTaskResponse response;
         request.set_job_id(job_id_);
+        MutexLock lock(&alloc_mu_);
         for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
                 it != allocation_table_.end(); ++it) {
             if ((*it)->resource_no == no && (*it)->attempt != attempt) {
@@ -245,24 +271,6 @@ void JobTracker::KeepMonitoring() {
         time_heap_.pop();
         alloc_mu_.Unlock();
         if (top->state != kTaskRunning) {
-            {
-                MutexLock lock(&mu_);
-                switch (top->state) {
-                case kTaskCompleted:
-                    map_stat_.set_completed(map_stat_.completed() + 1);
-                    if (map_stat_.completed() == resource_->SumOfItem()) {
-                        master_->RetractJob(job_id_);
-                        state_ = kCompleted;
-                    }
-                    break;
-                case kTaskKilled: map_stat_.set_killed(map_stat_.killed() + 1); break;
-                case kTaskFailed:
-                    map_stat_.set_failed(map_stat_.failed() + 1);
-                    resource_->ReturnBackItem(top->resource_no);
-                    break;
-                default: break; // pass
-                }
-            }
             delete top;
             continue;
         }
