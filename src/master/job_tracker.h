@@ -108,6 +108,8 @@ private:
     std::string map_minion_;
     ::baidu::galaxy::JobDescription map_description_;
     TaskStatistics map_stat_;
+    int last_alloc_no_;
+    int last_alloc_attempt_;
     // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
