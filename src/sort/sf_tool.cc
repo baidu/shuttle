@@ -35,30 +35,36 @@ void DoRead() {
     FileSystem::Param param; //TODO
     Status status = reader->Open(file_names, param, g_file_type);
     if (status != kOk) {
-        std::cerr << "fail to open: " << FLAGS_file << std::endl;
+        std::cerr << "fail to open: " << reader->GetErrorFile() << std::endl;
         exit(-1);
     }
     SortFileReader::Iterator* it = reader->Scan(FLAGS_start, FLAGS_end);
     if (it->Error() != kOk && it->Error() != kNoMore) {
-        std::cerr << "fail top scan: " << FLAGS_file 
+        std::cerr << "fail top scan: " << reader->GetErrorFile() 
                   << ", " << Status_Name(it->Error()) << std::endl;
         exit(-1);
     }
     while (!it->Done()) {
         if (it->Error() != kOk && it->Error() != kNoMore) {
             std::cerr << "error happen in reading: " 
-                      << FLAGS_file
+                      << reader->GetErrorFile()
                       << Status_Name(it->Error()) << std::endl;
             exit(-2);
         }
         std::cout << it->Key() << "\t" << it->Value() << std::endl;
         it->Next();
     }
+    if (it->Error() != kOk && it->Error() != kNoMore) {
+        std::cerr << "error happen in reading: " 
+                  << reader->GetErrorFile()
+                  << Status_Name(it->Error()) << std::endl;
+        exit(-2);
+    }
     delete it;
     status = reader->Close();
     if (status != kOk) {
         std::cerr << "fail to close: " 
-                  <<FLAGS_file
+                  << reader->GetErrorFile()
                   << Status_Name(status) << std::endl;
         exit(-1);
     }

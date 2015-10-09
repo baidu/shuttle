@@ -51,6 +51,14 @@ SortFileReaderImpl::IteratorImpl::~IteratorImpl() {
 
 }
 
+const std::string SortFileReaderImpl::IteratorImpl::GetFileName() {
+    if (reader_) {
+        return reader_->path_;
+    } else {
+        return "";
+    }
+}
+
 void SortFileReaderImpl::IteratorImpl::Init() {
     if (has_more_ && cur_block_.items_size() == 0) {
         //Initiate data for the iterator, locate to the right place

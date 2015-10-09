@@ -99,6 +99,9 @@ void MinionImpl::Loop() {
         if (response.status() == kNoMore) {
             LOG(INFO, "master has no more task for minion, so exit.");
             break;
+        } else if (response.status() == kNoSuchJob) {
+            LOG(INFO, "the job may be finished.");
+            break;
         } else if (response.status() != kOk) {
             LOG(FATAL, "invalid responst status: %s",
                 Status_Name(response.status()).c_str());

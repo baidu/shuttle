@@ -30,10 +30,12 @@ public:
         virtual const std::string& Value() = 0;
         virtual Status Error() = 0;
         virtual ~Iterator() {};
+        virtual const std::string GetFileName() = 0;
     };
     virtual Status Open(const std::string& path, FileSystem::Param param) = 0;
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key) = 0;
     virtual Status Close() = 0;
+    virtual std::string GetFileName() = 0;
 };
 
 class SortFileWriter {
@@ -62,19 +64,22 @@ public:
 
     class MergeIterator : public SortFileReader::Iterator {
     public:
-        MergeIterator(const std::vector<SortFileReader::Iterator*>& iters);
+        MergeIterator(const std::vector<SortFileReader::Iterator*>& iters,
+                      MergeFileReader* reader);
         virtual ~MergeIterator();
         bool Done();
         void Next();
         const std::string& Key() {return key_;}
         const std::string& Value() {return value_;}
         Status Error() {return status_;};
+        const std::string GetFileName() {return "";}
     private:
         std::string key_;
         std::string value_;
         Status status_;
         std::vector<SortFileReader::Iterator*> iters_;
         std::priority_queue<MergeItem> queue_;
+        MergeFileReader* merge_reader_;
     };
 
     ~MergeFileReader();
@@ -83,9 +88,10 @@ public:
                 FileType file_type);
     SortFileReader::Iterator* Scan(const std::string& start_key, const std::string& end_key);
     Status Close();
-
+    const std::string& GetErrorFile() {return err_file_;}
 private:
     std::vector<SortFileReader*> readers_;
+    std::string err_file_;
 };
 
 }

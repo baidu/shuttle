@@ -36,6 +36,7 @@ Status MergeFileReader::Open(const std::vector<std::string>& files,
             status = st;
             LOG(WARNING, "failed to open %s, status: %s", 
                 file_name.c_str(), Status_Name(st).c_str());
+            err_file_ = file_name;
             break;
         }
         readers_.push_back(reader);
@@ -51,6 +52,7 @@ Status MergeFileReader::Close() {
         Status st = (*it)->Close();
         if (st != kOk) {
             status = st;
+            err_file_ = (*it)->GetFileName();
             break;
         }
     }
@@ -64,10 +66,12 @@ SortFileReader::Iterator* MergeFileReader::Scan(const std::string& start_key, co
         SortFileReader * const& reader = *it;
         iters.push_back(reader->Scan(start_key, end_key));        
     }
-    return new MergeIterator(iters);
+    return new MergeIterator(iters, this);
 }
 
-MergeFileReader::MergeIterator::MergeIterator(const std::vector<SortFileReader::Iterator*>& iters) {
+MergeFileReader::MergeIterator::MergeIterator(const std::vector<SortFileReader::Iterator*>& iters,
+                                              MergeFileReader* reader) {
+    merge_reader_ = reader;
     std::vector<SortFileReader::Iterator*>::const_iterator it;
     status_ = kOk;
     int offset = 0;
@@ -80,6 +84,7 @@ MergeFileReader::MergeIterator::MergeIterator(const std::vector<SortFileReader::
         }
         if (reader_it->Error() != kOk) {
             status_ = reader_it->Error();
+            merge_reader_->err_file_ = reader_it->GetFileName();
         }
     }
     if (status_ == kOk && !queue_.empty()) {
@@ -114,7 +119,10 @@ void MergeFileReader::MergeIterator::Next() {
     }
     if (reader_it->Error() != kOk && reader_it->Error() != kNoMore) {
         status_ = reader_it->Error();
-    } 
+        merge_reader_->err_file_ = reader_it->GetFileName();
+        LOG(WARNING, "failed to call next of %s, %s", 
+            merge_reader_->err_file_.c_str(), Status_Name(status_).c_str());
+    }
     if (!queue_.empty()) {
         key_ = queue_.top().key_;
         value_ = queue_.top().value_;

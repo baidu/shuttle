@@ -23,6 +23,7 @@ public:
         void SetError(Status status);
         void SetHasMore(bool has_more);
         virtual void Init();
+        const std::string GetFileName();
     private:
         SortFileReaderImpl* reader_;
         bool has_more_;
@@ -40,6 +41,7 @@ public:
     virtual Status Open(const std::string& path, FileSystem::Param param);
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key);
     virtual Status Close();
+    std::string GetFileName() {return path_;}
 private:
     Status LoadIndexBlock(IndexBlock* idx_block);
     Status ReadFull(std::string* result_buf, int32_t len, bool is_read_data = false);

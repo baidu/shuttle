@@ -94,6 +94,10 @@ sf_tool_src = 'src/sort/sf_tool.cc \
                src/sort/sort_file_impl.cc \
                src/sort/merge_file_impl.cc'
 
+shuffle_tool_src = 'src/sort/shuffle_tool.cc \
+                    src/sort/sort_file_impl.cc \
+                    src/sort/merge_file_impl.cc'
+
 input_reader_src = 'src/sort/input_reader.cc \
                     src/sort/filesystem.cc \
                     proto/shuttle.proto'
@@ -122,6 +126,7 @@ Application('input_tool', Sources(input_tool_src, input_reader_src))
 Application('input_test', Sources(input_test_src, input_reader_src))
 Application('partition_test', Sources(partition_src, partition_test_src))
 Application('resourcemanager_test', Sources(resourcemanager_test_src))
+Application('shuffle_tool', Sources(sort_src, shuffle_tool_src))
 
 StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
 Directory('src/client', Prefixes('libshuttle.a'))
