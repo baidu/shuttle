@@ -8,6 +8,7 @@
 #include <sofa/pbrpc/pbrpc.h>
 #include <gflags/gflags.h>
 #include "logging.h"
+#include "util.h"
 #include "minion_impl.h"
 
 using baidu::common::Log;
@@ -39,16 +40,20 @@ int main(int argc, char* argv[]) {
 
     int retry_count = 0;
     std::string endpoint = "0.0.0.0:" + boost::lexical_cast<std::string>(FLAGS_minion_port);
+    std::string hostname = baidu::common::util::GetLocalHostName();
+    std::string remote_ep = hostname + ":" + boost::lexical_cast<std::string>(FLAGS_minion_port);
+    LOG(INFO, "hostname: %s", hostname.c_str());
     while (!rpc_server.Start(endpoint)) {
         LOG(WARNING, "failed to start server on %s", endpoint.c_str());
         if (++retry_count > 500) {
             LOG(FATAL, "cannot find free port");
             exit(-1);
         }
-        endpoint = "0.0.0.0:" + 
-                     boost::lexical_cast<std::string>(FLAGS_minion_port + retry_count);
+        std::string real_port = boost::lexical_cast<std::string>(FLAGS_minion_port + retry_count);
+        endpoint = "0.0.0.0:" + real_port;
+        remote_ep = hostname + ":" + real_port;
     }
-    minion->SetEndpoint(endpoint);
+    minion->SetEndpoint(remote_ep);
     minion->SetJobId(FLAGS_jobid);
     if (!minion->Run()) {
         LOG(WARNING, "fail to start minion.");

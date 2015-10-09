@@ -90,6 +90,8 @@ void MinionImpl::Loop() {
         ::baidu::shuttle::AssignTaskResponse response;
         request.set_endpoint(endpoint_);
         request.set_jobid(jobid_);
+        LOG(INFO, "endpoint: %s", endpoint_.c_str());
+        LOG(INFO, "jobid_: %s", jobid_.c_str());
         bool ok = rpc_client_.SendRequest(stub, &Master_Stub::AssignTask, 
                                             &request, &response, 5, 1);
         if (!ok) {
