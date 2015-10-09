@@ -34,7 +34,7 @@ void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files)
     }
     MutexLock lock(&mu_);
     int counter = resource_pool_.size();
-    const int block_size = FLAGS_input_block_size;
+    const int64_t block_size = FLAGS_input_block_size;
     for (std::vector<FileInfo>::iterator it = files.begin();
             it != files.end(); ++it) {
         int blocks = it->size / block_size;
