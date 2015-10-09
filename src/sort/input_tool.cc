@@ -40,6 +40,7 @@ void DoRead() {
     }
     if (it->Error() != kOk && it->Error() != kNoMore) {
         std::cerr << "errors in reading: " << FLAGS_file << std::endl;
+        exit(-1);
     }
     delete it;
     reader->Close();
