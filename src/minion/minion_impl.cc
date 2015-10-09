@@ -127,6 +127,7 @@ void MinionImpl::Loop() {
         fn_request.set_task_id(task.task_id());
         fn_request.set_attempt_id(task.attempt_id());
         fn_request.set_task_state(task_state);
+        fn_request.set_endpoint(endpoint_);
         ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
                                      &fn_request, &fn_response, 5, 1);
         if (!ok) {

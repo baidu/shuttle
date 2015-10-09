@@ -97,6 +97,7 @@ message FinishTaskRequest {
     required int32 task_id = 2;
     required int32 attempt_id = 3;
     optional TaskState task_state = 4;
+    optional string endpoint = 5;
 }
 
 message FinishTaskResponse {
