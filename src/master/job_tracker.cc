@@ -33,7 +33,9 @@ const std::string shuttle_label = "map_reduce_shuttle";
 JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                        const JobDescriptor& job) :
                       master_(master),
-                      sdk_(galaxy_sdk) {
+                      sdk_(galaxy_sdk),
+                      last_alloc_no_(-1),
+                      last_alloc_attempt_(0) {
     char time_chars[32];
     ::baidu::common::timer::now_time_str(time_chars, 32);
     std::string time_str = time_chars;
@@ -151,8 +153,6 @@ Status JobTracker::Kill() {
 }
 
 ResourceItem* JobTracker::Assign(const std::string& endpoint) {
-    static int last_no = -1;
-    static int last_attempt = 0;
     if (state_ == kPending) {
         state_ = kRunning;
     }
@@ -160,13 +160,13 @@ ResourceItem* JobTracker::Assign(const std::string& endpoint) {
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
     alloc->state = kTaskRunning;
-    if (resource_->SumOfItem() - last_no < FLAGS_replica_begin &&
-            last_attempt <= FLAGS_replica_num) {
-        cur = resource_->GetCertainItem(last_no);
+    if (last_alloc_no_ != -1 && resource_->SumOfItem() - last_alloc_no_ < FLAGS_replica_begin &&
+            last_alloc_attempt_ <= FLAGS_replica_num) {
+        cur = resource_->GetCertainItem(last_alloc_no_);
         if (cur == NULL) {
             return NULL;
         }
-        alloc->resource_no = last_no;
+        alloc->resource_no = last_alloc_no_;
     } else {
         cur = resource_->GetItem();
         if (cur == NULL) {
@@ -176,8 +176,8 @@ ResourceItem* JobTracker::Assign(const std::string& endpoint) {
     }
     alloc->attempt = cur->attempt;
     alloc->alloc_time = std::time(NULL);
-    last_no = cur->no;
-    last_attempt = cur->attempt;
+    last_alloc_no_ = cur->no;
+    last_alloc_attempt_ = cur->attempt;
 
     int attempt_bound = FLAGS_retry_bound;
     if (resource_->SumOfItem() - cur->no > FLAGS_replica_begin) {

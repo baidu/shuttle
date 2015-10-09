@@ -151,6 +151,13 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
             jobtracker = it->second;
         }
     }
+    if (jobtracker == NULL) {
+        MutexLock lock(&(dead_mu_));
+        std::map<std::string, JobTracker*>::iterator it = dead_trackers_.find(job_id);
+        if (it != dead_trackers_.end()) {
+            jobtracker = it->second;
+        }
+    }
     if (jobtracker != NULL) {
         response->set_status(kOk);
         JobOverview* job = response->mutable_job();
@@ -205,8 +212,19 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
         response->set_status(kOk); 
         delete resource;
     } else {
-        LOG(WARNING, "assign task failed: job inexist: %s", job_id.c_str());
-        response->set_status(kNoSuchJob);
+        {
+            MutexLock lock(&(dead_mu_));
+            std::map<std::string, JobTracker*>::iterator it = dead_trackers_.find(job_id);
+            if (it != dead_trackers_.end()) {
+                jobtracker = it->second;
+            }
+        }
+        if (jobtracker != NULL) {
+            response->set_status(kNoMore);
+        } else {
+            LOG(WARNING, "assign task failed: job inexist: %s", job_id.c_str());
+            response->set_status(kNoSuchJob);
+        }
     }
     done->Run();
 }
@@ -230,8 +248,19 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
                                                request->task_state());
         response->set_status(status);
     } else {
-        LOG(WARNING, "finish task failed: job inexist: %s", job_id.c_str());
-        response->set_status(kNoSuchJob);
+        {
+            MutexLock lock(&(dead_mu_));
+            std::map<std::string, JobTracker*>::iterator it = dead_trackers_.find(job_id);
+            if (it != dead_trackers_.end()) {
+                jobtracker = it->second;
+            }
+        }
+        if (jobtracker != NULL) {
+            response->set_status(kOk);
+        } else {
+            LOG(WARNING, "finish task failed: job inexist: %s", job_id.c_str());
+            response->set_status(kNoSuchJob);
+        }
     }
     done->Run();
 }
