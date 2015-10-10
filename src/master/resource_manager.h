@@ -28,6 +28,7 @@ public:
     virtual ~ResourceManager();
 
     void SetInputFiles(const std::vector<std::string>& input_files);
+    void SetNLineFile(const std::string& input_file);
 
     ResourceItem* GetItem();
     ResourceItem* GetCertainItem(int no);
