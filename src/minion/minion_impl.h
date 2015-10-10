@@ -42,6 +42,7 @@ private:
     int32_t cur_task_id_;
     int32_t cur_attempt_id_;
     TaskState cur_task_state_;
+    WorkMode work_mode_;
 };
 
 }
