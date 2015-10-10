@@ -5,6 +5,7 @@
 #include <iostream>
 #include <gflags/gflags.h>
 #include <set>
+#include <boost/algorithm/string.hpp>
 #include "sort_file.h"
 #include "logging.h"
 #include "filesystem.h"
@@ -56,7 +57,7 @@ void MergeMapOutput(const std::vector<std::string>& maps_to_merge) {
         if (g_fs->List(map_dir, &sort_files)) {
             for (jt = sort_files.begin(); jt != sort_files.end(); jt++) {
                 const std::string& file_name = *jt;
-                if (file_name.find(".sort") != std::string::npos) {
+                if (boost::ends_with(file_name, ".sort")) {
                     file_names.push_back(file_name);
                 }
             }
@@ -138,7 +139,7 @@ void MergeAndPrint() {
     std::vector<std::string>::iterator it;
     for (it = children.begin(); it != children.end(); it++) {
         const std::string& file_name = *it;
-        if (file_name.find(".sort") != std::string::npos) {
+        if (boost::ends_with(file_name, ".sort")) {
             file_names.push_back(file_name);
         }
     }
@@ -172,7 +173,9 @@ int main(int argc, char* argv[]) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     FileSystem::Param param;
     g_fs = FileSystem::CreateInfHdfs(param);
-
+    if (FLAGS_total == 0 ) {
+        LOG(FATAL, "invalid map task total");
+    }    
     while ((int32_t)g_merged.size() < FLAGS_total) {
         std::vector<std::string> maps_to_merge;
         CollectFilesToMerge(&maps_to_merge);
@@ -181,6 +184,7 @@ int main(int argc, char* argv[]) {
             MergeMapOutput(maps_to_merge);
         }
         sleep(3);
+        LOG(INFO, "merge progress: < %d/%d > ", g_merged.size(), FLAGS_total);
     }
     MergeAndPrint();
     return 0;
