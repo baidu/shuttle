@@ -67,6 +67,7 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_key_separator(job_desc.key_separator);
     job->set_key_fields_num(job_desc.key_fields_num);
     job->set_partition_fields_num(job_desc.partition_fields_num);
+    job->set_job_type((job_desc.reduce_total == 0) ? kMapOnlyJob : kMapReduceJob);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, 2, 1);

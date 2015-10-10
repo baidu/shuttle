@@ -43,7 +43,12 @@ enum WorkMode {
     kMap = 0;
     kReduce = 1;
     kMapOnly = 3;
-};
+}
+
+enum JobType {
+    kMapOnlyJob = 0;
+    kMapReduceJob = 1;
+}
 
 message JobDescriptor {
     optional string name = 1;
@@ -64,6 +69,7 @@ message JobDescriptor {
     optional string key_separator = 16;
     optional int32 key_fields_num = 17;
     optional int32 partition_fields_num = 18;
+    optional JobType job_type = 19;
 }
 
 message TaskInput {

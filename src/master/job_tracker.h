@@ -76,7 +76,7 @@ public:
             TaskInfo* info = task.mutable_info();
             info->set_task_id((*it)->resource_no);
             info->set_attempt_id((*it)->attempt);
-            ResourceItem* const res = resource_->CheckCertainItem((*it)->resource_no);
+            ResourceItem* const res = map_manager_->CheckCertainItem((*it)->resource_no);
             TaskInput* input = info->mutable_input();
             input->set_input_file(res->input_file);
             input->set_input_offset(res->offset);
@@ -99,7 +99,6 @@ private:
     std::string job_id_;
     JobState state_;
     // Resource allocation
-    ResourceManager* resource_;
     Mutex alloc_mu_;
     std::list<AllocateItem*> allocation_table_;
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
@@ -107,12 +106,14 @@ private:
     // Map resource
     std::string map_minion_;
     ::baidu::galaxy::JobDescription map_description_;
+    ResourceManager* map_manager_;
     TaskStatistics map_stat_;
     int last_alloc_no_;
     int last_alloc_attempt_;
     // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
+    BasicManager* reduce_manager_;
     TaskStatistics reduce_stat_;
     // Thread for monitoring
     ThreadPool monitor_;

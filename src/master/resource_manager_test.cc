@@ -22,7 +22,7 @@ TEST(ResManTest, GetItemTest) {
     input_files.push_back(input_file);
     ResourceManager resman(input_files);
     int sum = resman.SumOfItem();
-    int last_offset = 0;
+    int64_t last_offset = 0;
     for (int i = 0; i < sum; ++i) {
         ResourceItem* cur = resman.GetItem();
         EXPECT_EQ(cur->no, i);
@@ -59,7 +59,7 @@ TEST(ResManTest, ReturnBackItemTest) {
     std::vector<std::string> input_files;
     input_files.push_back(input_file);
     ResourceManager resman(input_files);
-    int last_end = 0;
+    int64_t last_end = 0;
     ResourceItem* cur = resman.GetItem();
     EXPECT_EQ(cur->no, 0);
     EXPECT_EQ(cur->attempt, 1);
