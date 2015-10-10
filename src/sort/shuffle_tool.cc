@@ -8,6 +8,7 @@
 #include "sort_file.h"
 #include "logging.h"
 #include "filesystem.h"
+#include "common/tools_util.h"
 
 DEFINE_int32(total, 0, "total numbers of map tasks");
 DEFINE_int32(reduce_no, 0, "the reduce number of this reduce task");
@@ -35,7 +36,7 @@ void CollectFilesToMerge(std::vector<std::string>* maps_to_merge) {
     std::vector<std::string>::iterator it;
     for (it = children.begin(); it != children.end(); it++) {
         const std::string& file_name = *it;
-        if (file_name.find("map_") != std::string::npos &&
+        if (file_name.find("_temporary/shuffle/map_") != std::string::npos &&
             g_merged.find(file_name) == g_merged.end()) {
             LOG(INFO, "maps_to_merge: %s", file_name.c_str());
             maps_to_merge->push_back(file_name);
@@ -63,10 +64,10 @@ void MergeMapOutput(const std::vector<std::string>& maps_to_merge) {
             LOG(FATAL, "fail to list %s", map_dir.c_str());
         }
         map_ct++;
+        real_merged_maps.push_back(map_dir);
         if (map_ct >= FLAGS_batch){
             break;
         }
-        real_merged_maps.push_back(map_dir);
     }
     if (file_names.empty()) {
         LOG(WARNING, "not map output found");
@@ -166,8 +167,8 @@ void MergeAndPrint() {
 }
 
 int main(int argc, char* argv[]) {
-    baidu::common::SetLogFile("./shuffle_tool.log");
-    baidu::common::SetWarningFile("./shuffle_tool.log.wf");
+    baidu::common::SetLogFile(GetLogName("./shuffle_tool.log").c_str());
+    baidu::common::SetWarningFile(GetLogName("./shuffle_tool.log.wf").c_str());
     google::ParseCommandLineFlags(&argc, &argv, true);
     FileSystem::Param param;
     g_fs = FileSystem::CreateInfHdfs(param);

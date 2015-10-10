@@ -33,6 +33,7 @@ public:
     virtual bool Rename(const std::string& old_name, const std::string& new_name) = 0;
     bool WriteAll(void* buf, size_t len);
     virtual bool List(const std::string& dir, std::vector<std::string>* children) = 0;
+    virtual bool Mkdirs(const std::string& dir) = 0;    
 };
 
 } //namespace shuttle
