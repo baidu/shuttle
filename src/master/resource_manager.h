@@ -13,6 +13,11 @@
 namespace baidu {
 namespace shuttle {
 
+struct IdItem {
+    int no;
+    int attempt;
+};
+
 struct ResourceItem {
     int no;
     int attempt;
@@ -21,18 +26,39 @@ struct ResourceItem {
     int64_t size;
 };
 
+class BasicManager {
+public:
+    BasicManager(int n);
+    virtual ~BasicManager();
+
+    virtual IdItem* GetItem();
+    virtual IdItem* GetCertainItem(int no);
+    virtual void ReturnBackItem(int no);
+    virtual void FinishItem(int no);
+
+    IdItem* const CheckCertainItem(int no);
+
+    virtual int SumOfItem() {
+        MutexLock lock(&mu_);
+        return resource_pool_.size();
+    }
+
+private:
+    Mutex mu_;
+    std::vector<IdItem*> resource_pool_;
+    std::deque<IdItem*> pending_res_;
+    std::list<IdItem*> running_res_;
+};
+
 class ResourceManager {
 public:
-    ResourceManager();
-    ResourceManager(const std::string& dfs_server);
+    ResourceManager(const std::vector<std::string>& input_files);
     virtual ~ResourceManager();
 
-    void SetInputFiles(const std::vector<std::string>& input_files);
-
-    ResourceItem* GetItem();
-    ResourceItem* GetCertainItem(int no);
-    void ReturnBackItem(int no);
-    void FinishItem(int no);
+    virtual ResourceItem* GetItem();
+    virtual ResourceItem* GetCertainItem(int no);
+    virtual void ReturnBackItem(int no);
+    virtual void FinishItem(int no);
 
     ResourceItem* const CheckCertainItem(int no);
 
@@ -40,12 +66,12 @@ public:
         MutexLock lock(&mu_);
         return resource_pool_.size();
     }
+
 private:
     Mutex mu_;
     DfsAdaptor* dfs_;
     std::vector<ResourceItem*> resource_pool_;
-    std::deque<ResourceItem*> pending_res_;
-    std::list<ResourceItem*> running_res_;
+    BasicManager* manager_;
 };
 
 }

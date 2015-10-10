@@ -7,29 +7,106 @@ DECLARE_int32(input_block_size);
 namespace baidu {
 namespace shuttle {
 
-ResourceManager::ResourceManager() {
-    dfs_ = new DfsAdaptor();
+BasicManager::BasicManager(int n) {
+    for (int i = 0; i < n; ++i) {
+        IdItem* item = new IdItem();
+        item->no = i;
+        item->attempt = 0;
+        resource_pool_.push_back(item);
+        pending_res_.push_back(item);
+    }
 }
 
-ResourceManager::ResourceManager(const std::string& dfs_server) {
-    dfs_ = new DfsAdaptor(dfs_server);
-}
-
-ResourceManager::~ResourceManager() {
+BasicManager::~BasicManager() {
     MutexLock lock(&mu_);
-    for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
+    for (std::vector<IdItem*>::iterator it = resource_pool_.begin();
             it != resource_pool_.end(); ++it) {
         delete *it;
     }
-    delete dfs_;
 }
 
-void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files) {
+IdItem* BasicManager::GetItem() {
+    MutexLock lock(&mu_);
+    if (pending_res_.empty()) {
+        return NULL;
+    }
+    IdItem* cur = pending_res_.front();
+    cur->attempt ++;
+    pending_res_.pop_front();
+    running_res_.push_back(cur);
+    return new IdItem(*cur);
+}
+
+IdItem* BasicManager::GetCertainItem(int no) {
+    MutexLock lock(&mu_);
+    std::list<IdItem*>::iterator it;
+    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
+        if ((*it)->no == no) {
+            break;
+        }
+    }
+    if (it == running_res_.end()) {
+        LOG(WARNING, "this resource has not been allocated: %d", no);
+        return NULL;
+    }
+    (*it)->attempt ++;
+    return new IdItem(*(*it));
+}
+
+void BasicManager::ReturnBackItem(int no) {
+    MutexLock lock(&mu_);
+    std::list<IdItem*>::iterator it;
+    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
+        if ((*it)->no == no) {
+            break;
+        }
+    }
+    if (it != running_res_.end()) {
+        IdItem* cur = *it;
+        running_res_.erase(it);
+        pending_res_.push_front(cur);
+    } else {
+        LOG(WARNING, "invalid resource: %d", no);
+    }
+}
+
+void BasicManager::FinishItem(int no) {
+    MutexLock lock(&mu_);
+    std::list<IdItem*>::iterator it;
+    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
+        if ((*it)->no == no) {
+            break;
+        }
+    }
+    if (it != running_res_.end()) {
+        running_res_.erase(it);
+    } else {
+        LOG(WARNING, "resource may have been finished: %d", no);
+    }
+}
+
+IdItem* const BasicManager::CheckCertainItem(int no) {
+    MutexLock lock(&mu_);
+    std::list<IdItem*>::iterator it;
+    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
+        if ((*it)->no == no) {
+            break;
+        }
+    }
+    if (it != running_res_.end()) {
+        return *it;
+    }
+    LOG(WARNING, "resource may have been finished: %d", no);
+    return NULL;
+}
+
+ResourceManager::ResourceManager(const std::vector<std::string>& input_files) {
+    dfs_ = new DfsAdaptor();
     std::vector<FileInfo> files;
     dfs_->Connect(DfsAdaptor::GetServerFromPath(input_files[0]));
     for (std::vector<std::string>::const_iterator it = input_files.begin();
             it != input_files.end(); ++it) {
-        // TODO XXX Need to test if ListDirectory supports wildcards
+        // TODO ListDirectory does not support wildcards
         dfs_->ListDirectory(*it, files);
     }
     MutexLock lock(&mu_);
@@ -46,7 +123,6 @@ void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files)
             item->offset = i * block_size;
             item->size = block_size;
             resource_pool_.push_back(item);
-            pending_res_.push_back(item);
         }
         int rest = it->size - blocks * block_size;
         ResourceItem* item = new ResourceItem();
@@ -56,83 +132,53 @@ void ResourceManager::SetInputFiles(const std::vector<std::string>& input_files)
         item->offset = blocks * block_size;
         item->size = rest;
         resource_pool_.push_back(item);
-        pending_res_.push_back(item);
     }
+    manager_ = new BasicManager(resource_pool_.size());
+}
+
+ResourceManager::~ResourceManager() {
+    MutexLock lock(&mu_);
+    for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
+            it != resource_pool_.end(); ++it) {
+        delete *it;
+    }
+    delete manager_;
+    delete dfs_;
 }
 
 ResourceItem* ResourceManager::GetItem() {
-    MutexLock lock(&mu_);
-    if (pending_res_.empty()) {
+    IdItem* item = manager_->GetItem();
+    if (item == NULL) {
         return NULL;
     }
-    ResourceItem* cur = pending_res_.front();
-    cur->attempt ++;
-    pending_res_.pop_front();
-    running_res_.push_back(cur);
-    return new ResourceItem(*cur);
+    ResourceItem* resource = resource_pool_[item->no];
+    resource->attempt = item->attempt;
+    delete item;
+    return new ResourceItem(*resource);
 }
 
 ResourceItem* ResourceManager::GetCertainItem(int no) {
-    MutexLock lock(&mu_);
-    std::list<ResourceItem*>::iterator it;
-    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
-        if ((*it)->no == no) {
-            break;
-        }
+    IdItem* item = manager_->GetCertainItem(no);
+    if (item == NULL) {
+        return NULL;
     }
-    if (it != running_res_.end()) {
-        (*it)->attempt ++;
-        return new ResourceItem(*(*it));
-    }
-    LOG(WARNING, "this resource has not been allocated: %d", no);
-    return NULL;
+    ResourceItem* resource = resource_pool_[no];
+    resource->attempt = item->attempt;
+    delete item;
+    return new ResourceItem(*resource);
 }
 
 void ResourceManager::ReturnBackItem(int no) {
-    MutexLock lock(&mu_);
-    std::list<ResourceItem*>::iterator it;
-    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
-        if ((*it)->no == no) {
-            break;
-        }
-    }
-    if (it != running_res_.end()) {
-        ResourceItem* cur = *it;
-        running_res_.erase(it);
-        pending_res_.push_front(cur);
-    } else {
-        LOG(WARNING, "invalid resource: %d", no);
-    }
+    manager_->ReturnBackItem(no);
 }
 
 void ResourceManager::FinishItem(int no) {
-    MutexLock lock(&mu_);
-    std::list<ResourceItem*>::iterator it;
-    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
-        if ((*it)->no == no) {
-            break;
-        }
-    }
-    if (it != running_res_.end()) {
-        running_res_.erase(it);
-    } else {
-        LOG(WARNING, "resource may have been finished: %d", no);
-    }
+    manager_->FinishItem(no);
 }
 
 ResourceItem* const ResourceManager::CheckCertainItem(int no) {
-    MutexLock lock(&mu_);
-    std::list<ResourceItem*>::iterator it;
-    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
-        if ((*it)->no == no) {
-            break;
-        }
-    }
-    if (it != running_res_.end()) {
-        return *it;
-    }
-    LOG(WARNING, "resource may have been finished: %d", no);
-    return NULL;
+    IdItem* const item = manager_->CheckCertainItem(no);
+    return resource_pool_[item->no];
 }
 
 }
