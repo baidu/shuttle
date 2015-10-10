@@ -28,6 +28,8 @@ public:
     int64_t GetSize();
     bool Rename(const std::string& old_name, const std::string& new_name);
     virtual ~InfHdfs(){};
+    bool List(const std::string& dir, std::vector<std::string>* children);
+    bool Mkdirs(const std::string& dir);
 private:
     hdfsFS fs_;
     hdfsFile fd_;
@@ -49,6 +51,15 @@ public:
     int64_t GetSize();
     bool Rename(const std::string& old_name, const std::string& new_name);
     virtual ~LocalFs(){};
+    bool List(const std::string& dir, std::vector<std::string>* children) {
+        (void)dir;
+        (void)children;
+        return false; //TODO, not implementation
+    }
+    bool Mkdirs(const std::string& dir) {
+        (void)dir;
+        return false; //TODO, not implementation
+    }
 private:
     int fd_;
     std::string path_;
@@ -170,6 +181,24 @@ int64_t InfHdfs::GetSize() {
 
 bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
     return hdfsRename(fs_, old_name.c_str(), new_name.c_str()) == 0;
+}
+
+bool InfHdfs::List(const std::string& dir, std::vector<std::string>* children) {
+    int file_num = 0;
+    hdfsFileInfo* file_list = hdfsListDirectory(fs_, dir.c_str(), &file_num);
+    if (file_list == NULL) {
+        LOG(WARNING, "error in listing directory: %s", dir.c_str());
+        return false;
+    }
+    for (int i = 0; i < file_num; i++) {
+        children->push_back(file_list[i].mName);
+    }
+    hdfsFreeFileInfo(file_list, file_num);
+    return true;
+}
+
+bool InfHdfs::Mkdirs(const std::string& dir) {
+    return hdfsCreateDirectory(fs_, dir.c_str()) == 0;
 }
 
 LocalFs::LocalFs() : fd_(0) {

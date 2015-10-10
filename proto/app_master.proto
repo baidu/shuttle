@@ -85,6 +85,7 @@ message ShowJobResponse {
 message AssignTaskRequest {
     optional string jobid = 1;
     optional string endpoint = 2;
+    optional WorkMode work_mode = 3;
 }
 
 message AssignTaskResponse {
@@ -98,6 +99,7 @@ message FinishTaskRequest {
     required int32 attempt_id = 3;
     optional TaskState task_state = 4;
     optional string endpoint = 5;
+    optional WorkMode work_mode = 6;
 }
 
 message FinishTaskResponse {

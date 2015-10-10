@@ -6,6 +6,7 @@
 #include <gflags/gflags.h>
 #include "sort_file.h"
 #include "logging.h"
+#include "common/tools_util.h"
 
 DEFINE_string(mode, "read", "work mode: read/write/seek");
 DEFINE_string(file, "", "file path, use ',' to seperate multiple files");
@@ -187,8 +188,8 @@ void DoSeek() {
 }
 
 int main(int argc, char* argv[]) {
-    baidu::common::SetLogFile("./sf_tool.log");
-    baidu::common::SetWarningFile("./sf_tool.log.wf");
+    baidu::common::SetLogFile(GetLogName("./sf_tool.log").c_str());
+    baidu::common::SetWarningFile(GetLogName("./sf_tool.log.wf").c_str());
     google::ParseCommandLineFlags(&argc, &argv, true);
     if (FLAGS_fs == "hdfs") {
         g_file_type = kHdfsFile;

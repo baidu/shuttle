@@ -21,10 +21,13 @@ MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
                            stop_(false) {
     if (FLAGS_work_mode == "map") {
         executor_ = Executor::GetExecutor(kMap);
+        work_mode_ =  kMap;
     } else if (FLAGS_work_mode == "reduce") {
         executor_ = Executor::GetExecutor(kReduce);
+        work_mode_ = kReduce;
     } else if (FLAGS_work_mode == "map-only") {
         executor_ = Executor::GetExecutor(kMapOnly);
+        work_mode_ = kMapOnly;
     } else {
         LOG(FATAL, "unkown work mode: %s", FLAGS_work_mode.c_str());
         abort();
@@ -90,6 +93,7 @@ void MinionImpl::Loop() {
         ::baidu::shuttle::AssignTaskResponse response;
         request.set_endpoint(endpoint_);
         request.set_jobid(jobid_);
+        request.set_work_mode(work_mode_);
         LOG(INFO, "endpoint: %s", endpoint_.c_str());
         LOG(INFO, "jobid_: %s", jobid_.c_str());
         bool ok = rpc_client_.SendRequest(stub, &Master_Stub::AssignTask, 
@@ -128,6 +132,7 @@ void MinionImpl::Loop() {
         fn_request.set_attempt_id(task.attempt_id());
         fn_request.set_task_state(task_state);
         fn_request.set_endpoint(endpoint_);
+        fn_request.set_work_mode(work_mode_);
         ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
                                      &fn_request, &fn_response, 5, 1);
         if (!ok) {

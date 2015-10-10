@@ -23,16 +23,17 @@ public:
     virtual ~Executor();
     static Executor* GetExecutor(WorkMode mode);
     void SetEnv(const std::string& jobid, const TaskInfo& task);
-    const std::string GetMapWorkFilename(const TaskInfo& task);
-    const std::string GetReduceWorkFilename(const TaskInfo& task);
-    const std::string GetMapWorkDir(const TaskInfo& task);
-    bool MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
-    bool MoveTempToShuffle(const TaskInfo& task);
     virtual TaskState Exec(const TaskInfo& task) = 0;
     void Stop(int32_t task_id);
 protected:
     Executor() ;
     bool ShouldStop(int32_t task_id);
+    const std::string GetMapWorkFilename(const TaskInfo& task);
+    const std::string GetReduceWorkFilename(const TaskInfo& task);
+    const std::string GetMapWorkDir(const TaskInfo& task);
+    bool MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
+    bool MoveTempToShuffle(const TaskInfo& task);
+    const std::string GetShuffleWorkDir(const TaskInfo& task);
 private:
     std::set<int32_t> stop_task_ids_;
     Mutex mu_;

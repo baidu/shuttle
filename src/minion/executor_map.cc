@@ -89,6 +89,11 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
         partitioner =  &int_hash_partition;
     }
 
+    FileSystem::Param param;
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    fs->Mkdirs(GetShuffleWorkDir(task));
+    delete fs;
+
     Emitter emitter(GetMapWorkDir(task));
     while (!feof(user_app)) {
         if (fgets(line_buf_, sLineBufSize, user_app) == NULL) {

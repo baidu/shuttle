@@ -72,6 +72,7 @@ TaskState ReduceExecutor::Exec(const TaskInfo& task) {
         return kTaskFailed;
     }
     if (!MoveTempToOutput(task, fs, false)) {
+    	LOG(WARNING, "fail to rename reduce result");
         return kTaskFailed;
     }
     return kTaskCompleted;

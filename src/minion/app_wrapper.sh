@@ -13,7 +13,8 @@ elif [ "${mapred_task_is_map}" == "false" ]
 then
 	./shuffle_tool -total=${mapred_map_tasks} \
 	-work_dir=${shuffle_work_dir} \
-	-reduce_no=${mapred_task_partition} | $user_cmd
+	-reduce_no=${mapred_task_partition} \
+	-attempt_id=${mapred_attempt_id} | $user_cmd
 	exit $?
 else
 	echo "not in shuttle env"

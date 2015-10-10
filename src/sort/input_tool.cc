@@ -6,6 +6,7 @@
 #include <gflags/gflags.h>
 #include "input_reader.h"
 #include "logging.h"
+#include "common/tools_util.h"
 
 using baidu::common::INFO;
 using baidu::common::WARNING;
@@ -48,8 +49,8 @@ void DoRead() {
 }
 
 int main(int argc, char* argv[]) {
-    baidu::common::SetLogFile("./input_tool.log");
-    baidu::common::SetWarningFile("./input_tool.log.wf");
+    baidu::common::SetLogFile(GetLogName("./input_tool.log").c_str());
+    baidu::common::SetWarningFile(GetLogName("./input_tool.log.wf").c_str());
     google::ParseCommandLineFlags(&argc, &argv, true);
     if (FLAGS_file.empty()) {
         std::cerr << "./input_tool -file=[file path] -offset=(offset) -len=(max read)"

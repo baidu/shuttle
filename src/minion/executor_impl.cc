@@ -67,8 +67,15 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     ::setenv("mapred_task_partition", 
              boost::lexical_cast<std::string>(task.task_id()).c_str(), 
             1);
+    ::setenv("mapred_attempt_id",
+             boost::lexical_cast<std::string>(task.attempt_id()).c_str(),
+             1);
+    ::setenv("shuffle_work_dir", GetShuffleWorkDir(task).c_str(), 1);
+}
+
+const std::string Executor::GetShuffleWorkDir(const TaskInfo& task) {
     std::string shuffle_work_dir = task.job().output() + "/_temporary/shuffle";
-    ::setenv("shuffle_work_dir", shuffle_work_dir.c_str(), 1);
+    return shuffle_work_dir;
 }
 
 const std::string Executor::GetMapWorkFilename(const TaskInfo& task) {
