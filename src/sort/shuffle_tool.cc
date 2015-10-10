@@ -184,6 +184,7 @@ int main(int argc, char* argv[]) {
             MergeMapOutput(maps_to_merge);
         }
         sleep(3);
+        LOG(INFO, "merge progress: < %d/%d > ", g_merged.size(), FLAGS_total);
     }
     MergeAndPrint();
     return 0;
