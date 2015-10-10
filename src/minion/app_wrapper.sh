@@ -11,7 +11,7 @@ then
 	exit $?
 elif [ "${mapred_task_is_map}" == "false" ]
 then
-	./shuffle_tool -total=${mapred_reduce_tasks} \
+	./shuffle_tool -total=${mapred_map_tasks} \
 	-work_dir=${shuffle_work_dir} \
 	-reduce_no=${mapred_task_partition} \
 	-attempt_id=${mapred_attempt_id} | $user_cmd
