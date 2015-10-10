@@ -193,24 +193,39 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        ResourceItem* resource = jobtracker->Assign(request->endpoint());
-        if (resource == NULL) {
-            response->set_status(kNoMore);
-            done->Run();
-            return;
+        if (request->work_mode() == kReduce) {
+            IdItem* resource = jobtracker->AssignReduce(request->endpoint());
+            if (resource == NULL) {
+                response->set_status(kNoMore);
+                done->Run();
+                return;
+            }
+
+            TaskInfo* task = response->mutable_task();
+            task->set_task_id(resource->no);
+            task->set_attempt_id(resource->attempt);
+            task->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
+            delete resource;
+        } else {
+            ResourceItem* resource = jobtracker->AssignMap(request->endpoint());
+            if (resource == NULL) {
+                response->set_status(kNoMore);
+                done->Run();
+                return;
+            }
+
+            TaskInfo* task = response->mutable_task();
+            task->set_task_id(resource->no);
+            task->set_attempt_id(resource->attempt);
+            TaskInput* input = task->mutable_input();
+            input->set_input_file(resource->input_file);
+            input->set_input_offset(resource->offset);
+            input->set_input_size(resource->size);
+            task->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
+            delete resource;
         }
 
-        TaskInfo* task = response->mutable_task();
-        task->set_task_id(resource->no);
-        task->set_attempt_id(resource->attempt);
-        TaskInput* input = task->mutable_input();
-        input->set_input_file(resource->input_file);
-        input->set_input_offset(resource->offset);
-        input->set_input_size(resource->size);
-        task->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
-
         response->set_status(kOk); 
-        delete resource;
     } else {
         {
             MutexLock lock(&(dead_mu_));
@@ -243,9 +258,16 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status status = jobtracker->FinishTask(request->task_id(),
-                                               request->attempt_id(),
-                                               request->task_state());
+        Status status = kOk;
+        if (request->work_mode() == kReduce) {
+            status = jobtracker->FinishReduce(request->task_id(),
+                                                     request->attempt_id(),
+                                                     request->task_state());
+        } else {
+            status = jobtracker->FinishMap(request->task_id(),
+                                                  request->attempt_id(),
+                                                  request->task_state());
+        }
         response->set_status(status);
     } else {
         {

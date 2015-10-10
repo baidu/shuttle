@@ -43,8 +43,10 @@ public:
     Status Start();
     Status Update(const std::string& priority, int map_capacity, int reduce_capacity);
     Status Kill();
-    ResourceItem* Assign(const std::string& endpoint);
-    Status FinishTask(int no, int attempt, TaskState state);
+    ResourceItem* AssignMap(const std::string& endpoint);
+    IdItem* AssignReduce(const std::string& endpoint);
+    Status FinishMap(int no, int attempt, TaskState state);
+    Status FinishReduce(int no, int attempt, TaskState state);
 
     std::string GetJobId() {
         MutexLock lock(&mu_);
@@ -108,13 +110,15 @@ private:
     ::baidu::galaxy::JobDescription map_description_;
     ResourceManager* map_manager_;
     TaskStatistics map_stat_;
-    int last_alloc_no_;
-    int last_alloc_attempt_;
+    int last_map_no_;
+    int last_map_attempt_;
     // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
     BasicManager* reduce_manager_;
     TaskStatistics reduce_stat_;
+    int last_reduce_no_;
+    int last_reduce_attempt_;
     // Thread for monitoring
     ThreadPool monitor_;
     // To communicate with minion
