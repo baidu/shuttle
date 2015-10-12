@@ -37,8 +37,8 @@ enum TaskState {
 };
 
 enum PartitionMethod {
-    kKeyFieldBased = 1,
-    kIntHash = 2
+    kKeyFieldBased = 0,
+    kIntHash = 1
 };
 
 struct TaskStatistics {

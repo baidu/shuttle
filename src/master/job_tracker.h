@@ -25,6 +25,7 @@ struct AllocateItem {
     std::string endpoint;
     TaskState state;
     time_t alloc_time;
+    bool is_map;
 };
 
 struct AllocateItemComparator {

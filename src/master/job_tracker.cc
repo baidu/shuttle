@@ -59,6 +59,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     map_stat_.set_killed(0);
     map_stat_.set_completed(0);
     if (job.job_type() == kMapReduceJob) {
+        reduce_manager_ = new BasicManager(job_descriptor_.reduce_total());
         reduce_stat_.set_total(job.reduce_total());
         reduce_stat_.set_pending(job.reduce_total());
         reduce_stat_.set_running(0);
@@ -84,7 +85,7 @@ JobTracker::~JobTracker() {
 
 Status JobTracker::Start() {
     ::baidu::galaxy::JobDescription galaxy_job;
-    galaxy_job.job_name = job_descriptor_.name() + "@minion";
+    galaxy_job.job_name = job_descriptor_.name() + "_map@minion";
     galaxy_job.type = "kBatch";
     galaxy_job.priority = "kOnline";
     galaxy_job.replica = job_descriptor_.map_capacity();
@@ -104,10 +105,14 @@ Status JobTracker::Start() {
     galaxy_job.pod.tasks.push_back(minion);
     std::string minion_id;
     if (sdk_->SubmitJob(galaxy_job, &minion_id)) {
+        LOG(INFO, "start a new map reduce job: %s -> %s",
+                job_descriptor_.name().c_str(), minion_id.c_str());
         MutexLock lock(&mu_);
         map_minion_ = minion_id;
         return kOk;
     }
+    LOG(WARNING, "galaxy report error when submitting a new job: %s",
+            job_descriptor_.name().c_str());
     return kGalaxyError;
 }
 
@@ -149,10 +154,12 @@ Status JobTracker::Update(const std::string& priority,
 Status JobTracker::Kill() {
     MutexLock lock(&mu_);
     if (!map_minion_.empty() && !sdk_->TerminateJob(map_minion_)) {
+        LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
         return kGalaxyError;
     }
     map_minion_ = "";
     if (!reduce_minion_.empty() && !sdk_->TerminateJob(reduce_minion_)) {
+        LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
         return kGalaxyError;
     }
     reduce_minion_ = "";
@@ -168,11 +175,13 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
     alloc->state = kTaskRunning;
+    // TODO Considered a new duplication management method here
     if (last_map_no_ != -1 && map_manager_->SumOfItem() - last_map_no_ < FLAGS_replica_begin &&
             last_map_attempt_ <= FLAGS_replica_num) {
         cur = map_manager_->GetCertainItem(last_map_no_);
         if (cur == NULL) {
             delete alloc;
+            LOG(INFO, "assign map: no more: %s", job_id_.c_str());
             return NULL;
         }
         alloc->resource_no = last_map_no_;
@@ -180,11 +189,14 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
         cur = map_manager_->GetItem();
         if (cur == NULL) {
             delete alloc;
+            LOG(INFO, "assign map: no more: %s", job_id_.c_str());
             return NULL;
         }
         alloc->resource_no = cur->no;
     }
     alloc->attempt = cur->attempt;
+    alloc->state = kTaskRunning;
+    alloc->is_map = true;
     alloc->alloc_time = std::time(NULL);
     last_map_no_ = cur->no;
     last_map_attempt_ = cur->attempt;
@@ -197,11 +209,14 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
         master_->RetractJob(job_id_);
         state_ = kFailed;
         delete alloc;
+        LOG(INFO, "assign map: no more: %s", job_id_.c_str());
         return NULL;
     }
     MutexLock lock(&alloc_mu_);
     allocation_table_.push_back(alloc);
     time_heap_.push(alloc);
+    LOG(INFO, "assign map: < no - %d, attempt - %d >: %s",
+            alloc->resource_no, alloc->attempt, job_id_.c_str());
     return cur;
 }
 
@@ -218,6 +233,7 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
         cur = reduce_manager_->GetCertainItem(last_reduce_no_);
         if (cur == NULL) {
             delete alloc;
+            LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
             return NULL;
         }
         alloc->resource_no = last_reduce_no_;
@@ -225,11 +241,14 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
         cur = reduce_manager_->GetItem();
         if (cur == NULL) {
             delete alloc;
+            LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
             return NULL;
         }
         alloc->resource_no = cur->no;
     }
     alloc->attempt = cur->attempt;
+    alloc->state = kTaskRunning;
+    alloc->is_map = false;
     alloc->alloc_time = std::time(NULL);
     last_reduce_no_ = cur->no;
     last_reduce_attempt_ = cur->attempt;
@@ -242,11 +261,14 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
         master_->RetractJob(job_id_);
         state_ = kFailed;
         delete alloc;
+        LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
         return NULL;
     }
     MutexLock lock(&alloc_mu_);
     allocation_table_.push_back(alloc);
     time_heap_.push(alloc);
+    LOG(INFO, "assign reduce: < no - %d, attempt - %d >: %s",
+            alloc->resource_no, alloc->attempt, job_id_.c_str());
     return cur;
 }
 
@@ -257,23 +279,65 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         std::list<AllocateItem*>::iterator it;
         for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
             if ((*it)->resource_no == no && (*it)->attempt == attempt) {
-                cur = *it;
+                if ((*it)->state == kTaskRunning) {
+                    cur = *it;
+                }
+                break;
             }
         }
     }
     if (cur == NULL) {
-        LOG(WARNING, "try to finish an inexist task: < no - %d, attempt - %d >", no, attempt);
+        LOG(WARNING, "try to finish an inexist map task: < no - %d, attempt - %d >: %s",
+                no, attempt, job_id_.c_str());
         return kNoMore;
     }
+    LOG(INFO, "finish a map task: < no - %d, attempt - %d >, state %s: %s",
+            cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     cur->state = state;
     {
         MutexLock lock(&mu_);
+        // TODO Statistics seems not to work
         switch (state) {
         case kTaskCompleted:
             map_stat_.set_completed(map_stat_.completed() + 1);
+            LOG(INFO, "complete a map task(%d/%d): %s",
+                    map_stat_.completed(), map_manager_->SumOfItem(), job_id_.c_str());
             if (map_stat_.completed() == map_manager_->SumOfItem()) {
-                master_->RetractJob(job_id_);
-                state_ = kCompleted;
+                if (job_descriptor_.job_type() == kMapOnlyJob) {
+                    LOG(INFO, "map-only job finish: %s", job_id_.c_str());
+                    master_->RetractJob(job_id_);
+                    state_ = kCompleted;
+                } else {
+                    // Pull up reduce task
+                    LOG(INFO, "map phrase end now, pull up reduce tasks: %s", job_id_.c_str());
+                    ::baidu::galaxy::JobDescription galaxy_job;
+                    galaxy_job.job_name = job_descriptor_.name() + "_reduce@minion";
+                    galaxy_job.type = "kBatch";
+                    galaxy_job.priority = "kOnline";
+                    galaxy_job.replica = job_descriptor_.reduce_capacity();
+                    galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
+                    galaxy_job.pod.requirement.millicores = job_descriptor_.millicores();
+                    galaxy_job.pod.requirement.memory = job_descriptor_.memory();
+                    std::stringstream ss;
+                    ss << "app_package=" << job_descriptor_.files(0) << " ./minion_boot.sh"
+                       << " -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+                       << " -work_mode=" << "reduce";
+                    ::baidu::galaxy::TaskDescription minion;
+                    minion.offset = 1;
+                    minion.binary = FLAGS_minion_path;
+                    minion.source_type = "kSourceTypeFTP";
+                    minion.start_cmd = ss.str().c_str();
+                    minion.requirement = galaxy_job.pod.requirement;
+                    galaxy_job.pod.tasks.push_back(minion);
+                    std::string minion_id;
+                    if (sdk_->SubmitJob(galaxy_job, &minion_id)) {
+                        reduce_minion_ = minion_id;
+                    }
+                    if (!map_minion_.empty()) {
+                        LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
+                        sdk_->TerminateJob(map_minion_);
+                    }
+                }
             }
             break;
         case kTaskKilled: map_stat_.set_killed(map_stat_.killed() + 1); break;
@@ -306,6 +370,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
             }
             // TODO Maybe check returned state here?
+            (*it)->state = kTaskCanceled;
         }
     }
     return kOk;
@@ -315,28 +380,33 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     AllocateItem* cur = NULL;
     {
         MutexLock lock(&alloc_mu_);
-        // TODO XXX
-        // Warning:
-        //     This table is not supposed to be public for map and reduce.
-        //     So it won't work until proper modification
         std::list<AllocateItem*>::iterator it;
         for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
-            if ((*it)->resource_no == no && (*it)->attempt == attempt) {
-                cur = *it;
+            if (!((*it)->is_map) && (*it)->resource_no == no && (*it)->attempt == attempt) {
+                if ((*it)->state == kTaskRunning) {
+                    cur = *it;
+                }
+                break;
             }
         }
     }
     if (cur == NULL) {
-        LOG(WARNING, "try to finish an inexist task: < no - %d, attempt - %d >", no, attempt);
+        LOG(WARNING, "try to finish an inexist reduce task: < no - %d, attempt - %d >: %s",
+                no, attempt, job_id_.c_str());
         return kNoMore;
     }
+    LOG(INFO, "finish a map task: < no - %d, attempt - %d >, state %s: %s",
+            cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     cur->state = state;
     {
         MutexLock lock(&mu_);
         switch (state) {
         case kTaskCompleted:
             reduce_stat_.set_completed(reduce_stat_.completed() + 1);
+            LOG(INFO, "complete a reduce task(%d/%d): %s",
+                    map_stat_.completed(), map_manager_->SumOfItem(), job_id_.c_str());
             if (reduce_stat_.completed() == reduce_manager_->SumOfItem()) {
+                LOG(INFO, "map-reduce job finish: %s", job_id_.c_str());
                 master_->RetractJob(job_id_);
                 state_ = kCompleted;
             }
@@ -360,7 +430,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     MutexLock lock(&alloc_mu_);
     for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
-        if ((*it)->resource_no == no && (*it)->attempt != attempt) {
+        if (!((*it)->is_map) && (*it)->resource_no == no && (*it)->attempt != attempt) {
             rpc_client_->GetStub((*it)->endpoint, &stub);
             boost::scoped_ptr<Minion_Stub> stub_guard(stub);
             request.set_task_id((*it)->resource_no);
@@ -371,6 +441,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
             }
             // TODO Maybe check returned state here?
+            (*it)->state = kTaskCanceled;
         }
     }
     return kOk;

@@ -261,12 +261,12 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
         Status status = kOk;
         if (request->work_mode() == kReduce) {
             status = jobtracker->FinishReduce(request->task_id(),
-                                                     request->attempt_id(),
-                                                     request->task_state());
+                                              request->attempt_id(),
+                                              request->task_state());
         } else {
             status = jobtracker->FinishMap(request->task_id(),
-                                                  request->attempt_id(),
-                                                  request->task_state());
+                                           request->attempt_id(),
+                                           request->task_state());
         }
         response->set_status(status);
     } else {
@@ -295,6 +295,7 @@ void MasterImpl::RetractJob(const std::string& jobid) {
     }
 
     JobTracker* jobtracker = it->second;
+    jobtracker->Kill();
     job_trackers_.erase(it);
     MutexLock lock2(&(dead_mu_));
     dead_trackers_[jobid] = jobtracker;

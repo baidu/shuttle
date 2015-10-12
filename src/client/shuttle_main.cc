@@ -2,6 +2,7 @@
 #include <vector>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <fstream>
 
 #include <cstdio>
 #include <cstring>
@@ -23,6 +24,7 @@ std::string reduce;
 std::string jobconf;
 std::string nexus;
 std::string nexus_root = "/shuttle/";
+std::string nexus_file;
 std::string master = "master";
 
 std::string job_name = "map_reduce_job";
@@ -70,6 +72,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  stream.num.map.output.key.fields\tSpecify the output fields number of key after mapper\n"
         "\t  num.key.fields.for.partition\tSpecify the first n fields in key in partitioning\n"
         "\t-nexus <servers>[,...]\t\tSpecify the hosts of nexus server\n"
+        "\t-nexus-file <file>\t\tSpecify the flag file used by nexus, will override the option above\n"
         "\t-nexus-root <path>\t\tSpecify the root path of nexus\n"
         "\t-master <path>\t\t\tSpecify the master path in nexus\n"
 ;
@@ -149,6 +152,8 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
                 config::nexus += ",";
             }
             config::nexus += opt[++i];
+        } else if (!strcmp(ctx, "nexus-file")) {
+            config::nexus_file = opt[++i];
         } else if (!strcmp(ctx, "nexus-root")) {
             config::nexus_root = opt[++i];
         } else if (!strcmp(ctx, "master")) {
@@ -230,6 +235,23 @@ static void ParseJobConfig() {
                     it->substr(strlen("num.key.fields.for.partition=")));
         }
     }
+}
+
+static void ParseNexusFile() {
+    if (config::nexus_file.empty()) {
+        return;
+    }
+    std::ifstream fin(config::nexus_file.c_str());
+    std::string context;
+    const std::string addr_flag = "--cluster_members=";
+    while (fin >> context && !fin.eof()) {
+        size_t pos = context.find(addr_flag);
+        if (pos == std::string::npos) {
+            continue;
+        }
+        config::nexus = context.substr(pos + addr_flag.size());
+    }
+    fin.close();
 }
 
 static std::string GetMasterAddr() {
@@ -459,6 +481,7 @@ static int ShowJob() {
 int main(int argc, char* argv[]) {
     ParseCommandLineFlags(&argc, &argv);
     ParseJobConfig();
+    ParseNexusFile();
     if (argc < 2) {
         fprintf(stderr, "%s", error_message.c_str());
         return -1;
