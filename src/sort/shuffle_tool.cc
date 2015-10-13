@@ -16,6 +16,10 @@ DEFINE_int32(reduce_no, 0, "the reduce number of this reduce task");
 DEFINE_string(work_dir, "/tmp", "the shuffle work dir");
 DEFINE_int32(batch, 100, "merge how many maps output at the same time");
 DEFINE_int32(attempt_id, 0, "the attempt_id of this reduce task");
+DEFINE_string(dfs_host, "", "host name of dfs master");
+DEFINE_string(dfs_port, "", "port of dfs master");
+DEFINE_string(dfs_user, "", "user name of dfs master");
+DEFINE_string(dfs_password, "", "password of dfs master");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -26,6 +30,15 @@ using namespace baidu::shuttle;
 std::set<std::string> g_merged;
 int32_t g_file_no(0);
 FileSystem* g_fs(NULL);
+
+void FillParam(FileSystem::Param& param) {
+    if (!FLAGS_dfs_user.empty()) {
+        param["host"] = FLAGS_dfs_host;
+        param["port"] = FLAGS_dfs_port;
+        param["user"] = FLAGS_dfs_user;
+        param["password"] = FLAGS_dfs_password;
+    }
+}
 
 void CollectFilesToMerge(std::vector<std::string>* maps_to_merge) {
     assert(maps_to_merge);
@@ -76,6 +89,7 @@ void MergeMapOutput(const std::vector<std::string>& maps_to_merge) {
     }
     MergeFileReader reader;
     FileSystem::Param param;
+    FillParam(param);
     Status status = reader.Open(file_names, param, kHdfsFile);
     if (status != kOk) {
         LOG(FATAL, "fail to open: %s", reader.GetErrorFile().c_str());
@@ -99,6 +113,7 @@ void MergeMapOutput(const std::vector<std::string>& maps_to_merge) {
         LOG(FATAL, "fail to create writer");
     }
     FileSystem::Param param_write;
+    FillParam(param_write);
     param_write["replica"] = "2";
     status = writer->Open(output_file, param_write);
     if (status != kOk) {
@@ -149,6 +164,7 @@ void MergeAndPrint() {
     }
     MergeFileReader reader;
     FileSystem::Param param;
+    FillParam(param);
     Status status = reader.Open(file_names, param, kHdfsFile);
     if (status != kOk) {
         LOG(FATAL, "fail to open: %s", reader.GetErrorFile().c_str());
@@ -172,6 +188,7 @@ int main(int argc, char* argv[]) {
     baidu::common::SetWarningFile(GetLogName("./shuffle_tool.log.wf").c_str());
     google::ParseCommandLineFlags(&argc, &argv, true);
     FileSystem::Param param;
+    FillParam(param);
     g_fs = FileSystem::CreateInfHdfs(param);
     if (FLAGS_total == 0 ) {
         LOG(FATAL, "invalid map task total");
