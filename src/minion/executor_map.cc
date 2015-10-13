@@ -48,7 +48,7 @@ struct EmitItemLess {
 
 class Emitter {
 public:
-    Emitter(const std::string& work_dir){
+    Emitter(const std::string& work_dir, const TaskInfo& task) : task_(task) {
         work_dir_ = work_dir;
         cur_byte_size_ = 0;
         file_no_ = 0;
@@ -61,6 +61,7 @@ private:
     size_t cur_byte_size_;
     std::vector<EmitItem*> mem_table_;
     int file_no_;
+    const TaskInfo& task_;
 };
 
 MapExecutor::MapExecutor() : line_buf_(NULL) {
@@ -90,11 +91,12 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
     }
 
     FileSystem::Param param;
+    FillParam(param, task);
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     fs->Mkdirs(GetShuffleWorkDir(task));
     delete fs;
 
-    Emitter emitter(GetMapWorkDir(task));
+    Emitter emitter(GetMapWorkDir(task), task);
     while (!feof(user_app)) {
         if (fgets(line_buf_, sLineBufSize, user_app) == NULL) {
             break;
@@ -170,6 +172,7 @@ Status Emitter::FlushMemTable() {
             break;
         }
         FileSystem::Param param;
+        Executor::FillParam(param, task_);
         param["replica"] = "2";
         snprintf(file_name, sizeof(file_name), "%s/%d.sort",
                  work_dir_.c_str(), file_no_);

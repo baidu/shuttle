@@ -149,6 +149,15 @@ bool Executor::MoveTempToShuffle(const TaskInfo& task) {
     return ret;
 }
 
+void Executor::FillParam(FileSystem::Param& param, const TaskInfo& task) {
+    if (!task.job().output_dfs().user().empty()) {
+        param["host"] = task.job().output_dfs().host();
+        param["port"] = task.job().output_dfs().port();
+        param["user"] = task.job().output_dfs().user();
+        param["password"] = task.job().output_dfs().password();
+    }
+}
+
 } //namespace shuttle
 } //namespace baidu
 
