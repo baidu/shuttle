@@ -307,13 +307,15 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
 
 static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
     ::baidu::common::TPrinter tp(4);
-    tp.AddRow(4, "job id", "state", "map running", "reduce running");
+    tp.AddRow(4, "job id", "state", "map(r/p/c)", "reduce(r/p/c)");
     for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_iterator it = jobs.begin();
             it != jobs.end(); ++it) {
-        std::string map_running = boost::lexical_cast<std::string>(it->map_stat.running) + "/"
-            + boost::lexical_cast<std::string>(it->map_stat.total);
+        std::string map_running = boost::lexical_cast<std::string>(it->map_stat.running)
+            + "/" + boost::lexical_cast<std::string>(it->map_stat.pending)
+            + "/" + boost::lexical_cast<std::string>(it->map_stat.completed);
         std::string reduce_running = boost::lexical_cast<std::string>(it->reduce_stat.running)
-            + "/" + boost::lexical_cast<std::string>(it->reduce_stat.total);
+            + "/" + boost::lexical_cast<std::string>(it->reduce_stat.pending)
+            + "/" + boost::lexical_cast<std::string>(it->reduce_stat.completed);
         tp.AddRow(4, it->jobid.c_str(), state_string[it->state],
                   map_running.c_str(), reduce_running.c_str());
     }

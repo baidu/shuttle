@@ -50,7 +50,7 @@ public:
                     ::baidu::shuttle::FinishTaskResponse* response,
                     ::google::protobuf::Closure* done);
 
-    void RetractJob(const std::string& jobid);
+    Status RetractJob(const std::string& jobid);
 
 private:
     void AcquireMasterLock();

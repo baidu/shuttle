@@ -159,11 +159,13 @@ Status JobTracker::Kill() {
     }
     map_minion_ = "";
     if (!reduce_minion_.empty() && !sdk_->TerminateJob(reduce_minion_)) {
-        LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
+        LOG(INFO, "reduce minion finished, kill: %s", job_id_.c_str());
         return kGalaxyError;
     }
     reduce_minion_ = "";
-    state_ = kKilled;
+    if (state_ != kCompleted) {
+        state_ = kKilled;
+    }
     return kOk;
 }
 
@@ -193,6 +195,11 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
             return NULL;
         }
         alloc->resource_no = cur->no;
+        {
+            MutexLock lock(&mu_);
+            map_stat_.set_pending(map_stat_.pending() - 1);
+            map_stat_.set_running(map_stat_.running() + 1);
+        }
     }
     alloc->attempt = cur->attempt;
     alloc->state = kTaskRunning;
@@ -245,6 +252,11 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
             return NULL;
         }
         alloc->resource_no = cur->no;
+        {
+            MutexLock lock(&mu_);
+            reduce_stat_.set_pending(reduce_stat_.pending() - 1);
+            reduce_stat_.set_running(reduce_stat_.running() + 1);
+        }
     }
     alloc->attempt = cur->attempt;
     alloc->state = kTaskRunning;
@@ -296,16 +308,19 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     cur->state = state;
     {
         MutexLock lock(&mu_);
-        // TODO Statistics seems not to work
+        // TODO Statistics do not work when minion failed
         switch (state) {
         case kTaskCompleted:
             map_stat_.set_completed(map_stat_.completed() + 1);
+            map_stat_.set_running(map_stat_.running() - 1);
             LOG(INFO, "complete a map task(%d/%d): %s",
                     map_stat_.completed(), map_manager_->SumOfItem(), job_id_.c_str());
             if (map_stat_.completed() == map_manager_->SumOfItem()) {
                 if (job_descriptor_.job_type() == kMapOnlyJob) {
                     LOG(INFO, "map-only job finish: %s", job_id_.c_str());
+                    mu_.Unlock();
                     master_->RetractJob(job_id_);
+                    mu_.Lock();
                     state_ = kCompleted;
                 } else {
                     // Pull up reduce task
@@ -336,6 +351,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     if (!map_minion_.empty()) {
                         LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
                         sdk_->TerminateJob(map_minion_);
+                        map_minion_ = "";
                     }
                 }
             }
@@ -395,7 +411,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 no, attempt, job_id_.c_str());
         return kNoMore;
     }
-    LOG(INFO, "finish a map task: < no - %d, attempt - %d >, state %s: %s",
+    LOG(INFO, "finish a reduce task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     cur->state = state;
     {
@@ -403,11 +419,14 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
         switch (state) {
         case kTaskCompleted:
             reduce_stat_.set_completed(reduce_stat_.completed() + 1);
+            reduce_stat_.set_running(reduce_stat_.running() - 1);
             LOG(INFO, "complete a reduce task(%d/%d): %s",
-                    map_stat_.completed(), map_manager_->SumOfItem(), job_id_.c_str());
+                    reduce_stat_.completed(), reduce_manager_->SumOfItem(), job_id_.c_str());
             if (reduce_stat_.completed() == reduce_manager_->SumOfItem()) {
                 LOG(INFO, "map-reduce job finish: %s", job_id_.c_str());
+                mu_.Unlock();
                 master_->RetractJob(job_id_);
+                mu_.Lock();
                 state_ = kCompleted;
             }
             break;
