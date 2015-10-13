@@ -101,7 +101,7 @@ void InfHdfs::Connect(Param param) {
         fs_ = hdfsConnect("default", 0);
     } else {
         const std::string& user = param["user"];
-        const std::string& password = param["passowrd"];
+        const std::string& password = param["password"];
         const std::string& host = param["host"];
         const std::string& port = param["port"];
         fs_ = hdfsConnectAsUser(host.c_str(), atoi(port.c_str()),

@@ -17,6 +17,19 @@ DEFINE_string(file, "", "input file path");
 DEFINE_int64(offset, 0, "offset to start read");
 DEFINE_int64(len, 1024, "bytes at most read");
 DEFINE_string(fs, "hdfs", "file system");
+DEFINE_string(dfs_host, "", "host name of dfs master");
+DEFINE_string(dfs_port, "", "port of dfs master");
+DEFINE_string(dfs_user, "", "user name of dfs master");
+DEFINE_string(dfs_password, "", "password of dfs master");
+
+void FillParam(FileSystem::Param& param) {
+    if (!FLAGS_dfs_user.empty()) {
+        param["host"] = FLAGS_dfs_host;
+        param["port"] = FLAGS_dfs_port;
+        param["user"] = FLAGS_dfs_user;
+        param["password"] = FLAGS_dfs_password;
+    }
+}
 
 void DoRead() {
     InputReader * reader;
@@ -29,6 +42,7 @@ void DoRead() {
         exit(-1);
     }
     FileSystem::Param param;
+    FillParam(param);
     Status status = reader->Open(FLAGS_file, param);
     if (status != kOk) {
         std::cerr << "fail to open: " << FLAGS_file << std::endl;

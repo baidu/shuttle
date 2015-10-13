@@ -50,6 +50,13 @@ enum JobType {
     kMapReduceJob = 1;
 }
 
+message DfsInfo {
+    optional string host = 1;
+    optional string port = 2;
+    optional string user = 3;
+    optional string password = 4;    
+}
+
 message JobDescriptor {
     optional string name = 1;
     optional string user = 2;
@@ -70,6 +77,8 @@ message JobDescriptor {
     optional int32 key_fields_num = 17;
     optional int32 partition_fields_num = 18;
     optional JobType job_type = 19;
+    optional DfsInfo input_dfs = 20;
+    optional DfsInfo output_dfs = 21;
 }
 
 message TaskInput {

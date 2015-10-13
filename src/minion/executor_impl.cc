@@ -70,7 +70,15 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     ::setenv("mapred_attempt_id",
              boost::lexical_cast<std::string>(task.attempt_id()).c_str(),
              1);
-    ::setenv("shuffle_work_dir", GetShuffleWorkDir(task).c_str(), 1);
+    ::setenv("minion_shuffle_work_dir", GetShuffleWorkDir(task).c_str(), 1);
+    ::setenv("minion_input_dfs_host", task.job().input_dfs().host().c_str(), 1);
+    ::setenv("minion_input_dfs_port", task.job().input_dfs().port().c_str(), 1);
+    ::setenv("minion_input_dfs_user", task.job().input_dfs().user().c_str(), 1);
+    ::setenv("minion_input_dfs_password", task.job().input_dfs().password().c_str(), 1);
+    ::setenv("minion_output_dfs_host", task.job().output_dfs().host().c_str(), 1);
+    ::setenv("minion_output_dfs_port", task.job().output_dfs().port().c_str(), 1);
+    ::setenv("minion_output_dfs_user", task.job().output_dfs().user().c_str(), 1);
+    ::setenv("minion_output_dfs_password", task.job().output_dfs().password().c_str(), 1);
 }
 
 const std::string Executor::GetShuffleWorkDir(const TaskInfo& task) {
