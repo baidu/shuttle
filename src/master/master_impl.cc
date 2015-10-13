@@ -111,8 +111,7 @@ void MasterImpl::KillJob(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status status = jobtracker->Kill();
-        RetractJob(job_id);
+        Status status = RetractJob(job_id);
         response->set_status(status);
     } else {
         LOG(WARNING, "try to kill an inexist job: %s", job_id.c_str());
@@ -125,9 +124,18 @@ void MasterImpl::ListJobs(::google::protobuf::RpcController* /*controller*/,
                           const ::baidu::shuttle::ListJobsRequest* /*request*/,
                           ::baidu::shuttle::ListJobsResponse* response,
                           ::google::protobuf::Closure* done) {
-    MutexLock lock(&(tracker_mu_));
     std::map<std::string, JobTracker*>::iterator it;
+    MutexLock lock1(&(tracker_mu_));
+    MutexLock lock2(&(dead_mu_));
     for (it = job_trackers_.begin(); it != job_trackers_.end(); ++it) {
+        JobOverview* job = response->add_jobs();
+        job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
+        job->set_jobid(it->first);
+        job->set_state(it->second->GetState());
+        job->mutable_map_stat()->CopyFrom(it->second->GetMapStatistics());
+        job->mutable_reduce_stat()->CopyFrom(it->second->GetReduceStatistics());
+    }
+    for (it = dead_trackers_.begin(); it != dead_trackers_.end(); ++it) {
         JobOverview* job = response->add_jobs();
         job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
         job->set_jobid(it->first);
@@ -287,18 +295,18 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
     done->Run();
 }
 
-void MasterImpl::RetractJob(const std::string& jobid) {
+Status MasterImpl::RetractJob(const std::string& jobid) {
     MutexLock lock(&(tracker_mu_));
+    MutexLock lock2(&(dead_mu_));
     std::map<std::string, JobTracker*>::iterator it = job_trackers_.find(jobid);
     if (it == job_trackers_.end()) {
         LOG(WARNING, "retract job failed: job inexist: %s", jobid.c_str());
     }
 
     JobTracker* jobtracker = it->second;
-    jobtracker->Kill();
     job_trackers_.erase(it);
-    MutexLock lock2(&(dead_mu_));
     dead_trackers_[jobid] = jobtracker;
+    return jobtracker->Kill();
 }
 
 void MasterImpl::AcquireMasterLock() {
