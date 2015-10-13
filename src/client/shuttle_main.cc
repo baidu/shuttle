@@ -41,6 +41,14 @@ int reduce_tasks = 1;
 std::string key_separator = ",";
 int key_fields_num = 1;
 int partition_fields_num = 1;
+std::string input_host;
+std::string input_port;
+std::string input_user;
+std::string input_password;
+std::string output_host;
+std::string output_port;
+std::string output_user;
+std::string output_password;
 
 }
 
@@ -68,6 +76,14 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.reduce.capacity\tSpecify the slot number that reduce tasks can use\n"
         "\t  mapred.job.map.tasks\t\tSpecify the number of map tasks\n"
         "\t  mapred.job.reduce.tasks\tSpecify the number of reduce tasks\n"
+        "\t  mapred.job.input.host\t\tSpecify the host of the dfs which stores inputs\n"
+        "\t  mapred.job.input.port\t\tSpecify the port, ditto\n"
+        "\t  mapred.job.input.user\t\tSpecify the user, ditto\n"
+        "\t  mapred.job.input.password\t\tSpecify the password, ditto\n"
+        "\t  mapred.job.output.host\t\tSpecify the host of the dfs which stores output\n"
+        "\t  mapred.job.output.port\t\tSpecify the port, ditto\n"
+        "\t  mapred.job.output.user\t\tSpecify the user, ditto\n"
+        "\t  mapred.job.output.password\t\tSpecify the password, ditto\n"
         "\t  map.key.field.separator\tSpecify the separator for key field in shuffling\n"
         "\t  stream.num.map.output.key.fields\tSpecify the output fields number of key after mapper\n"
         "\t  num.key.fields.for.partition\tSpecify the first n fields in key in partitioning\n"
@@ -225,6 +241,22 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.job.reduce.tasks=")) {
             config::reduce_tasks = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.job.reduce.tasks=")));
+        } else if (boost::starts_with(*it, "mapred.job.input.host=")) {
+            config::input_host = it->substr(strlen("mapred.job.input.host="));
+        } else if (boost::starts_with(*it, "mapred.job.input.port=")) {
+            config::input_host = it->substr(strlen("mapred.job.input.port="));
+        } else if (boost::starts_with(*it, "mapred.job.input.user=")) {
+            config::input_host = it->substr(strlen("mapred.job.input.user="));
+        } else if (boost::starts_with(*it, "mapred.job.input.password=")) {
+            config::input_host = it->substr(strlen("mapred.job.input.password="));
+        } else if (boost::starts_with(*it, "mapred.job.output.host=")) {
+            config::output_host = it->substr(strlen("mapred.job.output.host="));
+        } else if (boost::starts_with(*it, "mapred.job.output.port=")) {
+            config::output_host = it->substr(strlen("mapred.job.output.port="));
+        } else if (boost::starts_with(*it, "mapred.job.output.user=")) {
+            config::output_host = it->substr(strlen("mapred.job.output.user="));
+        } else if (boost::starts_with(*it, "mapred.job.output.password=")) {
+            config::output_host = it->substr(strlen("mapred.job.output.password="));
         } else if (boost::starts_with(*it, "map.key.field.separator=")) {
             config::key_separator = it->substr(strlen("map.key.field.separator="));
         } else if (boost::starts_with(*it, "stream.num.map.output.key.fields=")) {
@@ -349,6 +381,16 @@ static int SubmitJob() {
         fprintf(stderr, "reduce flag is needed, use --reduce to specify\n");
         return -1;
     }
+/*  if (config::input_host.empty() || config::input_port.empty() ||
+            config::input_user.empty() || config::input_password.empty()) {
+        fprintf(stderr, "input dfs info is needed, use --jobconf to specify\n");
+        return -1;
+    }
+    if (config::output_host.empty() || config::output_port.empty() ||
+            config::output_user.empty() || config::output_password.empty()) {
+        fprintf(stderr, "output dfs info is needed, use --jobconf to specify\n");
+        return -1;
+    }*/
     if (config::map_capacity == -1) {
         config::map_capacity = 100;
     }
@@ -374,6 +416,14 @@ static int SubmitJob() {
     job_desc.key_separator = config::key_separator;
     job_desc.key_fields_num = config::key_fields_num;
     job_desc.partition_fields_num = config::partition_fields_num;
+    job_desc.input_dfs.host = config::input_host;
+    job_desc.input_dfs.port = config::input_port;
+    job_desc.input_dfs.user = config::input_user;
+    job_desc.input_dfs.password = config::input_password;
+    job_desc.output_dfs.host = config::output_host;
+    job_desc.output_dfs.port = config::output_port;
+    job_desc.output_dfs.user = config::output_user;
+    job_desc.output_dfs.password = config::output_password;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);

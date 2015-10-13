@@ -68,6 +68,16 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_key_fields_num(job_desc.key_fields_num);
     job->set_partition_fields_num(job_desc.partition_fields_num);
     job->set_job_type((job_desc.reduce_total == 0) ? kMapOnlyJob : kMapReduceJob);
+    DfsInfo* input_info = job->mutable_input_dfs();
+    input_info->set_host(job_desc.input_dfs.host);
+    input_info->set_port(job_desc.input_dfs.port);
+    input_info->set_user(job_desc.input_dfs.user);
+    input_info->set_password(job_desc.input_dfs.password);
+    DfsInfo* output_info = job->mutable_output_dfs();
+    output_info->set_host(job_desc.output_dfs.host);
+    output_info->set_port(job_desc.output_dfs.port);
+    output_info->set_user(job_desc.output_dfs.user);
+    output_info->set_password(job_desc.output_dfs.password);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, 2, 1);
@@ -159,6 +169,14 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
     job.desc.key_separator = desc.key_separator();
     job.desc.key_fields_num = desc.key_fields_num();
     job.desc.partition_fields_num = desc.partition_fields_num();
+    job.desc.input_dfs.host = desc.input_dfs().host();
+    job.desc.input_dfs.port = desc.input_dfs().port();
+    job.desc.input_dfs.user = desc.input_dfs().user();
+    job.desc.input_dfs.password = desc.input_dfs().password();
+    job.desc.output_dfs.host = desc.output_dfs().host();
+    job.desc.output_dfs.port = desc.output_dfs().port();
+    job.desc.output_dfs.user = desc.output_dfs().user();
+    job.desc.output_dfs.password = desc.output_dfs().password();
 
     job.jobid = joboverview.jobid();
     job.state = (sdk::JobState)joboverview.state();
@@ -231,6 +249,14 @@ bool ShuttleImpl::ListJobs(std::vector<sdk::JobInstance>& jobs) {
         job.desc.key_separator = desc.key_separator();
         job.desc.key_fields_num = desc.key_fields_num();
         job.desc.partition_fields_num = desc.partition_fields_num();
+        job.desc.input_dfs.host = desc.input_dfs().host();
+        job.desc.input_dfs.port = desc.input_dfs().port();
+        job.desc.input_dfs.user = desc.input_dfs().user();
+        job.desc.input_dfs.password = desc.input_dfs().password();
+        job.desc.output_dfs.host = desc.output_dfs().host();
+        job.desc.output_dfs.port = desc.output_dfs().port();
+        job.desc.output_dfs.user = desc.output_dfs().user();
+        job.desc.output_dfs.password = desc.output_dfs().password();
 
         job.jobid = it->jobid();
         job.state = (sdk::JobState)it->state();

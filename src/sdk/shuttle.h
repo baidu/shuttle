@@ -50,6 +50,13 @@ struct TaskStatistics {
     int32_t completed;
 };
 
+struct DfsInfo {
+    std::string host;
+    std::string port;
+    std::string user;
+    std::string password;
+};
+
 struct JobDescription {
     std::string name;
     std::string user;
@@ -69,6 +76,8 @@ struct JobDescription {
     std::string key_separator;
     int32_t key_fields_num;
     int32_t partition_fields_num;
+    DfsInfo input_dfs;
+    DfsInfo output_dfs;
 };
 
 struct  TaskInstance {
