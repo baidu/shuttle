@@ -9,15 +9,17 @@ namespace shuttle {
 
 class Partitioner {
 public:
-    virtual int Calc(const std::string& line, std::string* key) = 0;
-    int HashCode(const std::string& str);
+    virtual int Calc(const std::string& line, std::string* key) const = 0;
+    virtual int Calc(const std::string& key) const = 0;
+    int HashCode(const std::string& str) const;
 };
 
 class KeyFieldBasedPartitioner : public Partitioner {
 public:
     KeyFieldBasedPartitioner(const TaskInfo& task);
     virtual ~KeyFieldBasedPartitioner(){};
-    int Calc(const std::string& line, std::string* key);
+    int Calc(const std::string& line, std::string* key) const;
+    int Calc(const std::string& key) const;
 private:
     int num_key_fields_;
     int num_partition_fields_;
@@ -29,7 +31,8 @@ class IntHashPartitioner : public Partitioner {
 public:
     IntHashPartitioner(const TaskInfo& task);
     virtual ~IntHashPartitioner(){};
-    int Calc(const std::string& line, std::string* key);
+    int Calc(const std::string& line, std::string* key) const;
+    int Calc(const std::string& key) const;
 private:
     int reduce_total_;
     std::string separator_;

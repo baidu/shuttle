@@ -10,6 +10,7 @@
 
 using baidu::common::INFO;
 using baidu::common::WARNING;
+using baidu::common::FATAL;
 
 using namespace baidu::shuttle;
 
@@ -21,6 +22,7 @@ DEFINE_string(dfs_host, "", "host name of dfs master");
 DEFINE_string(dfs_port, "", "port of dfs master");
 DEFINE_string(dfs_user, "", "user name of dfs master");
 DEFINE_string(dfs_password, "", "password of dfs master");
+DEFINE_string(format, "text", "input format: text/binary");
 
 void FillParam(FileSystem::Param& param) {
     if (!FLAGS_dfs_user.empty()) {
@@ -34,7 +36,13 @@ void FillParam(FileSystem::Param& param) {
 void DoRead() {
     InputReader * reader;
     if (FLAGS_fs == "hdfs") {
-        reader = InputReader::CreateHdfsTextReader();
+        if (FLAGS_format == "text") {
+            reader = InputReader::CreateHdfsTextReader();
+        } else if (FLAGS_format == "binary") {
+            reader = InputReader::CreateSeqFileReader();
+        } else {
+            LOG(FATAL, "unkown format: %s", FLAGS_format.c_str());
+        }
     } else if (FLAGS_fs == "local") {
         reader = InputReader::CreateLocalTextReader();
     } else {
@@ -50,7 +58,11 @@ void DoRead() {
     }
     InputReader::Iterator* it = reader->Read(FLAGS_offset, FLAGS_len);
     while (!it->Done()) {
-        std::cout << it->Line() << std::endl;
+        if (FLAGS_format == "text") {
+            std::cout << it->Record() << std::endl;
+        } else {
+            std::cout << it->Record();// no new line
+        }
         it->Next();
     }
     if (it->Error() != kOk && it->Error() != kNoMore) {

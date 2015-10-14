@@ -38,7 +38,7 @@ TEST(InputReader, Split1) {
         InputReader::Iterator* it = reader->Read(start_offset, block_size);
         while (!it->Done()) {
             line_count++;
-            bytes_count += (it->Line().size() + 1);
+            bytes_count += (it->Record().size() + 1);
             it->Next();
         }
         EXPECT_EQ(it->Error(), kNoMore);
@@ -65,7 +65,7 @@ TEST(InputReader, Split2) {
         InputReader::Iterator* it = reader->Read(start_offset, block_size);
         while (!it->Done()) {
             line_count++;
-            bytes_count += (it->Line().size() + 1);
+            bytes_count += (it->Record().size() + 1);
             it->Next();
         }
         EXPECT_EQ(it->Error(), kNoMore);

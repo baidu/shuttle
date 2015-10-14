@@ -6,10 +6,9 @@
 #include <errno.h>
 #include <sstream>
 #include <vector>
-#include <boost/algorithm/string.hpp>
 #include <logging.h>
-#include "partition.h"
 #include "sort/sort_file.h"
+#include "partition.h"
 
 using baidu::common::WARNING;
 using baidu::common::INFO;
@@ -23,14 +22,14 @@ const static size_t sMaxInMemTable = 512 << 20;
 struct EmitItem {
     int reduce_no;
     std::string key;
-    std::string line;
-    EmitItem(int l_reduce_no, const std::string& l_key, const std::string& l_line) {
+    std::string record;
+    EmitItem(int l_reduce_no, const std::string& l_key, const std::string& l_record) {
         reduce_no = l_reduce_no;
         key = l_key;
-        line = l_line;
+        record = l_record;
     }
     size_t Size() {
-        return sizeof(int) + key.size() + line.size();
+        return sizeof(int) + key.size() + record.size();
     }
 };
 
@@ -53,7 +52,7 @@ public:
         cur_byte_size_ = 0;
         file_no_ = 0;
     }
-    Status Emit(int reduce_no, const std::string& key, const std::string& line) ;
+    Status Emit(int reduce_no, const std::string& key, const std::string& record) ;
     void Reset();
     Status FlushMemTable();
 private:
@@ -97,28 +96,20 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
     delete fs;
 
     Emitter emitter(GetMapWorkDir(task), task);
-    while (!feof(user_app)) {
-        if (fgets(line_buf_, sLineBufSize, user_app) == NULL) {
-            break;
+    if (task.job().output_format() == kTextOutput) {
+        TaskState state = TransTextOutput(user_app, task, partitioner, &emitter);
+        if (state != kTaskCompleted) {
+            return state;
         }
-        if (ShouldStop(task.task_id())) {
-            LOG(WARNING, "task: %d is canceled.", task.task_id());
-            return kTaskCanceled;
+    } else if (task.job().output_format() == kBinaryOutput) {
+        TaskState state = TransBinaryOutput(user_app, task, partitioner, &emitter);
+        if (state != kTaskCompleted) {
+            return state;
         }
-        std::string line(line_buf_);
-        std::string key;
-        int reduce_no;
-        if (line.size() > 0 && line[line.size()-1] == '\n') {
-            line.erase(line.size()-1);
-        }
-        reduce_no = partitioner->Calc(line, &key);
-        Status em_status = emitter.Emit(reduce_no, key, line) ;
-        if (em_status != kOk) {
-            LOG(WARNING, "emit fail, %s, %s", line.c_str(), 
-                Status_Name(em_status).c_str());
-            return kTaskFailed;
-        }
+    } else {
+        LOG(FATAL, "unkown output format: %d", task.job().output_format());
     }
+
     Status status = emitter.FlushMemTable();
     if (status != kOk) {
         LOG(WARNING, "flush fail, %s", Status_Name(status).c_str());
@@ -145,8 +136,8 @@ void Emitter::Reset() {
     mem_table_.clear();   
 }
 
-Status Emitter::Emit(int reduce_no, const std::string& key, const std::string& line) {
-    EmitItem* item = new EmitItem(reduce_no, key, line);
+Status Emitter::Emit(int reduce_no, const std::string& key, const std::string& record) {
+    EmitItem* item = new EmitItem(reduce_no, key, record);
     mem_table_.push_back(item);
     cur_byte_size_ += item->Size();
     
@@ -187,7 +178,7 @@ Status Emitter::FlushMemTable() {
             std::string raw_key = s_reduce_no;
             raw_key += "\t";
             raw_key += item->key;
-            status = writer->Put(raw_key, item->line);
+            status = writer->Put(raw_key, item->record);
             if (status != kOk) {
                 break;
             }
@@ -201,6 +192,86 @@ Status Emitter::FlushMemTable() {
     delete writer;
     Reset();
     return status;
+}
+
+
+TaskState MapExecutor::TransTextOutput(FILE* user_app, const TaskInfo& task,
+                                       const Partitioner* partitioner, Emitter* emitter) {
+    while (!feof(user_app)) {
+        if (ShouldStop(task.task_id())) {
+            LOG(WARNING, "task: %d is canceled.", task.task_id());
+            return kTaskCanceled;
+        }
+        if (fgets(line_buf_, sLineBufSize, user_app) == NULL) {
+            break;
+        }
+        std::string record(line_buf_);
+        std::string key;
+        int reduce_no;
+        if (record.size() > 0 && record[record.size() - 1] == '\n') {
+            record.erase(record.size() - 1);
+        }
+        reduce_no = partitioner->Calc(record, &key);
+        Status em_status = emitter->Emit(reduce_no, key, record);
+        if (em_status != kOk) {
+            LOG(WARNING, "emit fail, %s, %s", record.c_str(),
+                Status_Name(em_status).c_str());
+            return kTaskFailed;
+        }
+    }
+    return kTaskCompleted;
+}
+
+TaskState MapExecutor::TransBinaryOutput(FILE* user_app, const TaskInfo& task,
+                                         const Partitioner* partitioner, Emitter* emitter) {
+    while (!feof(user_app)) {
+        if (ShouldStop(task.task_id())) {
+            LOG(WARNING, "task: %d is canceled.", task.task_id());
+            return kTaskCanceled;
+        }
+        int32_t key_len = 0;
+        int32_t value_len = 0;
+        std::string key;
+        std::string value;
+        if (fread(&key_len, sizeof(key_len), 1, user_app) != 1) {
+            if (feof(user_app)) {
+                break;
+            }
+            LOG(WARNING, "read key_len fail");
+            return kTaskFailed;
+        }
+        if (key_len < 0 || key_len > 65536) {
+            LOG(WARNING, "invalid key len: %d", key_len);
+            return kTaskFailed;
+        }
+        key.resize(key_len);
+        if ((int32_t)fread((void*)key.data(), sizeof(char), key_len, user_app) != key_len) {
+            LOG(WARNING, "read key fail");
+            return kTaskFailed;
+        }
+        if (fread(&value_len, sizeof(value_len), 1, user_app) != 1) {
+            LOG(WARNING, "read value_len fail");
+            return kTaskFailed;
+        }
+        value.resize(value_len);
+        if ((int32_t)fread((void*) value.data(), sizeof(char), value_len, user_app) != value_len) {
+            LOG(WARNING, "read value fail");
+            return kTaskFailed;
+        }
+        int reduce_no = partitioner->Calc(key);
+        std::string record;
+        record.append((const char*)(&key_len), sizeof(key_len));
+        record.append(key);
+        record.append((const char*)(&value_len), sizeof(value_len));
+        record.append(value);
+        Status em_status = emitter->Emit(reduce_no, key, record);
+        if (em_status != kOk) {
+            LOG(WARNING, "emit fail, %s, %s", record.c_str(),
+                Status_Name(em_status).c_str());
+            return kTaskFailed;
+        }
+    }
+    return kTaskCompleted;
 }
 
 }

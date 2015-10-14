@@ -58,7 +58,7 @@ public:
         virtual ~IteratorImpl() {}
         bool Done() { return !has_more_;}
         void Next();
-        const std::string& Line() { return line_;}
+        const std::string& Record() { return line_;}
         Status Error() {return status_;};
         void SetHasMore(bool has_more) {has_more_ =  has_more;}
         void SetError(Status err) {status_ = err;}
@@ -69,7 +69,10 @@ public:
         TextReader* reader_;
     };
 
-    TextReader(FileSystem* fs) : fs_(fs), read_bytes_(0), reach_eof_(false) {}
+    TextReader(FileSystem* fs) : fs_(fs),
+    		                     offset_(0), len_(0),
+    		                     read_bytes_(0),
+    		                     reach_eof_(false) {}
     virtual ~TextReader() {delete fs_;}
     Status Open(const std::string& path, FileSystem::Param param);
     Iterator* Read(int64_t offset, int64_t len);
@@ -85,13 +88,43 @@ private:
     bool reach_eof_;
 };
 
-InputReader* InputReader::CreateHdfsTextReader() {
-    return new TextReader(FileSystem::CreateInfHdfs());
-}
+class SeqFileReader : public InputReader {
+public:
+    class IteratorImpl : public InputReader::Iterator {
+    public:
+        IteratorImpl(SeqFileReader* reader) : has_more_(false),
+                                              status_(kOk),
+                                              reader_(reader) {}
+        virtual ~IteratorImpl() {}
+        bool Done() { return !has_more_;}
+        void Next();
+        const std::string& Record() {return record_;};
+        Status Error() {return status_;};
+        void SetHasMore(bool has_more) {has_more_ =  has_more;}
+        void SetError(Status err) {status_ = err;}
+    private:
+        bool has_more_;
+        Status status_;
+        std::string record_;
+        SeqFileReader* reader_;
+    };
 
-InputReader* InputReader::CreateLocalTextReader() {
-    return new TextReader(FileSystem::CreateLocalFs());
-}
+    SeqFileReader(InfSeqFile* sf) : sf_(sf), offset_(0), len_(0),
+    		                        read_bytes_(0),
+    		                        reach_eof_(false) {}
+    virtual ~SeqFileReader() {delete sf_;}
+    Status Open(const std::string& path, FileSystem::Param param);
+    Iterator* Read(int64_t offset, int64_t len);
+    Status Close();
+private:
+    Status ReadNextKV(std::string* key, std::string* value);
+private:
+    InfSeqFile* sf_;
+    int64_t offset_;
+    int64_t len_;
+    int64_t read_bytes_;
+    bool reach_eof_;
+};
 
 void TextReader::IteratorImpl::Next() {
     Status status = reader_->ReadNextLine(&line_);
@@ -191,6 +224,88 @@ Status TextReader::ReadNextLine(std::string* line) {
     }
     read_bytes_ += (line->size() + 1);
     return kOk;
+}
+
+
+Status SeqFileReader::Open(const std::string& path, FileSystem::Param param) {
+    if (!sf_->Open(path, param, kReadFile)) {
+        return kOpenFileFail;
+    } else {
+        return kOk;
+    }
+}
+
+InputReader::Iterator* SeqFileReader::Read(int64_t offset, int64_t len) {
+    offset_ = offset;
+    len_ = len;
+    IteratorImpl* it = new IteratorImpl(this);
+    if (!sf_->Seek(offset)) {
+        it->SetHasMore(false);
+        it->SetError(kReadFileFail);
+        return it;
+    }
+    it->Next();
+    return it;
+}
+
+Status SeqFileReader::Close() {
+    if (!sf_->Close()) {
+        return kCloseFileFail;
+    }
+    return kOk;
+}
+
+Status SeqFileReader::ReadNextKV(std::string* key, std::string* value) {
+    bool eof = false;
+    if (sf_->ReadNextRecord(key, value, &eof) ) {
+        int64_t cur_pos = sf_->Tell();
+        //printf("cur_pos:%ld, offset:%ld\n", cur_pos, offset_);
+        if (cur_pos < 0) {
+            return kReadFileFail;
+        }
+        if ( (cur_pos - offset_ + 1) > len_ || eof) {
+            return kNoMore;
+        }
+        return kOk;
+    } else {
+        return kReadFileFail;
+    }
+}
+
+void SeqFileReader::IteratorImpl::Next() {
+    std::string key;
+    std::string value;
+    Status status;
+    status = reader_->ReadNextKV(&key, &value);
+    if (status == kOk) {
+        int32_t key_len = (int32_t)key.size();
+        int32_t value_len = (int32_t)value.size();
+        record_.erase();
+        record_.append((const char*)(&key_len), sizeof(key_len));
+        record_.append(key);
+        record_.append((const char*)(&value_len), sizeof(value_len));
+        record_.append(value);
+        has_more_ = true;
+        status_ = kOk;
+    } else if (status == kNoMore) {
+        has_more_ = false;
+        status_ = kNoMore;
+    } else {
+        has_more_ = false;
+        status_ = status;
+    }
+}
+
+InputReader* InputReader::CreateHdfsTextReader() {
+    return new TextReader(FileSystem::CreateInfHdfs());
+}
+
+InputReader* InputReader::CreateLocalTextReader() {
+    return new TextReader(FileSystem::CreateLocalFs());
+}
+
+InputReader* InputReader::CreateSeqFileReader() {
+    return new SeqFileReader(new InfSeqFile());
 }
 
 } //namepsace shuttle

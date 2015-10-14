@@ -22,59 +22,36 @@ TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
     std::string cmd = "sh ./app_wrapper.sh " + task.job().map_command();
     FILE* user_app = popen(cmd.c_str(), "r");
     if (user_app == NULL) {
-        LOG(WARNING, "start user app fail, cmd is %s, (%s)", 
+        LOG(WARNING, "start user app fail, cmd is %s, (%s)",
             cmd.c_str(), strerror(errno));
         return kTaskFailed;
     }
 
-    FileSystem* fs = FileSystem::CreateInfHdfs();
-    boost::scoped_ptr<FileSystem> fs_guard(fs);
     FileSystem::Param param;
     FillParam(param, task);
     const std::string temp_file_name = GetMapWorkFilename(task);
-    bool ok = fs->Open(temp_file_name, param, kWriteFile);
-    if (!ok) {
-        LOG(WARNING, "create output file fail, %s", temp_file_name.c_str());
-        return kTaskFailed;
-    }
 
-    const size_t buf_size = 40960;
-    char* buf = (char*)malloc(buf_size);
-    while (!feof(user_app)) {
-        if (ShouldStop(task.task_id())) {
-            LOG(WARNING, "task: %d is canceled.", task.task_id());
-            free(buf);
-            return kTaskCanceled;
+    if (task.job().output_format() == kTextOutput) {
+        TaskState status = TransTextOutput(user_app, temp_file_name, param, task);
+        if (status != kTaskCompleted) {
+            return status;
         }
-        size_t n_read = fread(buf, sizeof(char), buf_size, user_app);
-        if (n_read != buf_size ) {
-            if (feof(user_app)) {
-                ok = fs->WriteAll(buf, n_read);
-                break;
-            } else if (ferror(user_app) !=0 ) {
-                LOG(WARNING, "errors occur in reading, %s", strerror(errno));
-                ok = false;
-                break;
-            } else{
-                assert(0);
-            }
+    } else if (task.job().output_format() == kBinaryOutput) {
+        TaskState status = TransBinaryOutput(user_app, temp_file_name, param, task);
+        if (status != kTaskCompleted) {
+            return status;
         }
-        ok = fs->WriteAll(buf, n_read);
-        if (!ok) {
-            break;
-        }
-    }
-    free(buf);
-    if (!ok || !fs->Close()) {
-        LOG(WARNING, "write data fail, %s", temp_file_name.c_str());
-        return kTaskFailed;
+    } else {
+        LOG(FATAL, "unknown output format");
     }
     int ret = pclose(user_app);
     if (ret != 0) {
         LOG(WARNING, "user app fail, cmd is %s, ret: %d", cmd.c_str(), ret);
         return kTaskFailed;
     }
-    if (!MoveTempToOutput(task, fs, true)) {
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    boost::scoped_ptr<FileSystem> fs_guard(fs);
+    if (!MoveTempToOutput(task, fs, true)) {;
         return kTaskFailed;
     }
     return kTaskCompleted;
@@ -82,3 +59,4 @@ TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
 
 }
 }
+

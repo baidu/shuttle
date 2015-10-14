@@ -57,6 +57,16 @@ message DfsInfo {
     optional string password = 4;    
 }
 
+enum InputFormat {
+	kTextInput = 0;
+	kBinaryInput = 1;
+}
+
+enum OutputFormat {
+	kTextOutput = 0;
+	kBinaryOutput = 1;
+}
+
 message JobDescriptor {
     optional string name = 1;
     optional string user = 2;
@@ -79,6 +89,8 @@ message JobDescriptor {
     optional JobType job_type = 19;
     optional DfsInfo input_dfs = 20;
     optional DfsInfo output_dfs = 21;
+    optional InputFormat input_format = 22;
+    optional OutputFormat output_format = 23;
 }
 
 message TaskInput {

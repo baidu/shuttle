@@ -4,7 +4,7 @@
 namespace baidu {
 namespace shuttle {
 
-int Partitioner::HashCode(const std::string& str) {
+int Partitioner::HashCode(const std::string& str) const{
     int h = 1;
     if (str.empty()) {
         return 0;
@@ -34,7 +34,7 @@ KeyFieldBasedPartitioner::KeyFieldBasedPartitioner(const TaskInfo& task)
     }
 }
 
-int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) {
+int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) const {
     assert(key);
     const char* head = line.data();
     const char *p1 = head;
@@ -67,6 +67,10 @@ int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) {
     return HashCode(partition_key) % reduce_total_; 
 }
 
+int KeyFieldBasedPartitioner::Calc(const std::string& key) const {
+    return HashCode(key) % reduce_total_;
+}
+
 IntHashPartitioner::IntHashPartitioner(const TaskInfo& task)
   : reduce_total_(0) {
     reduce_total_ = task.job().reduce_total();
@@ -76,7 +80,7 @@ IntHashPartitioner::IntHashPartitioner(const TaskInfo& task)
     }
 }
 
-int IntHashPartitioner::Calc(const std::string& line, std::string* key) {
+int IntHashPartitioner::Calc(const std::string& line, std::string* key) const{
     size_t space_pos = line.find(" "); //e.g "123 key_xxx\tvalue"
     int hash_code;
     if (space_pos != std::string::npos) {
@@ -89,6 +93,17 @@ int IntHashPartitioner::Calc(const std::string& line, std::string* key) {
         int key_span = strcspn(p, separator_.c_str());
         key->assign(p, key_span);
         hash_code = HashCode(*key);
+    }
+    return hash_code % reduce_total_;
+}
+
+int IntHashPartitioner::Calc(const std::string& key) const{
+    size_t space_pos = key.find(" "); //e.g "123 key_xxx"
+    int hash_code;
+    if (space_pos != std::string::npos) {
+        hash_code = atoi(key.substr(0, space_pos).c_str());
+    } else { // no white space found
+        hash_code = HashCode(key);
     }
     return hash_code % reduce_total_;
 }

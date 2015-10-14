@@ -1,6 +1,7 @@
 #include "executor.h"
 #include <unistd.h>
 #include <boost/lexical_cast.hpp>
+#include <boost/scoped_ptr.hpp>
 
 namespace baidu {
 namespace shuttle {
@@ -79,6 +80,16 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     ::setenv("minion_output_dfs_port", task.job().output_dfs().port().c_str(), 1);
     ::setenv("minion_output_dfs_user", task.job().output_dfs().user().c_str(), 1);
     ::setenv("minion_output_dfs_password", task.job().output_dfs().password().c_str(), 1);
+    if (task.job().input_format() == kTextInput) {
+        ::setenv("minion_input_format", "text", 1);
+    } else if (task.job().input_format() == kBinaryInput) {
+        ::setenv("minion_input_format", "binary", 1);
+    }
+    if (task.job().output_format() == kTextOutput) {
+        ::setenv("minion_output_format", "text", 1);
+    } else if (task.job().output_format() == kBinaryOutput) {
+        ::setenv("minion_output_format", "binary", 1);
+    }
 }
 
 const std::string Executor::GetShuffleWorkDir(const TaskInfo& task) {
@@ -131,6 +142,7 @@ bool Executor::MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_ma
     char new_name[4096];
     snprintf(new_name, sizeof(new_name), "%s/part-%05d", 
              task.job().output().c_str(), task.task_id());
+    LOG(INFO, "rename %s -> %s", old_name.c_str(), new_name);
     return fs->Rename(old_name, new_name);
 }
 
@@ -156,6 +168,105 @@ void Executor::FillParam(FileSystem::Param& param, const TaskInfo& task) {
         param["user"] = task.job().output_dfs().user();
         param["password"] = task.job().output_dfs().password();
     }
+}
+
+
+TaskState Executor::TransTextOutput(FILE* user_app, const std::string& temp_file_name,
+                                    FileSystem::Param param, const TaskInfo& task) {
+    FileSystem* fs = FileSystem::CreateInfHdfs();
+    boost::scoped_ptr<FileSystem> fs_guard(fs);
+    bool ok = fs->Open(temp_file_name, param, kWriteFile);
+    if (!ok) {
+        LOG(WARNING, "create output file fail, %s", temp_file_name.c_str());
+        return kTaskFailed;
+    }
+
+    const size_t buf_size = 40960;
+    char* buf = (char*) malloc(buf_size);
+    while (!feof(user_app)) {
+        if (ShouldStop(task.task_id())) {
+            LOG(WARNING, "task: %d is canceled.", task.task_id());
+            free(buf);
+            return kTaskCanceled;
+        }
+        size_t n_read = fread(buf, sizeof(char), buf_size, user_app);
+        if (n_read != buf_size) {
+            if (feof(user_app)) {
+                ok = fs->WriteAll(buf, n_read);
+                break;
+            } else if (ferror(user_app) != 0) {
+                LOG(WARNING, "errors occur in reading, %s", strerror(errno));
+                ok = false;
+                break;
+            } else {
+                assert(0);
+            }
+        }
+        ok = fs->WriteAll(buf, n_read);
+        if (!ok) {
+            break;
+        }
+    }
+    free(buf);
+    if (!ok || !fs->Close()) {
+        LOG(WARNING, "write data fail, %s", temp_file_name.c_str());
+        return kTaskFailed;
+    }
+    return kTaskCompleted;
+}
+
+TaskState Executor::TransBinaryOutput(FILE* user_app, const std::string& temp_file_name,
+                                      FileSystem::Param param, const TaskInfo& task) {
+    InfSeqFile seqfile;
+    if (!seqfile.Open(temp_file_name, param, kWriteFile)) {
+        LOG(WARNING, "fail to open %s for wirte", temp_file_name.c_str());
+        return kTaskFailed;
+    }
+    while (!feof(user_app)) {
+        if (ShouldStop(task.task_id())) {
+            LOG(WARNING, "task: %d is canceled.", task.task_id());
+            return kTaskCanceled;
+        }
+        int32_t key_len = 0;
+        int32_t value_len = 0;
+        std::string key;
+        std::string value;
+        if (fread(&key_len, sizeof(key_len), 1, user_app) != 1) {
+            if (feof(user_app)) {
+                break;
+            }
+            LOG(WARNING, "read key_len fail");
+            return kTaskFailed;
+        }
+        if (key_len < 0 || key_len > 65536) {
+            LOG(WARNING, "invalid key len: %d", key_len);
+            return kTaskFailed;
+        }
+        key.resize(key_len);
+        if ((int32_t)fread((void*)key.data(), sizeof(char), key_len, user_app) != key_len) {
+            LOG(WARNING, "read key fail");
+            return kTaskFailed;
+        }
+        if (fread(&value_len, sizeof(value_len), 1, user_app) != 1) {
+            LOG(WARNING, "read value_len fail");
+            return kTaskFailed;
+        }
+        value.resize(value_len);
+        if ((int32_t)fread((void*) value.data(), sizeof(char), value_len, user_app) != value_len) {
+            LOG(WARNING, "read value fail");
+            return kTaskFailed;
+        }
+        bool ok = seqfile.WriteNextRecord(key, value);
+        if (!ok) {
+            LOG(WARNING, "fail to write: %s", temp_file_name.c_str());
+            return kTaskFailed;
+        }
+    }
+    if (!seqfile.Close()) {
+        LOG(WARNING, "fail to close %s", temp_file_name.c_str());
+        return kTaskFailed;
+    }
+    return kTaskCompleted;
 }
 
 } //namespace shuttle

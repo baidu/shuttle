@@ -20,6 +20,7 @@ DEFINE_string(dfs_host, "", "host name of dfs master");
 DEFINE_string(dfs_port, "", "port of dfs master");
 DEFINE_string(dfs_user, "", "user name of dfs master");
 DEFINE_string(dfs_password, "", "password of dfs master");
+DEFINE_string(format, "text", "output format: text/binary");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -174,7 +175,11 @@ void MergeAndPrint() {
         LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
     }
     while (!scan_it->Done()) {
-        std::cout << scan_it->Value() << std::endl;
+        if (FLAGS_format == "text") {
+            std::cout << scan_it->Value() << std::endl;
+        } else {
+            std::cout << scan_it->Value();
+        }
         scan_it->Next();
     }
     if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {

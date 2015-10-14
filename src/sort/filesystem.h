@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include "hdfs.h" //for hdfs of inf
 
 namespace baidu {
 namespace shuttle {
@@ -34,6 +35,21 @@ public:
     bool WriteAll(void* buf, size_t len);
     virtual bool List(const std::string& dir, std::vector<std::string>* children) = 0;
     virtual bool Mkdirs(const std::string& dir) = 0;    
+};
+
+class InfSeqFile {
+public:
+    InfSeqFile();
+    bool Open(const std::string& path, FileSystem::Param param, OpenMode mode);
+    bool Close();
+    bool ReadNextRecord(std::string* key, std::string* value, bool* eof);
+    bool WriteNextRecord(const std::string& key, const std::string& value);
+    bool Seek(int64_t offset);
+    int64_t Tell();
+private:
+    hdfsFS fs_;
+    SeqFile sf_;
+    std::string path_;
 };
 
 } //namespace shuttle

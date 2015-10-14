@@ -4,7 +4,6 @@
 #include <sys/types.h> 
 #include <unistd.h> 
 #include "filesystem.h"
-#include "hdfs.h" //for hdfs of inf
 #include "logging.h"
 
 using baidu::common::INFO;
@@ -16,6 +15,7 @@ namespace shuttle {
 class InfHdfs : public FileSystem {
 public:
     InfHdfs();
+    static void ConnectInfHdfs(Param param, hdfsFS* fs);
     void Connect(Param param);
     bool Open(const std::string& path, 
               Param param,
@@ -96,17 +96,22 @@ InfHdfs::InfHdfs() : fs_(NULL), fd_(NULL) {
 
 }
 
-void InfHdfs::Connect(Param param) {
+void InfHdfs::ConnectInfHdfs(Param param, hdfsFS* fs) {
     if (param.find("user") == param.end()) {
-        fs_ = hdfsConnect("default", 0);
+        *fs = hdfsConnect("default", 0);
     } else {
         const std::string& user = param["user"];
         const std::string& password = param["password"];
         const std::string& host = param["host"];
         const std::string& port = param["port"];
-        fs_ = hdfsConnectAsUser(host.c_str(), atoi(port.c_str()),
-                                user.c_str(), password.c_str());
+        *fs = hdfsConnectAsUser(host.c_str(), atoi(port.c_str()),
+                                user.c_str(),
+                                password.c_str());
     }
+}
+
+void InfHdfs::Connect(Param param) {
+    ConnectInfHdfs(param, &fs_);
 }
 
 bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
@@ -259,6 +264,81 @@ int64_t LocalFs::GetSize() {
 
 bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
     return ::rename(old_name.c_str(), new_name.c_str()) == 0;
+}
+
+InfSeqFile::InfSeqFile() : fs_(NULL), sf_(NULL) {
+
+}
+
+bool InfSeqFile::Open(const std::string& path, FileSystem::Param param, OpenMode mode) {
+    InfHdfs::ConnectInfHdfs(param, &fs_);
+    if (!fs_) {
+        LOG(WARNING, "connect hdfs fail, when try open: %s", path.c_str());
+        return false;
+    }
+    if (mode == kReadFile) {
+        sf_ = readSequenceFile(fs_, path.c_str());
+        if (!sf_) {
+            LOG(WARNING, "fail to read: %s", path.c_str());
+            return false;
+        }
+    } else if (mode == kWriteFile) {
+        sf_ = writeSequenceFile(fs_, path.c_str(), "BLOCK", "org.apache.hadoop.io.compress.LzoCodec");
+        if (!sf_) {
+            LOG(WARNING, "fail to write: %s", path.c_str());
+            return false;
+        }
+    } else {
+        LOG(FATAL, "unkown mode: %d", mode);
+    }
+    path_ = path;
+    return true;
+}
+
+bool InfSeqFile::Close() {
+    return closeSequenceFile(fs_, sf_) == 0;
+}
+
+bool InfSeqFile::ReadNextRecord(std::string* key, std::string* value, bool* eof) {
+    int key_len;
+    int value_len;
+    void* raw_key;
+    void* raw_value;
+    *eof = false;
+    int ret = readNextRecordFromSeqFile(fs_, sf_, &raw_key, &key_len, &raw_value, &value_len);
+    if (ret != 0 && ret != 1) {
+        LOG(WARNING, "fail to read next record: %s", path_.c_str());
+        return false;
+    }
+    if (ret == 1) {
+        *eof = true;
+        return true;
+    }
+    key->assign(static_cast<const char*>(raw_key), key_len);
+    value->assign(static_cast<const char*>(raw_value), value_len);
+    return true;
+}
+
+bool InfSeqFile::WriteNextRecord(const std::string& key, const std::string& value) {
+    int ret = writeRecordIntoSeqFile(fs_, sf_, key.data(), key.size(), value.data(), value.size());
+    if (ret != 0) {
+        LOG(WARNING, "fail to write next record: %s", path_.c_str());
+        return false;
+    }
+    return true;
+}
+
+bool InfSeqFile::Seek(int64_t offset) {
+    int64_t ret = syncSeqFile(sf_, offset);
+    if (ret < 0) {
+        LOG(WARNING, "fail to seek: %s, %ld", path_.c_str(), offset);
+        return false;
+    }
+    return true;
+}
+
+int64_t InfSeqFile::Tell() {
+    return getSeqFilePos(sf_);
 }
 
 } //namespace shuttle
