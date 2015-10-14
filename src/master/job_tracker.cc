@@ -73,6 +73,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
 JobTracker::~JobTracker() {
     Kill();
     delete map_manager_;
+    delete reduce_manager_;
     delete rpc_client_;
     {
         MutexLock lock(&alloc_mu_);
@@ -478,7 +479,6 @@ void JobTracker::KeepMonitoring() {
         time_heap_.pop();
         alloc_mu_.Unlock();
         if (top->state != kTaskRunning) {
-            delete top;
             continue;
         }
         map_manager_->ReturnBackItem(top->resource_no);
@@ -497,8 +497,6 @@ void JobTracker::KeepMonitoring() {
         }
         // TODO Maybe check returned state here?
         map_stat_.set_killed(map_stat_.killed());
-
-        delete top;
     }
     monitor_.DelayTask(FLAGS_timeout_bound * 1000,
                        boost::bind(&JobTracker::KeepMonitoring, this));
