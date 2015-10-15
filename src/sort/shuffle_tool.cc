@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string>
 #include <unistd.h>
+#include <algorithm>
+#include <sstream>
 #include <iostream>
 #include <gflags/gflags.h>
 #include <set>
@@ -43,18 +45,19 @@ void FillParam(FileSystem::Param& param) {
 
 void CollectFilesToMerge(std::vector<std::string>* maps_to_merge) {
     assert(maps_to_merge);
-    std::vector<std::string> children;
-    bool ok = g_fs->List(FLAGS_work_dir, &children);
-    if (!ok) {
-        return;
-    }
-    std::vector<std::string>::iterator it;
-    for (it = children.begin(); it != children.end(); it++) {
-        const std::string& file_name = *it;
-        if (file_name.find("_temporary/shuffle/map_") != std::string::npos &&
-            g_merged.find(file_name) == g_merged.end()) {
-            LOG(INFO, "maps_to_merge: %s", file_name.c_str());
-            maps_to_merge->push_back(file_name);
+    for (int i = 0; i < FLAGS_total; i++) {
+        std::stringstream ss;
+        ss << FLAGS_work_dir << "/map_" << i;
+        std::string map_dir = ss.str();
+        if (g_merged.find(map_dir) != g_merged.end()) {
+            continue;
+        }
+        if (g_fs->Exist(map_dir)) {
+            LOG(INFO, "maps_to_merge: %s", map_dir.c_str());
+            maps_to_merge->push_back(map_dir);
+        }
+        if (maps_to_merge->size() >= (size_t)FLAGS_batch) {
+            break;
         }
     }
 }
@@ -201,8 +204,15 @@ int main(int argc, char* argv[]) {
     while ((int32_t)g_merged.size() < FLAGS_total) {
         std::vector<std::string> maps_to_merge;
         CollectFilesToMerge(&maps_to_merge);
+        if (maps_to_merge.empty()) {
+            LOG(INFO, "map output is empty, wait 10 seconds and try...");
+            sleep(10);
+            continue;
+        }
         if (maps_to_merge.size() >= (size_t)FLAGS_batch || 
             maps_to_merge.size() + g_merged.size() >= (size_t)FLAGS_total) {
+            LOG(INFO, "try merge %d maps", maps_to_merge.size());
+            std::random_shuffle(maps_to_merge.begin(), maps_to_merge.end());
             MergeMapOutput(maps_to_merge);
         } else {
             LOG(INFO, "wait for enough map-output to merge, sleep 5 second");
@@ -210,6 +220,7 @@ int main(int argc, char* argv[]) {
         }
         LOG(INFO, "merge progress: < %d/%d > ", g_merged.size(), FLAGS_total);
     }
+    LOG(INFO, "merge and print out");
     MergeAndPrint();
     return 0;
 }

@@ -30,6 +30,7 @@ public:
     virtual ~InfHdfs(){};
     bool List(const std::string& dir, std::vector<std::string>* children);
     bool Mkdirs(const std::string& dir);
+    bool Exist(const std::string& path);
 private:
     hdfsFS fs_;
     hdfsFile fd_;
@@ -58,6 +59,10 @@ public:
     }
     bool Mkdirs(const std::string& dir) {
         (void)dir;
+        return false; //TODO, not implementation
+    }
+    bool Exist(const std::string& path) {
+        (void)path;
         return false; //TODO, not implementation
     }
 private:
@@ -204,6 +209,10 @@ bool InfHdfs::List(const std::string& dir, std::vector<std::string>* children) {
 
 bool InfHdfs::Mkdirs(const std::string& dir) {
     return hdfsCreateDirectory(fs_, dir.c_str()) == 0;
+}
+
+bool InfHdfs::Exist(const std::string& path) {
+    return hdfsExists(fs_, path.c_str()) == 0;
 }
 
 LocalFs::LocalFs() : fd_(0) {
