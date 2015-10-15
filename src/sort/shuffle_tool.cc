@@ -14,7 +14,7 @@
 DEFINE_int32(total, 0, "total numbers of map tasks");
 DEFINE_int32(reduce_no, 0, "the reduce number of this reduce task");
 DEFINE_string(work_dir, "/tmp", "the shuffle work dir");
-DEFINE_int32(batch, 100, "merge how many maps output at the same time");
+DEFINE_int32(batch, 300, "merge how many maps output at the same time");
 DEFINE_int32(attempt_id, 0, "the attempt_id of this reduce task");
 DEFINE_string(dfs_host, "", "host name of dfs master");
 DEFINE_string(dfs_port, "", "port of dfs master");
@@ -204,8 +204,10 @@ int main(int argc, char* argv[]) {
         if (maps_to_merge.size() >= (size_t)FLAGS_batch || 
             maps_to_merge.size() + g_merged.size() >= (size_t)FLAGS_total) {
             MergeMapOutput(maps_to_merge);
+        } else {
+            LOG(INFO, "wait for enough map-output to merge, sleep 5 second");
+            sleep(5);
         }
-        sleep(3);
         LOG(INFO, "merge progress: < %d/%d > ", g_merged.size(), FLAGS_total);
     }
     MergeAndPrint();

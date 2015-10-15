@@ -123,6 +123,7 @@ public:
                          sdk::JobInstance& job,
                          std::vector<sdk::TaskInstance>& tasks) = 0;
     virtual bool ListJobs(std::vector<sdk::JobInstance>& jobs) = 0;
+    virtual void SetRpcTimeout(int timeout) = 0;
 };
 
 } //namespace shuttle

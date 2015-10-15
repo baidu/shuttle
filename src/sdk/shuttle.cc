@@ -9,6 +9,8 @@
 namespace baidu {
 namespace shuttle {
 
+const static int sDefaultRpcTimeout = 5;
+
 class ShuttleImpl : public Shuttle {
 public:
     ShuttleImpl(const std::string& master_addr);
@@ -23,10 +25,12 @@ public:
                  sdk::JobInstance& job,
                  std::vector<sdk::TaskInstance>& tasks);
     bool ListJobs(std::vector<sdk::JobInstance>& jobs);
+    void SetRpcTimeout(int second);
 private:
     std::string master_addr_;
     Master_Stub* master_stub_;
     RpcClient rpc_client_;
+    int rpc_timeout_;
 };
 
 Shuttle* Shuttle::Connect(const std::string& master_addr) {
@@ -36,10 +40,15 @@ Shuttle* Shuttle::Connect(const std::string& master_addr) {
 ShuttleImpl::ShuttleImpl(const std::string& master_addr) {
     master_addr_ = master_addr;
     rpc_client_.GetStub(master_addr_, &master_stub_);
+    rpc_timeout_ = sDefaultRpcTimeout;
 }
 
 ShuttleImpl::~ShuttleImpl() {
     delete master_stub_;
+}
+
+void ShuttleImpl::SetRpcTimeout(int rpc_timeout) {
+    rpc_timeout_ = rpc_timeout;
 }
 
 bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& job_id) {
@@ -80,7 +89,7 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     output_info->set_password(job_desc.output_dfs.password);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
-                                      &request, &response, 2, 1);
+                                      &request, &response, rpc_timeout_, 1);
     if (!ok) {
         LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());
         return false;
@@ -108,7 +117,7 @@ bool ShuttleImpl::UpdateJob(const std::string& job_id, const sdk::JobPriority& p
     }
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::UpdateJob,
-                                      &request, &response, 2, 1);
+                                      &request, &response, rpc_timeout_, 1);
     if (!ok) {
         LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());
         return false;
@@ -122,7 +131,7 @@ bool ShuttleImpl::KillJob(const std::string& job_id) {
     request.set_jobid(job_id);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::KillJob,
-                                      &request, &response, 2, 1);
+                                      &request, &response, rpc_timeout_, 1);
     if (!ok) {
         LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());
         return false;
@@ -138,7 +147,7 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
     request.set_jobid(job_id);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::ShowJob,
-                                      &request, &response, 2, 1);
+                                      &request, &response, rpc_timeout_, 1);
     if (!ok) {
         LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());
         return false;
@@ -219,7 +228,7 @@ bool ShuttleImpl::ListJobs(std::vector<sdk::JobInstance>& jobs) {
     ::baidu::shuttle::ListJobsResponse response;
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::ListJobs,
-                                      &request, &response, 2, 1);
+                                      &request, &response, rpc_timeout_, 1);
     if (!ok) {
         LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());
         return false;
