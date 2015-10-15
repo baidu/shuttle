@@ -27,6 +27,8 @@ std::string nexus_root = "/shuttle/";
 std::string nexus_file;
 std::string master = "master";
 
+bool display_all = false;
+
 std::string job_name = "map_reduce_job";
 ::baidu::shuttle::sdk::JobPriority job_priority = \
     ::baidu::shuttle::sdk::kUndefined;
@@ -61,6 +63,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\tshuttle status <jobid>\n"
         "Options:\n"
         "\t-h  --help\t\t\tShow this information\n"
+        "\t-a  --all\t\t\tConsider finished and dead jobs in status and list operation\n"
         "\t-input <file>\t\t\tSpecify the input file, using a hdfs path\n"
         "\t-output <path>\t\t\tSpecify the output path, which must be empty\n"
         "\t-file <file>[,...]\t\tSpecify the files needed by your program\n"
@@ -178,6 +181,8 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
             config::nexus_root = opt[++i];
         } else if (!strcmp(ctx, "master")) {
             config::master = opt[++i];
+        } else if (!strcmp(ctx, "a") || !strcmp(ctx, "all")) {
+            config::display_all = true;
         } else if (!strcmp(ctx, "help") || !strcmp(ctx, "h")) {
             fprintf(stderr, "%s\n", error_message.c_str());
             exit(0);
@@ -382,7 +387,7 @@ static int SubmitJob() {
         fprintf(stderr, "map flag is needed, use --map to specify\n");
         return -1;
     }
-    if (config::reduce.empty()) {
+    if (config::reduce_tasks != 0 && config::reduce.empty()) {
         fprintf(stderr, "reduce flag is needed, use --reduce to specify\n");
         return -1;
     }
@@ -498,7 +503,7 @@ static int ListJobs() {
     ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
 
     std::vector< ::baidu::shuttle::sdk::JobInstance > jobs;
-    bool ok = shuttle->ListJobs(jobs);
+    bool ok = shuttle->ListJobs(jobs, config::display_all);
     if (!ok) {
         fprintf(stderr, "list job failed\n");
         return 1;
@@ -525,7 +530,7 @@ static int ShowJob() {
 
     ::baidu::shuttle::sdk::JobInstance job;
     std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
-    bool ok = shuttle->ShowJob(config::param, job, tasks);
+    bool ok = shuttle->ShowJob(config::param, job, tasks, config::display_all);
     if (!ok) {
         fprintf(stderr, "show job status failed\n");
         return 1;

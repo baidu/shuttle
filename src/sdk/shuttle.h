@@ -22,8 +22,10 @@ enum JobPriority {
     kHigh = 1,
     kNormal = 2,
     kLow = 3,
-    // In update interface, the undefined means not to update priority
-    // Otherwise, it has the exact meaning as kNormal
+    // In update interface, the undefined
+    //     means not to update priority
+    // Otherwise, it has the exact meaning
+    //     as kNormal
     kUndefined = 10
 };
 
@@ -121,8 +123,10 @@ public:
     virtual bool KillJob(const std::string& job_id) = 0;
     virtual bool ShowJob(const std::string& job_id, 
                          sdk::JobInstance& job,
-                         std::vector<sdk::TaskInstance>& tasks) = 0;
-    virtual bool ListJobs(std::vector<sdk::JobInstance>& jobs) = 0;
+                         std::vector<sdk::TaskInstance>& tasks,
+                         bool display_all = true) = 0;
+    virtual bool ListJobs(std::vector<sdk::JobInstance>& jobs,
+                          bool display_all = true) = 0;
     virtual void SetRpcTimeout(int timeout) = 0;
 };
 

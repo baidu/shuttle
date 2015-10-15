@@ -78,6 +78,11 @@ JobTracker::~JobTracker() {
 }
 
 Status JobTracker::Start() {
+    if (job_descriptor_.map_total() < 1) {
+        job_descriptor_.set_reduce_total(0);
+        state_ = kFailed;
+        return kNoMore;
+    }
     ::baidu::galaxy::JobDescription galaxy_job;
     galaxy_job.job_name = job_descriptor_.name() + "_map@minion";
     galaxy_job.type = "kBatch";
