@@ -49,7 +49,7 @@ message KillJobResponse {
 }
 
 message ListJobsRequest {
-
+    optional bool all = 1;
 }
 
 message JobOverview {
@@ -62,7 +62,7 @@ message JobOverview {
 
 message TaskOverview {
     optional TaskInfo info = 1;
-    optional TaskState  state = 2;
+    optional TaskState state = 2;
     optional string minion_addr = 3;
     optional float progress = 4;
 }
@@ -74,6 +74,7 @@ message ListJobsResponse {
 
 message ShowJobRequest {
     required string jobid = 1;
+    optional bool all = 2;
 }
 
 message ShowJobResponse {
