@@ -127,6 +127,7 @@ public:
                          bool display_all = true) = 0;
     virtual bool ListJobs(std::vector<sdk::JobInstance>& jobs,
                           bool display_all = true) = 0;
+    virtual void SetRpcTimeout(int timeout) = 0;
 };
 
 } //namespace shuttle
