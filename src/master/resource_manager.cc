@@ -87,16 +87,16 @@ void BasicManager::FinishItem(int no) {
 
 IdItem* const BasicManager::CheckCertainItem(int no) {
     MutexLock lock(&mu_);
-    std::list<IdItem*>::iterator it;
-    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
+    std::vector<IdItem*>::iterator it;
+    for (it = resource_pool_.begin(); it != resource_pool_.end(); ++it) {
         if ((*it)->no == no) {
             break;
         }
     }
-    if (it != running_res_.end()) {
+    if (it != resource_pool_.end()) {
         return *it;
     }
-    LOG(WARNING, "resource may have been finished: %d", no);
+    LOG(WARNING, "resource inexist: %d", no);
     return NULL;
 }
 

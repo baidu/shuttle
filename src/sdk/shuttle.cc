@@ -201,10 +201,12 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
     for (it = response.tasks().begin(); it != response.tasks().end(); ++it) {
         sdk::TaskInstance task;
         const TaskInfo& info = it->info();
-        task.job_id = info.task_id();
+        task.job_id = job.jobid;
+        task.task_id = info.task_id();
         task.attempt_id = info.attempt_id();
         task.input_file = info.input().input_file();
         task.state = (sdk::TaskState)it->state();
+        task.type = (sdk::TaskType)info.task_type();
         task.minion_addr = it->minion_addr();
         task.progress = it->progress();
         tasks.push_back(task);

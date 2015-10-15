@@ -58,13 +58,13 @@ message DfsInfo {
 }
 
 enum InputFormat {
-	kTextInput = 0;
-	kBinaryInput = 1;
+    kTextInput = 0;
+    kBinaryInput = 1;
 }
 
 enum OutputFormat {
-	kTextOutput = 0;
-	kBinaryOutput = 1;
+    kTextOutput = 0;
+    kBinaryOutput = 1;
 }
 
 message JobDescriptor {
@@ -103,5 +103,6 @@ message TaskInfo {
     optional int32 task_id = 1;
     optional int32 attempt_id = 2;
     optional TaskInput input = 3;
-    optional JobDescriptor job = 4;   
+    optional WorkMode task_type = 4;
+    optional JobDescriptor job = 5;
 }

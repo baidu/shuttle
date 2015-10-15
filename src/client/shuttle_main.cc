@@ -79,11 +79,11 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.input.host\t\tSpecify the host of the dfs which stores inputs\n"
         "\t  mapred.job.input.port\t\tSpecify the port, ditto\n"
         "\t  mapred.job.input.user\t\tSpecify the user, ditto\n"
-        "\t  mapred.job.input.password\t\tSpecify the password, ditto\n"
-        "\t  mapred.job.output.host\t\tSpecify the host of the dfs which stores output\n"
-        "\t  mapred.job.output.port\t\tSpecify the port, ditto\n"
-        "\t  mapred.job.output.user\t\tSpecify the user, ditto\n"
-        "\t  mapred.job.output.password\t\tSpecify the password, ditto\n"
+        "\t  mapred.job.input.password\tSpecify the password, ditto\n"
+        "\t  mapred.job.output.host\tSpecify the host of the dfs which stores output\n"
+        "\t  mapred.job.output.port\tSpecify the port, ditto\n"
+        "\t  mapred.job.output.user\tSpecify the user, ditto\n"
+        "\t  mapred.job.output.password\tSpecify the password, ditto\n"
         "\t  map.key.field.separator\tSpecify the separator for key field in shuffling\n"
         "\t  stream.num.map.output.key.fields\tSpecify the output fields number of key after mapper\n"
         "\t  num.key.fields.for.partition\tSpecify the first n fields in key in partitioning\n"
@@ -100,7 +100,11 @@ static const char* priority_string[] = {
 
 static const char* state_string[] = {
     "Pending", "Running", "Failed",
-    "Killed", "Completed"
+    "Killed", "Completed", "Canceled"
+};
+
+static const std::string task_type_string[] = {
+    "map", "reduce", "map"
 };
 
 static inline ::baidu::shuttle::sdk::PartitionMethod
@@ -324,10 +328,11 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
 
 static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
     ::baidu::common::TPrinter tp(5);
-    tp.AddRow(5, "task id", "attempt id", "state", "minion address", "progress");
+    tp.AddRow(5, "tid", "aid", "state", "minion address", "progress");
     for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
             it != tasks.end(); ++it) {
-        tp.AddRow(5, boost::lexical_cast<std::string>(it->task_id).c_str(),
+        tp.AddRow(5, (task_type_string[it->type] + "-" +
+                      boost::lexical_cast<std::string>(it->task_id)).c_str(),
                   boost::lexical_cast<std::string>(it->attempt_id).c_str(),
                   (it->state == ::baidu::shuttle::sdk::kTaskUnknown) ?
                       "Unknown" : state_string[it->state],

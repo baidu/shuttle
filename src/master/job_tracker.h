@@ -13,6 +13,7 @@
 #include "proto/app_master.pb.h"
 #include "resource_manager.h"
 #include "common/rpc_client.h"
+#include "logging.h"
 
 namespace baidu {
 namespace shuttle {
@@ -61,14 +62,8 @@ public:
         MutexLock lock(&mu_);
         return state_;
     }
-    TaskStatistics GetMapStatistics() {
-        MutexLock lock(&alloc_mu_);
-        return map_stat_;
-    }
-    TaskStatistics GetReduceStatistics() {
-        MutexLock lock(&alloc_mu_);
-        return reduce_stat_;
-    }
+    TaskStatistics GetMapStatistics();
+    TaskStatistics GetReduceStatistics();
 
     template <class Inserter>
     Status Check(Inserter& task_inserter) {
@@ -79,6 +74,8 @@ public:
             TaskInfo* info = task.mutable_info();
             info->set_task_id((*it)->resource_no);
             info->set_attempt_id((*it)->attempt);
+            info->set_task_type((job_descriptor_.job_type() == kMapOnlyJob) ? kMapOnly :
+                    ((*it)->is_map ? kMap : kReduce));
             ResourceItem* const res = map_manager_->CheckCertainItem((*it)->resource_no);
             TaskInput* input = info->mutable_input();
             input->set_input_file(res->input_file);
@@ -110,14 +107,14 @@ private:
     std::string map_minion_;
     ::baidu::galaxy::JobDescription map_description_;
     ResourceManager* map_manager_;
-    TaskStatistics map_stat_;
+    int map_completed_;
     int last_map_no_;
     int last_map_attempt_;
     // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
     BasicManager* reduce_manager_;
-    TaskStatistics reduce_stat_;
+    int reduce_completed_;
     int last_reduce_no_;
     int last_reduce_attempt_;
     // Thread for monitoring

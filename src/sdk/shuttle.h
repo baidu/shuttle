@@ -33,12 +33,19 @@ enum TaskState {
     kTaskFailed = 2,
     kTaskKilled = 3,
     kTaskCompleted = 4,
+    kTaskCanceled = 5,
     kTaskUnknown = 10
 };
 
 enum PartitionMethod {
     kKeyFieldBased = 0,
     kIntHash = 1
+};
+
+enum TaskType {
+    kMap = 0,
+    kReduce = 1,
+    kMapOnly = 3
 };
 
 struct TaskStatistics {
@@ -86,6 +93,7 @@ struct  TaskInstance {
     int32_t attempt_id;
     std::string input_file;
     TaskState state;
+    TaskType type;
     std::string minion_addr;
     float progress;    
 };

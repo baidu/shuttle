@@ -9,6 +9,7 @@
 #include <iterator>
 #include <string>
 #include <sstream>
+#include <set>
 
 #include "google/protobuf/repeated_field.h"
 #include "timer.h"
@@ -34,8 +35,10 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                        const JobDescriptor& job) :
                       master_(master),
                       sdk_(galaxy_sdk),
+                      map_completed_(0),
                       last_map_no_(-1),
                       last_map_attempt_(0),
+                      reduce_completed_(0),
                       last_reduce_no_(-1),
                       last_reduce_attempt_(0) {
     char time_chars[32];
@@ -52,20 +55,10 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     std::copy(input_filenames.begin(), input_filenames.end(), std::back_inserter(inputs));
     map_manager_ = new ResourceManager(inputs);
     job_descriptor_.set_map_total(map_manager_->SumOfItem());
-    map_stat_.set_total(map_manager_->SumOfItem());
-    map_stat_.set_pending(map_stat_.total());
-    map_stat_.set_running(0);
-    map_stat_.set_failed(0);
-    map_stat_.set_killed(0);
-    map_stat_.set_completed(0);
     if (job.job_type() == kMapReduceJob) {
         reduce_manager_ = new BasicManager(job_descriptor_.reduce_total());
-        reduce_stat_.set_total(job.reduce_total());
-        reduce_stat_.set_pending(job.reduce_total());
-        reduce_stat_.set_running(0);
-        reduce_stat_.set_failed(0);
-        reduce_stat_.set_killed(0);
-        reduce_stat_.set_completed(0);
+    } else {
+        reduce_manager_ = NULL;
     }
     monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
 }
@@ -196,11 +189,6 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
             return NULL;
         }
         alloc->resource_no = cur->no;
-        {
-            MutexLock lock(&mu_);
-            map_stat_.set_pending(map_stat_.pending() - 1);
-            map_stat_.set_running(map_stat_.running() + 1);
-        }
     }
     alloc->attempt = cur->attempt;
     alloc->state = kTaskRunning;
@@ -214,17 +202,17 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
         attempt_bound += FLAGS_replica_num;
     }
     if (cur->attempt > attempt_bound) {
+        LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
         master_->RetractJob(job_id_);
         state_ = kFailed;
         delete alloc;
-        LOG(INFO, "assign map: no more: %s", job_id_.c_str());
         return NULL;
     }
     MutexLock lock(&alloc_mu_);
     allocation_table_.push_back(alloc);
     time_heap_.push(alloc);
-    LOG(INFO, "assign map: < no - %d, attempt - %d >: %s",
-            alloc->resource_no, alloc->attempt, job_id_.c_str());
+    LOG(INFO, "assign map: < no - %d, attempt - %d >, to %s: %s",
+            alloc->resource_no, alloc->attempt, endpoint.c_str(), job_id_.c_str());
     return cur;
 }
 
@@ -253,11 +241,6 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
             return NULL;
         }
         alloc->resource_no = cur->no;
-        {
-            MutexLock lock(&mu_);
-            reduce_stat_.set_pending(reduce_stat_.pending() - 1);
-            reduce_stat_.set_running(reduce_stat_.running() + 1);
-        }
     }
     alloc->attempt = cur->attempt;
     alloc->state = kTaskRunning;
@@ -271,17 +254,17 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
         attempt_bound += FLAGS_replica_num;
     }
     if (cur->attempt > attempt_bound) {
+        LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
         master_->RetractJob(job_id_);
         state_ = kFailed;
         delete alloc;
-        LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
         return NULL;
     }
     MutexLock lock(&alloc_mu_);
     allocation_table_.push_back(alloc);
     time_heap_.push(alloc);
-    LOG(INFO, "assign reduce: < no - %d, attempt - %d >: %s",
-            alloc->resource_no, alloc->attempt, job_id_.c_str());
+    LOG(INFO, "assign reduce: < no - %d, attempt - %d >, to %s: %s",
+            alloc->resource_no, alloc->attempt, endpoint.c_str(), job_id_.c_str());
     return cur;
 }
 
@@ -312,11 +295,10 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         // TODO Statistics do not work when minion failed
         switch (state) {
         case kTaskCompleted:
-            map_stat_.set_completed(map_stat_.completed() + 1);
-            map_stat_.set_running(map_stat_.running() - 1);
+            map_completed_ ++;
             LOG(INFO, "complete a map task(%d/%d): %s",
-                    map_stat_.completed(), map_manager_->SumOfItem(), job_id_.c_str());
-            if (map_stat_.completed() == map_manager_->SumOfItem()) {
+                    map_completed_, map_manager_->SumOfItem(), job_id_.c_str());
+            if (map_completed_ == map_manager_->SumOfItem()) {
                 if (job_descriptor_.job_type() == kMapOnlyJob) {
                     LOG(INFO, "map-only job finish: %s", job_id_.c_str());
                     mu_.Unlock();
@@ -357,11 +339,10 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 }
             }
             break;
-        case kTaskKilled: map_stat_.set_killed(map_stat_.killed() + 1); break;
         case kTaskFailed:
-            map_stat_.set_failed(map_stat_.failed() + 1);
             map_manager_->ReturnBackItem(cur->resource_no);
             break;
+        case kKilled: break;
         case kTaskCanceled: break; // TODO Think carefully
         default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
         }
@@ -419,11 +400,10 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
         MutexLock lock(&mu_);
         switch (state) {
         case kTaskCompleted:
-            reduce_stat_.set_completed(reduce_stat_.completed() + 1);
-            reduce_stat_.set_running(reduce_stat_.running() - 1);
+            reduce_completed_ ++;
             LOG(INFO, "complete a reduce task(%d/%d): %s",
-                    reduce_stat_.completed(), reduce_manager_->SumOfItem(), job_id_.c_str());
-            if (reduce_stat_.completed() == reduce_manager_->SumOfItem()) {
+                    reduce_completed_, reduce_manager_->SumOfItem(), job_id_.c_str());
+            if (reduce_completed_ == reduce_manager_->SumOfItem()) {
                 LOG(INFO, "map-reduce job finish: %s", job_id_.c_str());
                 mu_.Unlock();
                 master_->RetractJob(job_id_);
@@ -431,11 +411,10 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 state_ = kCompleted;
             }
             break;
-        case kTaskKilled: reduce_stat_.set_killed(reduce_stat_.killed() + 1); break;
         case kTaskFailed:
-            reduce_stat_.set_failed(reduce_stat_.failed() + 1);
             reduce_manager_->ReturnBackItem(cur->resource_no);
             break;
+        case kKilled: break;
         case kTaskCanceled: break; // TODO Think carefully
         default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
         }
@@ -467,6 +446,79 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     return kOk;
 }
 
+TaskStatistics JobTracker::GetMapStatistics() {
+    std::set<int> map_blocks;
+    int running = 0, failed = 0, killed = 0;
+    {
+        MutexLock lock(&alloc_mu_);
+        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+                it != allocation_table_.end(); ++it) {
+            AllocateItem* cur = *it;
+            if (!cur->is_map) {
+                continue;
+            }
+            switch (cur->state) {
+            case kTaskRunning:
+                if (map_blocks.find(cur->resource_no) != map_blocks.end()) {
+                    continue;
+                }
+                ++ running; break;
+            case kTaskFailed: ++ failed; break;
+            case kTaskKilled: ++ killed; break;
+            default: break;
+            }
+            map_blocks.insert(cur->resource_no);
+        }
+    }
+    MutexLock lock(&mu_);
+    TaskStatistics task;
+    task.set_total(map_manager_->SumOfItem());
+    task.set_pending(task.total() - running - map_completed_);
+    task.set_running(running);
+    task.set_failed(failed);
+    task.set_killed(killed);
+    task.set_completed(map_completed_);
+    return task;
+}
+
+TaskStatistics JobTracker::GetReduceStatistics() {
+    if (reduce_manager_ == NULL) {
+        return TaskStatistics();
+    }
+    std::set<int> reduce_blocks;
+    int running = 0, failed = 0, killed = 0;
+    {
+        MutexLock lock(&alloc_mu_);
+        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+                it != allocation_table_.end(); ++it) {
+            AllocateItem* cur = *it;
+            if (cur->is_map) {
+                continue;
+            }
+            switch (cur->state) {
+            case kTaskRunning:
+                if (reduce_blocks.find(cur->resource_no) != reduce_blocks.end()) {
+                    continue;
+                }
+                ++ running; break;
+            case kTaskFailed: ++ failed; break;
+            case kTaskKilled: ++ killed; break;
+            default: break;
+            }
+            reduce_blocks.insert(cur->resource_no);
+        }
+    }
+    MutexLock lock(&mu_);
+    TaskStatistics task;
+    task.set_total(reduce_manager_->SumOfItem());
+    task.set_pending(task.total() - running - reduce_completed_);
+    task.set_running(running);
+    task.set_failed(failed);
+    task.set_killed(killed);
+    task.set_completed(reduce_completed_);
+    return task;
+}
+
 void JobTracker::KeepMonitoring() {
     time_t now = std::time(NULL);
     while (!time_heap_.empty()) {
@@ -481,7 +533,11 @@ void JobTracker::KeepMonitoring() {
         if (top->state != kTaskRunning) {
             continue;
         }
-        map_manager_->ReturnBackItem(top->resource_no);
+        if (top->is_map) {
+            map_manager_->ReturnBackItem(top->resource_no);
+        } else {
+            reduce_manager_->ReturnBackItem(top->resource_no);
+        }
         Minion_Stub* stub = NULL;
         rpc_client_->GetStub(top->endpoint, &stub);
         boost::scoped_ptr<Minion_Stub> stub_guard(stub);
@@ -496,7 +552,6 @@ void JobTracker::KeepMonitoring() {
             LOG(WARNING, "failed to rpc: %s", top->endpoint.c_str());
         }
         // TODO Maybe check returned state here?
-        map_stat_.set_killed(map_stat_.killed());
     }
     monitor_.DelayTask(FLAGS_timeout_bound * 1000,
                        boost::bind(&JobTracker::KeepMonitoring, this));
