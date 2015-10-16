@@ -35,7 +35,7 @@ std::string job_name = "map_reduce_job";
 ::baidu::shuttle::sdk::PartitionMethod partitioner = \
     ::baidu::shuttle::sdk::kKeyFieldBased;
 int job_cpu = 1000;
-int job_memory = 1024 * 1024 * 1024;
+int64_t job_memory = 1024 * 1024 * 1024;
 int map_capacity = -1; // default value assigned during submitting
 int reduce_capacity = -1; // default value assigned during submitting
 int map_tasks = 5000;
@@ -236,7 +236,7 @@ static void ParseJobConfig() {
             config::job_cpu = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.job.cpu.millicores=")));
         } else if (boost::starts_with(*it, "mapred.job.memory.limit=")) {
-            config::job_memory = boost::lexical_cast<int>(
+            config::job_memory = boost::lexical_cast<int64_t>(
                     it->substr(strlen("mapred.job.memory.limit=")));
         } else if (boost::starts_with(*it, "mapred.job.map.capacity=")) {
             config::map_capacity = boost::lexical_cast<int>(
