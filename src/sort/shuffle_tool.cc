@@ -219,6 +219,7 @@ int main(int argc, char* argv[]) {
             std::random_shuffle(maps_to_merge.begin(), maps_to_merge.end());
             MergeMapOutput(maps_to_merge);
         } else {
+            LOG(INFO, "merged: %d, wait-for merge: %d", g_merged.size(), maps_to_merge.size());
             LOG(INFO, "wait for enough map-output to merge, sleep 5 second");
             sleep(5);
         }
