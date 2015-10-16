@@ -56,7 +56,7 @@ void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
     JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
     Status status = jobtracker->Start();
     const std::string& job_id = jobtracker->GetJobId();
-    if (status == kNoMore) {
+    if (status != kNoMore) {
         MutexLock lock(&(tracker_mu_));
         job_trackers_[job_id] = jobtracker;
     } else {

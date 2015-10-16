@@ -79,6 +79,7 @@ JobTracker::~JobTracker() {
 
 Status JobTracker::Start() {
     if (job_descriptor_.map_total() < 1) {
+        LOG(INFO, "map input may not inexist, failed: %s", job_id_.c_str());
         job_descriptor_.set_reduce_total(0);
         state_ = kFailed;
         return kNoMore;

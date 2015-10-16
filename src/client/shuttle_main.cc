@@ -40,7 +40,7 @@ int map_capacity = -1; // default value assigned during submitting
 int reduce_capacity = -1; // default value assigned during submitting
 int map_tasks = 5000;
 int reduce_tasks = 1;
-std::string key_separator = ",";
+std::string key_separator = "\t";
 int key_fields_num = 1;
 int partition_fields_num = 1;
 std::string input_host;
