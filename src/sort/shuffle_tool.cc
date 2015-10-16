@@ -16,7 +16,7 @@
 DEFINE_int32(total, 0, "total numbers of map tasks");
 DEFINE_int32(reduce_no, 0, "the reduce number of this reduce task");
 DEFINE_string(work_dir, "/tmp", "the shuffle work dir");
-DEFINE_int32(batch, 300, "merge how many maps output at the same time");
+DEFINE_int32(batch, 500, "merge how many maps output at the same time");
 DEFINE_int32(attempt_id, 0, "the attempt_id of this reduce task");
 DEFINE_string(dfs_host, "", "host name of dfs master");
 DEFINE_string(dfs_port, "", "port of dfs master");
@@ -135,9 +135,13 @@ void MergeMapOutput(const std::vector<std::string>& maps_to_merge) {
     } 
     status = writer->Close();
     if (status != kOk) {
-        LOG(FATAL, "fail to close: %s", output_file);
+        LOG(FATAL, "fail to close writer: %s", output_file);
     }
-    reader.Close();
+    delete scan_it;
+    status = reader.Close();
+    if (status != kOk) {
+        LOG(FATAL, "fail to close reader: %s", reader.GetErrorFile().c_str());
+    }
     delete writer;
     for (it = real_merged_maps.begin(); it != real_merged_maps.end(); it++) {
         LOG(INFO, "g_merged insert: %s", it->c_str());
