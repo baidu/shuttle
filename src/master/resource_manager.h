@@ -34,7 +34,7 @@ public:
     virtual IdItem* GetItem();
     virtual IdItem* GetCertainItem(int no);
     virtual void ReturnBackItem(int no);
-    virtual void FinishItem(int no);
+    virtual bool FinishItem(int no);
 
     IdItem* const CheckCertainItem(int no);
 
@@ -58,7 +58,7 @@ public:
     virtual ResourceItem* GetItem();
     virtual ResourceItem* GetCertainItem(int no);
     virtual void ReturnBackItem(int no);
-    virtual void FinishItem(int no);
+    virtual bool FinishItem(int no);
 
     ResourceItem* const CheckCertainItem(int no);
 

@@ -70,7 +70,7 @@ void BasicManager::ReturnBackItem(int no) {
     }
 }
 
-void BasicManager::FinishItem(int no) {
+bool BasicManager::FinishItem(int no) {
     MutexLock lock(&mu_);
     std::list<IdItem*>::iterator it;
     for (it = running_res_.begin(); it != running_res_.end(); ++it) {
@@ -80,8 +80,10 @@ void BasicManager::FinishItem(int no) {
     }
     if (it != running_res_.end()) {
         running_res_.erase(it);
+        return true;
     } else {
         LOG(WARNING, "resource may have been finished: %d", no);
+        return false;
     }
 }
 
@@ -172,8 +174,8 @@ void ResourceManager::ReturnBackItem(int no) {
     manager_->ReturnBackItem(no);
 }
 
-void ResourceManager::FinishItem(int no) {
-    manager_->FinishItem(no);
+bool ResourceManager::FinishItem(int no) {
+    return manager_->FinishItem(no);
 }
 
 ResourceItem* const ResourceManager::CheckCertainItem(int no) {

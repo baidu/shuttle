@@ -177,37 +177,44 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
     alloc->state = kTaskRunning;
-    // TODO Considered a new duplication management method here
-    if (last_map_no_ != -1 && map_manager_->SumOfItem() - last_map_no_ < FLAGS_replica_begin &&
-            last_map_attempt_ <= FLAGS_replica_num) {
-        cur = map_manager_->GetCertainItem(last_map_no_);
-        if (cur == NULL) {
-            delete alloc;
-            LOG(INFO, "assign map: no more: %s", job_id_.c_str());
-            return NULL;
+    bool reach_max_retry = false;
+    {
+        MutexLock lock(&mu_);
+        // TODO Considered a new duplication management method here
+        if (last_map_no_ != -1 && map_manager_->SumOfItem() - last_map_no_ < FLAGS_replica_begin &&
+                last_map_attempt_ <= FLAGS_replica_num) {
+            cur = map_manager_->GetCertainItem(last_map_no_);
+            if (cur == NULL) {
+                delete alloc;
+                LOG(INFO, "assign map: no more: %s", job_id_.c_str());
+                return NULL;
+            }
+            alloc->resource_no = last_map_no_;
+        } else {
+            cur = map_manager_->GetItem();
+            if (cur == NULL) {
+                delete alloc;
+                LOG(INFO, "assign map: no more: %s", job_id_.c_str());
+                return NULL;
+            }
+            alloc->resource_no = cur->no;
         }
-        alloc->resource_no = last_map_no_;
-    } else {
-        cur = map_manager_->GetItem();
-        if (cur == NULL) {
-            delete alloc;
-            LOG(INFO, "assign map: no more: %s", job_id_.c_str());
-            return NULL;
-        }
-        alloc->resource_no = cur->no;
-    }
-    alloc->attempt = cur->attempt;
-    alloc->state = kTaskRunning;
-    alloc->is_map = true;
-    alloc->alloc_time = std::time(NULL);
-    last_map_no_ = cur->no;
-    last_map_attempt_ = cur->attempt;
+        alloc->attempt = cur->attempt;
+        alloc->state = kTaskRunning;
+        alloc->is_map = true;
+        alloc->alloc_time = std::time(NULL);
+        last_map_no_ = cur->no;
+        last_map_attempt_ = cur->attempt;
 
-    int attempt_bound = FLAGS_retry_bound;
-    if (map_manager_->SumOfItem() - cur->no < FLAGS_replica_begin) {
-        attempt_bound += FLAGS_replica_num;
-    }
-    if (cur->attempt > attempt_bound) {
+        int attempt_bound = FLAGS_retry_bound;
+        if (map_manager_->SumOfItem() - cur->no < FLAGS_replica_begin) {
+            attempt_bound += FLAGS_replica_num;
+        }
+        if (cur->attempt > attempt_bound) {
+            reach_max_retry = true;
+        }
+    } // end of mu_;
+    if (reach_max_retry) {
         LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
         master_->RetractJob(job_id_);
         state_ = kFailed;
@@ -230,36 +237,43 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
     alloc->state = kTaskRunning;
-    if (last_reduce_no_ != -1 && reduce_manager_->SumOfItem() - last_reduce_no_ < FLAGS_replica_begin
-            && last_reduce_attempt_ <= FLAGS_replica_num) {
-        cur = reduce_manager_->GetCertainItem(last_reduce_no_);
-        if (cur == NULL) {
-            delete alloc;
-            LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
-            return NULL;
+    bool reach_max_retry = false;
+    {
+        MutexLock lock(&mu_);
+        if (last_reduce_no_ != -1 && reduce_manager_->SumOfItem() - last_reduce_no_ < FLAGS_replica_begin
+                && last_reduce_attempt_ <= FLAGS_replica_num) {
+            cur = reduce_manager_->GetCertainItem(last_reduce_no_);
+            if (cur == NULL) {
+                delete alloc;
+                LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
+                return NULL;
+            }
+            alloc->resource_no = last_reduce_no_;
+        } else {
+            cur = reduce_manager_->GetItem();
+            if (cur == NULL) {
+                delete alloc;
+                LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
+                return NULL;
+            }
+            alloc->resource_no = cur->no;
         }
-        alloc->resource_no = last_reduce_no_;
-    } else {
-        cur = reduce_manager_->GetItem();
-        if (cur == NULL) {
-            delete alloc;
-            LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
-            return NULL;
-        }
-        alloc->resource_no = cur->no;
-    }
-    alloc->attempt = cur->attempt;
-    alloc->state = kTaskRunning;
-    alloc->is_map = false;
-    alloc->alloc_time = std::time(NULL);
-    last_reduce_no_ = cur->no;
-    last_reduce_attempt_ = cur->attempt;
+        alloc->attempt = cur->attempt;
+        alloc->state = kTaskRunning;
+        alloc->is_map = false;
+        alloc->alloc_time = std::time(NULL);
+        last_reduce_no_ = cur->no;
+        last_reduce_attempt_ = cur->attempt;
 
-    int attempt_bound = FLAGS_retry_bound;
-    if (reduce_manager_->SumOfItem() - cur->no < FLAGS_replica_begin) {
-        attempt_bound += FLAGS_replica_num;
-    }
-    if (cur->attempt > attempt_bound) {
+        int attempt_bound = FLAGS_retry_bound;
+        if (reduce_manager_->SumOfItem() - cur->no < FLAGS_replica_begin) {
+            attempt_bound += FLAGS_replica_num;
+        }
+        if (cur->attempt > attempt_bound) {
+            reach_max_retry = true;
+        }
+    } //end of mu_;
+    if (reach_max_retry) {
         LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
         master_->RetractJob(job_id_);
         state_ = kFailed;
@@ -301,6 +315,11 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         // TODO Statistics do not work when minion failed
         switch (state) {
         case kTaskCompleted:
+            if (!map_manager_->FinishItem(cur->resource_no)) {
+                LOG(WARNING, "ignore finish map request: %s, %d", job_id_.c_str(), cur->resource_no);
+                state = kTaskCanceled;
+                break;
+            }
             map_completed_ ++;
             LOG(INFO, "complete a map task(%d/%d): %s",
                     map_completed_, map_manager_->SumOfItem(), job_id_.c_str());
@@ -368,13 +387,17 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             boost::scoped_ptr<Minion_Stub> stub_guard(stub);
             request.set_task_id((*it)->resource_no);
             request.set_attempt_id((*it)->attempt);
+            // TODO Maybe check returned state here?
+            (*it)->state = kTaskCanceled;
+            alloc_mu_.Unlock();
+            LOG(INFO, "cacel task: job:%s, task:%d, attempt:%d",
+                job_id_.c_str(), (*it)->resource_no, (*it)->attempt);
             bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::CancelTask,
                                                &request, &response, 2, 1);
             if (!ok) {
                 LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
             }
-            // TODO Maybe check returned state here?
-            (*it)->state = kTaskCanceled;
+            alloc_mu_.Lock();
         }
     }
     return kOk;
@@ -406,6 +429,12 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
         MutexLock lock(&mu_);
         switch (state) {
         case kTaskCompleted:
+            if (!reduce_manager_->FinishItem(cur->resource_no)) {
+                LOG(WARNING, "ignore finish reduce request: %s, %d",
+                    job_id_.c_str(), cur->resource_no);
+                state = kTaskCanceled;
+                break;
+            }
             reduce_completed_ ++;
             LOG(INFO, "complete a reduce task(%d/%d): %s",
                     reduce_completed_, reduce_manager_->SumOfItem(), job_id_.c_str());
