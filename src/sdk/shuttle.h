@@ -44,6 +44,16 @@ enum PartitionMethod {
     kIntHash = 1
 };
 
+enum InputFormat {
+    kTextInput = 0,
+    kBinaryInput = 1
+};
+
+enum OutputFormat {
+    kTextOutput = 0,
+    kBinaryOutput = 1
+};
+
 enum TaskType {
     kMap = 0,
     kReduce = 1,
@@ -87,6 +97,8 @@ struct JobDescription {
     int32_t partition_fields_num;
     DfsInfo input_dfs;
     DfsInfo output_dfs;
+    InputFormat input_format;
+    OutputFormat output_format;
 };
 
 struct  TaskInstance {

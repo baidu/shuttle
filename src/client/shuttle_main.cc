@@ -34,6 +34,10 @@ std::string job_name = "map_reduce_job";
     ::baidu::shuttle::sdk::kUndefined;
 ::baidu::shuttle::sdk::PartitionMethod partitioner = \
     ::baidu::shuttle::sdk::kKeyFieldBased;
+::baidu::shuttle::sdk::InputFormat input_format = \
+    ::baidu::shuttle::sdk::kTextInput;
+::baidu::shuttle::sdk::OutputFormat output_format = \
+    ::baidu::shuttle::sdk::kTextOutput;
 int job_cpu = 1000;
 int64_t job_memory = 1024 * 1024 * 1024;
 int map_capacity = -1; // default value assigned during submitting
@@ -70,6 +74,8 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t-map <file>\t\t\tSpecify the map program\n"
         "\t-reduce <file>\t\t\tSpecify the reduce program\n"
         "\t-partitioner <partitioner>\tSpecify the partitioner used when shuffling\n"
+        "\t-inputformat <input format>\tSpecify the input format\n"
+        "\t-outputformat <output format>\tSpecify the output format\n"
         "\t-jobconf <key>=<value>[,...]\tSpecify the configuration of the job\n"
         "\t  mapred.job.name\t\tName the submitting job\n"
         "\t  mapred.job.priority\t\tSpecify the priority of the job\n"
@@ -122,6 +128,28 @@ ParsePartitioner(const std::string& partitioner) {
     return ::baidu::shuttle::sdk::kKeyFieldBased;
 }
 
+static inline ::baidu::shuttle::sdk::InputFormat
+ParseInputFormat(const std::string& input_format) {
+    if (boost::starts_with(input_format, "Text")) {
+        return ::baidu::shuttle::sdk::kTextInput;
+    } else if (boost::starts_with(input_format, "Binary") ||
+            boost::iequals(input_format, "SequenceFile")) {
+        return ::baidu::shuttle::sdk::kBinaryInput;
+    }
+    return ::baidu::shuttle::sdk::kTextInput;
+}
+
+static inline ::baidu::shuttle::sdk::OutputFormat
+ParseOutputFormat(const std::string& output_format) {
+    if (boost::starts_with(output_format, "Text")) {
+        return ::baidu::shuttle::sdk::kTextOutput;
+    } else if (boost::starts_with(output_format, "Binary") ||
+            boost::iequals(output_format, "SequenceFile")) {
+        return ::baidu::shuttle::sdk::kBinaryOutput;
+    }
+    return ::baidu::shuttle::sdk::kTextOutput;
+}
+
 static int ParseCommandLineFlags(int* argc, char***argv) {
     char **opt = *argv;
     char *ctx = NULL;
@@ -165,6 +193,10 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
             config::reduce += opt[++i];
         } else if (!strcmp(ctx, "partitioner")) {
             config::partitioner = ParsePartitioner(opt[++i]);
+        } else if (!strcmp(ctx, "inputformat")) {
+            config::input_format = ParseInputFormat(opt[++i]);
+        } else if (!strcmp(ctx, "outputformat")) {
+            config::output_format = ParseOutputFormat(opt[++i]);
         } else if (!strcmp(ctx, "jobconf")) {
             if (!config::jobconf.empty()) {
                 config::jobconf += ",";
