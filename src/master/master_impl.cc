@@ -53,6 +53,8 @@ void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
                            ::baidu::shuttle::SubmitJobResponse* response,
                            ::google::protobuf::Closure* done) {
     const JobDescriptor& job = request->job();
+    LOG(INFO, "use dfs user: %s", job.input_dfs().user().c_str());
+    LOG(INFO, "use output dfs user: %s", job.output_dfs().user().c_str());
     JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
     Status status = jobtracker->Start();
     const std::string& job_id = jobtracker->GetJobId();

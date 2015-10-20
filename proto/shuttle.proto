@@ -67,6 +67,11 @@ enum OutputFormat {
     kBinaryOutput = 1;
 }
 
+enum PipeStyle {
+    kStreaming = 0;
+    kBiStreaming = 1;
+}
+
 message JobDescriptor {
     optional string name = 1;
     optional string user = 2;
@@ -91,6 +96,7 @@ message JobDescriptor {
     optional DfsInfo output_dfs = 21;
     optional InputFormat input_format = 22;
     optional OutputFormat output_format = 23;
+    optional PipeStyle pipe_style = 24;
 }
 
 message TaskInput {

@@ -38,6 +38,10 @@ protected:
     bool MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
     bool MoveTempToShuffle(const TaskInfo& task);
     const std::string GetShuffleWorkDir(const TaskInfo& task);
+
+    bool ReadLine(FILE* user_app, std::string* line);
+    bool ReadRecord(FILE* user_app, std::string* key, std::string* value);
+
     TaskState TransTextOutput(FILE* user_app, const std::string& temp_file_name,
                               FileSystem::Param param, const TaskInfo& task);
     TaskState TransBinaryOutput(FILE* user_app, const std::string& temp_file_name,
@@ -52,9 +56,9 @@ public:
     MapExecutor();
     virtual TaskState Exec(const TaskInfo& task);
     virtual ~MapExecutor();
-    TaskState TransTextOutput(FILE* user_app, const TaskInfo& task,
+    TaskState StreamingShuffle(FILE* user_app, const TaskInfo& task,
                               const Partitioner* partitioner, Emitter* emitter);
-    TaskState TransBinaryOutput(FILE* user_app, const TaskInfo& task,
+    TaskState BiStreamingShuffle(FILE* user_app, const TaskInfo& task,
                                 const Partitioner* partitioner, Emitter* emitter);
 private:
     char* line_buf_;
