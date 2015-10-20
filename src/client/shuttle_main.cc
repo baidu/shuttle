@@ -133,7 +133,7 @@ ParseInputFormat(const std::string& input_format) {
     if (boost::starts_with(input_format, "Text")) {
         return ::baidu::shuttle::sdk::kTextInput;
     } else if (boost::starts_with(input_format, "Binary") ||
-            boost::iequals(input_format, "SequenceFile")) {
+            boost::starts_with(input_format, "SequenceFile")) {
         return ::baidu::shuttle::sdk::kBinaryInput;
     }
     return ::baidu::shuttle::sdk::kTextInput;
@@ -144,7 +144,7 @@ ParseOutputFormat(const std::string& output_format) {
     if (boost::starts_with(output_format, "Text")) {
         return ::baidu::shuttle::sdk::kTextOutput;
     } else if (boost::starts_with(output_format, "Binary") ||
-            boost::iequals(output_format, "SequenceFile")) {
+            boost::starts_with(output_format, "SequenceFile")) {
         return ::baidu::shuttle::sdk::kBinaryOutput;
     }
     return ::baidu::shuttle::sdk::kTextOutput;
@@ -466,6 +466,8 @@ static int SubmitJob() {
     job_desc.output_dfs.port = config::output_port;
     job_desc.output_dfs.user = config::output_user;
     job_desc.output_dfs.password = config::output_password;
+    job_desc.input_format = config::input_format;
+    job_desc.output_format = config::output_format;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);
