@@ -192,9 +192,11 @@ bool Executor::ReadLine(FILE* user_app, std::string* line) {
     return true;
 }
 
-bool Executor::ReadRecord(FILE* user_app, std::string* key, std::string* value) {
+bool Executor::ReadRecord(FILE* user_app, std::string* p_key, std::string* p_value) {
     int32_t key_len = 0;
     int32_t value_len = 0;
+    std::string& key = *p_key;
+    std::string& value = *p_value;
     if (fread(&key_len, sizeof(key_len), 1, user_app) != 1) {
         if (feof(user_app)) {
             return true;
@@ -206,7 +208,7 @@ bool Executor::ReadRecord(FILE* user_app, std::string* key, std::string* value) 
         LOG(WARNING, "invalid key len: %d", key_len);
         return false;
     }
-    key->resize(key_len);
+    key.resize(key_len);
     if ((int32_t)fread(&key[0], sizeof(char), key_len, user_app) != key_len) {
         LOG(WARNING, "read key fail");
         return false;
@@ -215,7 +217,7 @@ bool Executor::ReadRecord(FILE* user_app, std::string* key, std::string* value) 
         LOG(WARNING, "read value_len fail");
         return false;
     }
-    value->resize(value_len);
+    value.resize(value_len);
     if ((int32_t)fread(&value[0], sizeof(char), value_len, user_app) != value_len) {
         LOG(WARNING, "read value fail");
         return false;
