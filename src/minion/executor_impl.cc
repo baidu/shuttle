@@ -6,6 +6,9 @@
 namespace baidu {
 namespace shuttle {
 
+const int sLineBufferSize = 40960;
+const int sKeyLimit = 65536;
+
 Executor::Executor() {
     
 }
@@ -90,6 +93,11 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     } else if (task.job().output_format() == kBinaryOutput) {
         ::setenv("minion_output_format", "binary", 1);
     }
+    if (task.job().pipe_style() == kStreaming) {
+        ::setenv("minion_pipe_style", "streaming", 1);
+    } else if (task.job().pipe_style() == kBiStreaming) {
+        ::setenv("minion_pipe_style", "bistreaming", 1);
+    }
 }
 
 const std::string Executor::GetShuffleWorkDir(const TaskInfo& task) {
@@ -170,6 +178,52 @@ void Executor::FillParam(FileSystem::Param& param, const TaskInfo& task) {
     }
 }
 
+bool Executor::ReadLine(FILE* user_app, std::string* line) {
+    std::string line_buf;
+    line_buf.resize(sLineBufferSize);
+    char * s = fgets(&line_buf[0], sLineBufferSize, user_app);
+    if (s == NULL && feof(user_app)) {
+        return true;
+    }
+    if (ferror(user_app)) {
+        return false;
+    }
+    *line = line_buf.c_str();
+    return true;
+}
+
+bool Executor::ReadRecord(FILE* user_app, std::string* p_key, std::string* p_value) {
+    int32_t key_len = 0;
+    int32_t value_len = 0;
+    std::string& key = *p_key;
+    std::string& value = *p_value;
+    if (fread(&key_len, sizeof(key_len), 1, user_app) != 1) {
+        if (feof(user_app)) {
+            return true;
+        }
+        LOG(WARNING, "read key_len fail");
+        return false;
+    }
+    if (key_len < 0 || key_len > sKeyLimit) {
+        LOG(WARNING, "invalid key len: %d", key_len);
+        return false;
+    }
+    key.resize(key_len);
+    if ((int32_t)fread(&key[0], sizeof(char), key_len, user_app) != key_len) {
+        LOG(WARNING, "read key fail");
+        return false;
+    }
+    if (fread(&value_len, sizeof(value_len), 1, user_app) != 1) {
+        LOG(WARNING, "read value_len fail");
+        return false;
+    }
+    value.resize(value_len);
+    if ((int32_t)fread(&value[0], sizeof(char), value_len, user_app) != value_len) {
+        LOG(WARNING, "read value fail");
+        return false;
+    }
+    return true;
+}
 
 TaskState Executor::TransTextOutput(FILE* user_app, const std::string& temp_file_name,
                                     FileSystem::Param param, const TaskInfo& task) {
@@ -181,35 +235,43 @@ TaskState Executor::TransTextOutput(FILE* user_app, const std::string& temp_file
         return kTaskFailed;
     }
 
-    const size_t buf_size = 40960;
-    char* buf = (char*) malloc(buf_size);
+    PipeStyle pipe_style = task.job().pipe_style();
+    std::string raw_data;
+
     while (!feof(user_app)) {
         if (ShouldStop(task.task_id())) {
             LOG(WARNING, "task: %d is canceled.", task.task_id());
-            free(buf);
             return kTaskCanceled;
         }
-        size_t n_read = fread(buf, sizeof(char), buf_size, user_app);
-        if (n_read != buf_size) {
-            if (feof(user_app)) {
-                ok = fs->WriteAll(buf, n_read);
-                break;
-            } else if (ferror(user_app) != 0) {
-                LOG(WARNING, "errors occur in reading, %s", strerror(errno));
-                ok = false;
-                break;
-            } else {
-                assert(0);
-            }
+        if (pipe_style == kStreaming) {
+            std::string line;
+            ok = ReadLine(user_app, &line);
+            raw_data = line;
+        } else if (pipe_style == kBiStreaming) {
+            std::string key;
+            std::string value;
+            ok = ReadRecord(user_app, &key, &value);
+            raw_data = key + "\t" + value + "\n";
+        } else {
+            LOG(FATAL, "unkonow pipe_style: %d", pipe_style);
         }
-        ok = fs->WriteAll(buf, n_read);
-        if (!ok) {
+        if (feof(user_app)) {
+            LOG(INFO, "read user app over");
             break;
         }
+        if (!ok) {
+            LOG(WARNING, "read app output fail");
+            return kTaskFailed;
+        }
+        ok = fs->WriteAll((void*)raw_data.data(), raw_data.size());
+        if (!ok) {
+            LOG(WARNING, "write output to dfs fail");
+            return kTaskFailed;
+        }
     }
-    free(buf);
-    if (!ok || !fs->Close()) {
-        LOG(WARNING, "write data fail, %s", temp_file_name.c_str());
+    ok = fs->Close();
+    if (!ok) {
+        LOG(WARNING, "close file fail: %s", temp_file_name.c_str());
         return kTaskFailed;
     }
     return kTaskCompleted;
@@ -222,46 +284,37 @@ TaskState Executor::TransBinaryOutput(FILE* user_app, const std::string& temp_fi
         LOG(WARNING, "fail to open %s for wirte", temp_file_name.c_str());
         return kTaskFailed;
     }
+    PipeStyle pipe_style = task.job().pipe_style();
+    bool ok = false;
+    std::string key;
+    std::string value;
     while (!feof(user_app)) {
         if (ShouldStop(task.task_id())) {
             LOG(WARNING, "task: %d is canceled.", task.task_id());
             return kTaskCanceled;
         }
-        int32_t key_len = 0;
-        int32_t value_len = 0;
-        std::string key;
-        std::string value;
-        if (fread(&key_len, sizeof(key_len), 1, user_app) != 1) {
-            if (feof(user_app)) {
-                break;
-            }
-            LOG(WARNING, "read key_len fail");
+        if (pipe_style == kStreaming) {
+            ok = ReadLine(user_app, &value);
+        } else if (pipe_style == kBiStreaming) {
+            ok = ReadRecord(user_app, &key, &value);
+        } else {
+            LOG(FATAL, "invalid pipe style: %d", pipe_style);
+        }
+        if (feof(user_app)) {
+            LOG(INFO, "read user app over");
+            break;
+        }
+        if (!ok) {
+            LOG(INFO, "read user app fail");
             return kTaskFailed;
         }
-        if (key_len < 0 || key_len > 65536) {
-            LOG(WARNING, "invalid key len: %d", key_len);
-            return kTaskFailed;
-        }
-        key.resize(key_len);
-        if ((int32_t)fread((void*)key.data(), sizeof(char), key_len, user_app) != key_len) {
-            LOG(WARNING, "read key fail");
-            return kTaskFailed;
-        }
-        if (fread(&value_len, sizeof(value_len), 1, user_app) != 1) {
-            LOG(WARNING, "read value_len fail");
-            return kTaskFailed;
-        }
-        value.resize(value_len);
-        if ((int32_t)fread((void*) value.data(), sizeof(char), value_len, user_app) != value_len) {
-            LOG(WARNING, "read value fail");
-            return kTaskFailed;
-        }
-        bool ok = seqfile.WriteNextRecord(key, value);
+        ok = seqfile.WriteNextRecord(key, value);
         if (!ok) {
             LOG(WARNING, "fail to write: %s", temp_file_name.c_str());
             return kTaskFailed;
         }
     }
+
     if (!seqfile.Close()) {
         LOG(WARNING, "fail to close %s", temp_file_name.c_str());
         return kTaskFailed;

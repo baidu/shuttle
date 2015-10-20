@@ -96,13 +96,13 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
     delete fs;
 
     Emitter emitter(GetMapWorkDir(task), task);
-    if (task.job().output_format() == kTextOutput) {
-        TaskState state = TransTextOutput(user_app, task, partitioner, &emitter);
+    if (task.job().pipe_style() == kStreaming) {
+        TaskState state = StreamingShuffle(user_app, task, partitioner, &emitter);
         if (state != kTaskCompleted) {
             return state;
         }
-    } else if (task.job().output_format() == kBinaryOutput) {
-        TaskState state = TransBinaryOutput(user_app, task, partitioner, &emitter);
+    } else if (task.job().pipe_style() == kBiStreaming) {
+        TaskState state = BiStreamingShuffle(user_app, task, partitioner, &emitter);
         if (state != kTaskCompleted) {
             return state;
         }
@@ -195,8 +195,8 @@ Status Emitter::FlushMemTable() {
 }
 
 
-TaskState MapExecutor::TransTextOutput(FILE* user_app, const TaskInfo& task,
-                                       const Partitioner* partitioner, Emitter* emitter) {
+TaskState MapExecutor::StreamingShuffle(FILE* user_app, const TaskInfo& task,
+                                        const Partitioner* partitioner, Emitter* emitter) {
     while (!feof(user_app)) {
         if (ShouldStop(task.task_id())) {
             LOG(WARNING, "task: %d is canceled.", task.task_id());
@@ -222,44 +222,26 @@ TaskState MapExecutor::TransTextOutput(FILE* user_app, const TaskInfo& task,
     return kTaskCompleted;
 }
 
-TaskState MapExecutor::TransBinaryOutput(FILE* user_app, const TaskInfo& task,
-                                         const Partitioner* partitioner, Emitter* emitter) {
+TaskState MapExecutor::BiStreamingShuffle(FILE* user_app, const TaskInfo& task,
+                                          const Partitioner* partitioner, Emitter* emitter) {
     while (!feof(user_app)) {
         if (ShouldStop(task.task_id())) {
             LOG(WARNING, "task: %d is canceled.", task.task_id());
             return kTaskCanceled;
         }
-        int32_t key_len = 0;
-        int32_t value_len = 0;
         std::string key;
         std::string value;
-        if (fread(&key_len, sizeof(key_len), 1, user_app) != 1) {
-            if (feof(user_app)) {
-                break;
-            }
-            LOG(WARNING, "read key_len fail");
+        if (!ReadRecord(user_app, &key, &value)) {
+            LOG(WARNING, "read user app fail");
             return kTaskFailed;
         }
-        if (key_len < 0 || key_len > 65536) {
-            LOG(WARNING, "invalid key len: %d", key_len);
-            return kTaskFailed;
-        }
-        key.resize(key_len);
-        if ((int32_t)fread((void*)key.data(), sizeof(char), key_len, user_app) != key_len) {
-            LOG(WARNING, "read key fail");
-            return kTaskFailed;
-        }
-        if (fread(&value_len, sizeof(value_len), 1, user_app) != 1) {
-            LOG(WARNING, "read value_len fail");
-            return kTaskFailed;
-        }
-        value.resize(value_len);
-        if ((int32_t)fread((void*) value.data(), sizeof(char), value_len, user_app) != value_len) {
-            LOG(WARNING, "read value fail");
-            return kTaskFailed;
+        if (feof(user_app)) {
+            break;
         }
         int reduce_no = partitioner->Calc(key);
         std::string record;
+        int32_t key_len = key.size();
+        int32_t value_len = value.size();
         record.append((const char*)(&key_len), sizeof(key_len));
         record.append(key);
         record.append((const char*)(&value_len), sizeof(value_len));
