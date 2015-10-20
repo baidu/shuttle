@@ -371,6 +371,7 @@ void MasterImpl::KeepGarbageCollecting() {
     MutexLock lock(&(dead_mu_));
     for (std::map<std::string, JobTracker*>::iterator it = dead_trackers_.begin();
             it != dead_trackers_.end(); ++it) {
+        LOG(INFO, "[gc] remove dead job trackers: %s", it->second->GetJobId().c_str());
         delete it->second;
     }
     dead_trackers_.clear();
