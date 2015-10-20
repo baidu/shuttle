@@ -47,7 +47,7 @@ enum PartitionMethod {
 enum TaskType {
     kMap = 0,
     kReduce = 1,
-    kMapOnly = 3
+    kMapOnly = 2
 };
 
 struct TaskStatistics {
