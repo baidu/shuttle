@@ -79,8 +79,6 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_key_fields_num(job_desc.key_fields_num);
     job->set_partition_fields_num(job_desc.partition_fields_num);
     job->set_job_type((job_desc.reduce_total == 0) ? kMapOnlyJob : kMapReduceJob);
-    //hack;
-    job->set_pipe_style(kBiStreaming);
     DfsInfo* input_info = job->mutable_input_dfs();
     input_info->set_host(job_desc.input_dfs.host);
     input_info->set_port(job_desc.input_dfs.port);
