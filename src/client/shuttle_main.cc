@@ -215,6 +215,9 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
             config::master = opt[++i];
         } else if (!strcmp(ctx, "a") || !strcmp(ctx, "all")) {
             config::display_all = true;
+            opt[i] = NULL;
+            ++ ret;
+            continue;
         } else if (!strcmp(ctx, "help") || !strcmp(ctx, "h")) {
             fprintf(stderr, "%s\n", error_message.c_str());
             exit(0);
@@ -285,19 +288,19 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.job.input.host=")) {
             config::input_host = it->substr(strlen("mapred.job.input.host="));
         } else if (boost::starts_with(*it, "mapred.job.input.port=")) {
-            config::input_host = it->substr(strlen("mapred.job.input.port="));
+            config::input_port = it->substr(strlen("mapred.job.input.port="));
         } else if (boost::starts_with(*it, "mapred.job.input.user=")) {
-            config::input_host = it->substr(strlen("mapred.job.input.user="));
+            config::input_user = it->substr(strlen("mapred.job.input.user="));
         } else if (boost::starts_with(*it, "mapred.job.input.password=")) {
-            config::input_host = it->substr(strlen("mapred.job.input.password="));
+            config::input_password = it->substr(strlen("mapred.job.input.password="));
         } else if (boost::starts_with(*it, "mapred.job.output.host=")) {
             config::output_host = it->substr(strlen("mapred.job.output.host="));
         } else if (boost::starts_with(*it, "mapred.job.output.port=")) {
-            config::output_host = it->substr(strlen("mapred.job.output.port="));
+            config::output_port = it->substr(strlen("mapred.job.output.port="));
         } else if (boost::starts_with(*it, "mapred.job.output.user=")) {
-            config::output_host = it->substr(strlen("mapred.job.output.user="));
+            config::output_user = it->substr(strlen("mapred.job.output.user="));
         } else if (boost::starts_with(*it, "mapred.job.output.password=")) {
-            config::output_host = it->substr(strlen("mapred.job.output.password="));
+            config::output_password = it->substr(strlen("mapred.job.output.password="));
         } else if (boost::starts_with(*it, "map.key.field.separator=")) {
             config::key_separator = it->substr(strlen("map.key.field.separator="));
         } else if (boost::starts_with(*it, "stream.num.map.output.key.fields=")) {
