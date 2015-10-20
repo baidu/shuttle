@@ -45,8 +45,10 @@ public:
 
     // generic file-system operation
     bool ListDirectory(const std::string& dir, std::vector<FileInfo>& files);
+    bool GlobDirectory(const std::string& dir, std::vector<FileInfo>& files);
 
     static std::string GetServerFromPath(const std::string& path);
+    static size_t glob_bound;
 
 private:
     void ParseHdfsPath(const std::string& path);

@@ -108,8 +108,11 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files) {
     dfs_->Connect(DfsAdaptor::GetServerFromPath(input_files[0]));
     for (std::vector<std::string>::const_iterator it = input_files.begin();
             it != input_files.end(); ++it) {
-        // TODO ListDirectory does not support wildcards
-        dfs_->ListDirectory(*it, files);
+        if (it->find('*') == std::string::npos) {
+            dfs_->ListDirectory(*it, files);
+        } else {
+            dfs_->GlobDirectory(*it, files);
+        }
     }
     MutexLock lock(&mu_);
     int counter = resource_pool_.size();
