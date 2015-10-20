@@ -89,6 +89,8 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     output_info->set_port(job_desc.output_dfs.port);
     output_info->set_user(job_desc.output_dfs.user);
     output_info->set_password(job_desc.output_dfs.password);
+    job->set_input_format((InputFormat)job_desc.input_format);
+    job->set_output_format((OutputFormat)job_desc.output_format);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, rpc_timeout_, 1);
@@ -190,6 +192,8 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
     job.desc.output_dfs.port = desc.output_dfs().port();
     job.desc.output_dfs.user = desc.output_dfs().user();
     job.desc.output_dfs.password = desc.output_dfs().password();
+    job.desc.input_format = (sdk::InputFormat)desc.input_format();
+    job.desc.output_format = (sdk::OutputFormat)desc.output_format();
 
     job.jobid = joboverview.jobid();
     job.state = (sdk::JobState)joboverview.state();
@@ -274,6 +278,8 @@ bool ShuttleImpl::ListJobs(std::vector<sdk::JobInstance>& jobs,
         job.desc.output_dfs.port = desc.output_dfs().port();
         job.desc.output_dfs.user = desc.output_dfs().user();
         job.desc.output_dfs.password = desc.output_dfs().password();
+        job.desc.input_format = (sdk::InputFormat)desc.input_format();
+        job.desc.output_format = (sdk::OutputFormat)desc.output_format();
 
         job.jobid = it->jobid();
         job.state = (sdk::JobState)it->state();
