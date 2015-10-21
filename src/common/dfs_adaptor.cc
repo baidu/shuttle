@@ -195,8 +195,8 @@ bool DfsAdaptor::GlobDirectory(const std::string& dir, std::vector<FileInfo>& fi
         const std::string& pattern = dfs_path_.substr(slash + 1, start - slash - 1);
         size_t size = prefixes.size();
         for (size_t i = 0; i < size; ++i) {
-            const std::string& pre = prefixes.front();
-            prefixes.pop_back();
+            std::string pre = prefixes.front();
+            prefixes.pop_front();
             std::string prefix = pre + cur;
             hdfsFileInfo* file_list = hdfsListDirectory(fs_, prefix.c_str(), &file_num);
             if (file_list == NULL) {
@@ -211,7 +211,7 @@ bool DfsAdaptor::GlobDirectory(const std::string& dir, std::vector<FileInfo>& fi
                     prefixes.push_back(prefix);
                     break;
                 } else {
-                    prefixes.push_back(prefix + cur_file);
+                    prefixes.push_back(cur_file);
                 }
             }
             hdfsFreeFileInfo(file_list, file_num);
