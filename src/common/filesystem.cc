@@ -1,10 +1,13 @@
+#include <deque>
 #include <fcntl.h> 
 #include <stdio.h> 
 #include <sys/stat.h> 
 #include <sys/types.h> 
 #include <unistd.h> 
+
 #include "filesystem.h"
 #include "logging.h"
+#include "common/tools_util.h"
 
 using baidu::common::INFO;
 using baidu::common::WARNING;
@@ -15,10 +18,13 @@ namespace shuttle {
 class InfHdfs : public FileSystem {
 public:
     InfHdfs();
-    static void ConnectInfHdfs(Param param, hdfsFS* fs);
-    void Connect(Param param);
+    virtual ~InfHdfs() { }
+    static void ConnectInfHdfs(Param& param, hdfsFS* fs);
+    void Connect(Param& param);
+    bool Open(const std::string& path,
+              OpenMode mode);
     bool Open(const std::string& path, 
-              Param param,
+              Param& param,
               OpenMode mode);
     bool Close();
     bool Seek(int64_t pos);
@@ -27,8 +33,9 @@ public:
     int64_t Tell();
     int64_t GetSize();
     bool Rename(const std::string& old_name, const std::string& new_name);
-    virtual ~InfHdfs(){};
-    bool List(const std::string& dir, std::vector<std::string>* children);
+    bool Remove(const std::string& path);
+    bool List(const std::string& dir, std::vector<FileInfo>* children);
+    bool Glob(const std::string& dir, std::vector<FileInfo>* children);
     bool Mkdirs(const std::string& dir);
     bool Exist(const std::string& path);
 private:
@@ -41,8 +48,11 @@ private:
 class LocalFs : public FileSystem {
 public:
     LocalFs();
+    virtual ~LocalFs() { }
+    bool Open(const std::string& path,
+              OpenMode mode);
     bool Open(const std::string& path, 
-              Param param,
+              Param& param,
               OpenMode mode);
     bool Close();
     bool Seek(int64_t pos);
@@ -51,19 +61,25 @@ public:
     int64_t Tell();
     int64_t GetSize();
     bool Rename(const std::string& old_name, const std::string& new_name);
-    virtual ~LocalFs(){};
-    bool List(const std::string& dir, std::vector<std::string>* children) {
-        (void)dir;
-        (void)children;
-        return false; //TODO, not implementation
+    bool Remove(const std::string& /*path*/) {
+        //TODO, not implementation
+        return false;
     }
-    bool Mkdirs(const std::string& dir) {
-        (void)dir;
-        return false; //TODO, not implementation
+    bool List(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
+        //TODO, not implementation
+        return false;
     }
-    bool Exist(const std::string& path) {
-        (void)path;
-        return false; //TODO, not implementation
+    bool Glob(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
+        //TODO, not implementation
+        return false;
+    }
+    bool Mkdirs(const std::string& /*dir*/) {
+        //TODO, not implementation
+        return false;
+    }
+    bool Exist(const std::string& /*path*/) {
+        //TODO, not implementation
+        return false;
     }
 private:
     int fd_;
@@ -74,7 +90,7 @@ FileSystem* FileSystem::CreateInfHdfs() {
     return new InfHdfs();
 }
 
-FileSystem* FileSystem::CreateInfHdfs(Param param) {
+FileSystem* FileSystem::CreateInfHdfs(Param& param) {
     InfHdfs* fs = new InfHdfs();
     fs->Connect(param);
     return fs;
@@ -101,7 +117,7 @@ InfHdfs::InfHdfs() : fs_(NULL), fd_(NULL) {
 
 }
 
-void InfHdfs::ConnectInfHdfs(Param param, hdfsFS* fs) {
+void InfHdfs::ConnectInfHdfs(Param& param, hdfsFS* fs) {
     if (param.find("user") == param.end()) {
         *fs = hdfsConnect("default", 0);
         LOG(INFO, "connect as default user");
@@ -118,11 +134,32 @@ void InfHdfs::ConnectInfHdfs(Param param, hdfsFS* fs) {
     }
 }
 
-void InfHdfs::Connect(Param param) {
+void InfHdfs::Connect(Param& param) {
     ConnectInfHdfs(param, &fs_);
 }
 
-bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
+bool InfHdfs::Open(const std::string& path, OpenMode mode) {
+    path_ = path;
+    if (!fs_) {
+        return false;
+    }
+    if (mode == kReadFile) {
+        fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
+    } else if (mode == kWriteFile) {
+        short replica = 3;
+        fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
+    } else {
+        LOG(WARNING, "unknown open mode.");
+        return false;
+    }
+    if (!fd_) {
+        LOG(WARNING, "open %s fail", path.c_str());
+        return false;
+    }
+    return true;
+}
+
+bool InfHdfs::Open(const std::string& path, Param& param, OpenMode mode) {
     LOG(INFO, "try to open: %s", path.c_str());
     path_ = path;
     Connect(param);
@@ -139,7 +176,7 @@ bool InfHdfs::Open(const std::string& path, Param param, OpenMode mode) {
         //printf("replica: %d, %s\n", replica, path.c_str());
         fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
     } else {
-        LOG(WARNING, "unkonw open mode.");
+        LOG(WARNING, "unknown open mode.");
         return false;
     }
     if (!fd_) {
@@ -196,7 +233,14 @@ bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
     return hdfsRename(fs_, old_name.c_str(), new_name.c_str()) == 0;
 }
 
-bool InfHdfs::List(const std::string& dir, std::vector<std::string>* children) {
+bool InfHdfs::Remove(const std::string& path) {
+    return hdfsDelete(fs_, path.c_str()) == 0;
+}
+
+bool InfHdfs::List(const std::string& dir, std::vector<FileInfo>* children) {
+    if (children == NULL) {
+        return false;
+    }
     int file_num = 0;
     hdfsFileInfo* file_list = hdfsListDirectory(fs_, dir.c_str(), &file_num);
     if (file_list == NULL) {
@@ -204,9 +248,68 @@ bool InfHdfs::List(const std::string& dir, std::vector<std::string>* children) {
         return false;
     }
     for (int i = 0; i < file_num; i++) {
-        children->push_back(file_list[i].mName);
+        children->push_back(FileInfo(file_list[i]));
     }
     hdfsFreeFileInfo(file_list, file_num);
+    return true;
+}
+
+bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
+    if (children == NULL) {
+        return false;
+    }
+    std::deque<std::string> prefixes;
+    // TODO Notice here need hdfs header
+    prefixes.push_back("");
+    size_t start = 0;
+    int file_num = 0;
+    bool keep_loop = true;
+    while (keep_loop) {
+        size_t star = dir.find_first_of('*', start);
+        size_t slash = dir.find_last_of('/', star);
+        const std::string& cur = dir.substr(start, slash - start);
+        start = dir.find_first_of('/', slash + 1);
+        keep_loop = start != std::string::npos && start != dir.size() - 1;
+        const std::string& pattern = dir.substr(slash + 1, start - slash - 1);
+        size_t size = prefixes.size();
+        for (size_t i = 0; i < size; ++i) {
+            std::string pre = prefixes.front();
+            prefixes.pop_front();
+            std::string prefix = pre + cur;
+            hdfsFileInfo* file_list = hdfsListDirectory(fs_, prefix.c_str(), &file_num);
+            if (file_list == NULL) {
+                continue;
+            }
+            for (int j = 0; j < file_num; ++j) {
+                std::string cur_file = file_list[j].mName;
+                if (!PatternMatch(cur_file, prefix + "/" + pattern)) {
+                    continue;
+                }
+                if (!keep_loop) {
+                    prefixes.push_back(prefix);
+                    break;
+                } else {
+                    prefixes.push_back(cur_file);
+                }
+            }
+            hdfsFreeFileInfo(file_list, file_num);
+        }
+    }
+    if (!prefixes.empty()) {
+        for (std::deque<std::string>::iterator it = prefixes.begin();
+                it != prefixes.end(); ++it) {
+            hdfsFileInfo* file_list = hdfsListDirectory(fs_, it->c_str(), &file_num);
+            if (file_list == NULL) {
+                continue;
+            }
+            for (int i = 0; i < file_num; ++i) {
+                if (PatternMatch(file_list[i].mName, dir)) {
+                    children->push_back(FileInfo(file_list[i]));
+                }
+            }
+            hdfsFreeFileInfo(file_list, file_num);
+        }
+    }
     return true;
 }
 
@@ -222,10 +325,8 @@ LocalFs::LocalFs() : fd_(0) {
 
 }
 
-bool LocalFs::Open(const std::string& path, 
-                   Param param,
+bool LocalFs::Open(const std::string& path,
                    OpenMode mode) {
-    (void)param;
     path_ = path;
     mode_t acl = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH; 
     if (mode == kReadFile) {
@@ -245,6 +346,12 @@ bool LocalFs::Open(const std::string& path,
         return false;
     }
     return true;
+}
+
+bool LocalFs::Open(const std::string& path, 
+                   Param& /*param*/,
+                   OpenMode mode) {
+    return Open(path, mode);
 }
 
 bool LocalFs::Close() {
@@ -282,7 +389,7 @@ InfSeqFile::InfSeqFile() : fs_(NULL), sf_(NULL) {
 
 }
 
-bool InfSeqFile::Open(const std::string& path, FileSystem::Param param, OpenMode mode) {
+bool InfSeqFile::Open(const std::string& path, FileSystem::Param& param, OpenMode mode) {
     InfHdfs::ConnectInfHdfs(param, &fs_);
     if (!fs_) {
         LOG(WARNING, "connect hdfs fail, when try open: %s", path.c_str());

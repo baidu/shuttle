@@ -8,7 +8,7 @@
 #include <vector>
 #include "proto/shuttle.pb.h"
 #include "proto/sortfile.pb.h"
-#include "filesystem.h"
+#include "common/filesystem.h"
 
 namespace baidu {
 namespace shuttle {

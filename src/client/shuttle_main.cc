@@ -606,6 +606,8 @@ int main(int argc, char* argv[]) {
         return ListJobs();
     } else if (!strcmp(argv[1], "status")) {
         return ShowJob();
+    } else {
+        fprintf(stderr, "%s\n", error_message.c_str());
     }
     return 0;
 }

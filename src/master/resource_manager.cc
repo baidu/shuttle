@@ -1,6 +1,10 @@
 #include "resource_manager.h"
-#include "logging.h"
+
+#include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 #include <gflags/gflags.h>
+#include "logging.h"
+#include "common/tools_util.h"
 
 DECLARE_int32(input_block_size);
 
@@ -102,16 +106,23 @@ IdItem* const BasicManager::CheckCertainItem(int no) {
     return NULL;
 }
 
-ResourceManager::ResourceManager(const std::vector<std::string>& input_files) {
-    dfs_ = new DfsAdaptor();
+ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
+                                 FileSystem::Param& param) {
+    if (boost::starts_with(input_files[0], "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(input_files[0], &host, &port, NULL);
+        param["host"] = host;
+        param["port"] = boost::lexical_cast<std::string>(port);
+    }
+    fs_ = FileSystem::CreateInfHdfs(param);
     std::vector<FileInfo> files;
-    dfs_->Connect(DfsAdaptor::GetServerFromPath(input_files[0]));
     for (std::vector<std::string>::const_iterator it = input_files.begin();
             it != input_files.end(); ++it) {
         if (it->find('*') == std::string::npos) {
-            dfs_->ListDirectory(*it, files);
+            fs_->List(*it, &files);
         } else {
-            dfs_->GlobDirectory(*it, files);
+            fs_->Glob(*it, &files);
         }
     }
     MutexLock lock(&mu_);
@@ -148,7 +159,7 @@ ResourceManager::~ResourceManager() {
         delete *it;
     }
     delete manager_;
-    delete dfs_;
+    delete fs_;
 }
 
 ResourceItem* ResourceManager::GetItem() {
