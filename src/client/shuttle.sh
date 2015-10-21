@@ -25,12 +25,6 @@ else
     fi
 fi
 
-if [ "$1" = "bistreaming" -o "$1" = "streaming" ]; then
-    op="submit"
-else
-    op=$1
-fi
-
 exec $the_dir/shuttle $nexus_param \
     -jobconf mapred.job.input.host=$input_host \
     -jobconf mapred.job.input.port=$input_port \
@@ -40,5 +34,5 @@ exec $the_dir/shuttle $nexus_param \
     -jobconf mapred.job.output.port=$output_port \
     -jobconf mapred.job.output.user=$output_user \
     -jobconf mapred.job.output.password=$output_password \
-    $op "${@:2}"
+    "$@"
 

@@ -38,6 +38,8 @@ std::string job_name = "map_reduce_job";
     ::baidu::shuttle::sdk::kTextInput;
 ::baidu::shuttle::sdk::OutputFormat output_format = \
     ::baidu::shuttle::sdk::kTextOutput;
+::baidu::shuttle::sdk::PipeStyle pipe_style = \
+    ::baidu::shuttle::sdk::kStreaming;
 int job_cpu = 1000;
 int64_t job_memory = 1024 * 1024 * 1024;
 int map_capacity = -1; // default value assigned during submitting
@@ -471,6 +473,7 @@ static int SubmitJob() {
     job_desc.output_dfs.password = config::output_password;
     job_desc.input_format = config::input_format;
     job_desc.output_format = config::output_format;
+    job_desc.pipe_style = config::pipe_style;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);
@@ -589,7 +592,11 @@ int main(int argc, char* argv[]) {
         config::param = argv[2];
     }
 
-    if (!strcmp(argv[1], "submit")) {
+    if (!strcmp(argv[1], "streaming")) {
+        config::pipe_style = ::baidu::shuttle::sdk::kStreaming;
+        return SubmitJob();
+    } else if (!strcmp(argv[1], "bistreaming")) {
+        config::pipe_style = ::baidu::shuttle::sdk::kBiStreaming;
         return SubmitJob();
     } else if (!strcmp(argv[1], "update")) {
         return UpdateJob();

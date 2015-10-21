@@ -60,6 +60,11 @@ enum TaskType {
     kMapOnly = 2
 };
 
+enum PipeStyle {
+    kStreaming = 0,
+    kBiStreaming = 1
+};
+
 struct TaskStatistics {
     int32_t total;
     int32_t pending;
@@ -99,6 +104,7 @@ struct JobDescription {
     DfsInfo output_dfs;
     InputFormat input_format;
     OutputFormat output_format;
+    PipeStyle pipe_style;
 };
 
 struct  TaskInstance {
