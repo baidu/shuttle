@@ -140,9 +140,7 @@ void MinionImpl::Loop() {
             abort();            
         }
 
-        if (task_state != kTaskCompleted
-                && task_state != kTaskMoveOutputFailed
-                && task_state != kTaskCanceled) {
+        if (task_state == kTaskFailed) {
             LOG(WARNING, "task state: %s", TaskState_Name(task_state).c_str());
             executor_->ReportErrors(task, (work_mode_ != kReduce));
         }
