@@ -153,9 +153,6 @@ Status Emitter::FlushMemTable() {
     Status status = kOk;
     char file_name[4096];
     char s_reduce_no[256];
-    if (mem_table_.empty()) {
-        return kOk;
-    }
     do {
         std::sort(mem_table_.begin(), mem_table_.end(), EmitItemLess());
         writer = SortFileWriter::Create(kHdfsFile, &status);
@@ -171,6 +168,10 @@ Status Emitter::FlushMemTable() {
         if (status != kOk) {
             break;
         }
+        if (mem_table_.empty()) {
+            break;
+        }
+
         std::vector<EmitItem*>::iterator it;
         for (it = mem_table_.begin(); it != mem_table_.end(); it++) {
             EmitItem* item = *it;

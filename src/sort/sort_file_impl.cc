@@ -284,6 +284,7 @@ SortFileReader::Iterator* SortFileReaderImpl::Scan(const std::string& start_key,
     }
 
     IndexBlock idx_block;
+    LOG(INFO, "try load index of: %s", path_.c_str());
     Status status = LoadIndexBlock(&idx_block);
     if (status != kOk) {
         LOG(WARNING, "faild to load index block, %s", path_.c_str());
