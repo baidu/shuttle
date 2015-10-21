@@ -77,9 +77,9 @@ MergeFileReader::MergeIterator::MergeIterator(const std::vector<SortFileReader::
     int offset = 0;
     for (it = iters.begin(); it != iters.end(); it++) {
         SortFileReader::Iterator * const& reader_it = *it;
-        iters_.push_back(reader_it);
         if (!reader_it->Done()) {
             queue_.push(MergeItem(reader_it->Key(), reader_it->Value(), offset));
+            iters_.push_back(reader_it);
             offset++;
         }
         if (reader_it->Error() != kOk) {

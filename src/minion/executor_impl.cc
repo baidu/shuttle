@@ -162,6 +162,7 @@ bool Executor::MoveTempToShuffle(const TaskInfo& task) {
             task.job().output().c_str(),
             task.task_id());
     FileSystem::Param param;
+    FillParam(param, task);
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     LOG(INFO, "rename %s -> %s", old_dir.c_str(), new_dir);
     bool ret = fs->Rename(old_dir, new_dir);
