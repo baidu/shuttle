@@ -18,6 +18,7 @@ namespace shuttle {
 class InfHdfs : public FileSystem {
 public:
     InfHdfs();
+    virtual ~InfHdfs() { }
     static void ConnectInfHdfs(Param& param, hdfsFS* fs);
     void Connect(Param& param);
     bool Open(const std::string& path,
@@ -32,7 +33,7 @@ public:
     int64_t Tell();
     int64_t GetSize();
     bool Rename(const std::string& old_name, const std::string& new_name);
-    virtual ~InfHdfs(){};
+    bool Remove(const std::string& path);
     bool List(const std::string& dir, std::vector<FileInfo>* children);
     bool Glob(const std::string& dir, std::vector<FileInfo>* children);
     bool Mkdirs(const std::string& dir);
@@ -47,6 +48,7 @@ private:
 class LocalFs : public FileSystem {
 public:
     LocalFs();
+    virtual ~LocalFs() { }
     bool Open(const std::string& path,
               OpenMode mode);
     bool Open(const std::string& path, 
@@ -59,7 +61,10 @@ public:
     int64_t Tell();
     int64_t GetSize();
     bool Rename(const std::string& old_name, const std::string& new_name);
-    virtual ~LocalFs(){};
+    bool Remove(const std::string& /*path*/) {
+        //TODO, not implementation
+        return false;
+    }
     bool List(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
         //TODO, not implementation
         return false;
@@ -226,6 +231,10 @@ int64_t InfHdfs::GetSize() {
 
 bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
     return hdfsRename(fs_, old_name.c_str(), new_name.c_str()) == 0;
+}
+
+bool InfHdfs::Remove(const std::string& path) {
+    return hdfsDelete(fs_, path.c_str()) == 0;
 }
 
 bool InfHdfs::List(const std::string& dir, std::vector<FileInfo>* children) {

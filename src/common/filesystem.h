@@ -46,6 +46,7 @@ public:
     virtual int64_t Tell() = 0;
     virtual int64_t GetSize() = 0;
     virtual bool Rename(const std::string& old_name, const std::string& new_name) = 0;
+    virtual bool Remove(const std::string& path) = 0;
     bool WriteAll(void* buf, size_t len);
     virtual bool List(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children) = 0;

@@ -31,7 +31,7 @@ INCPATHS('. ./src ./output/include galaxy/output/include galaxy/common/include g
 LIBS('galaxy/common/libcommon.a galaxy/ins/libins_sdk.a ./galaxy/libgalaxy.a')
 
 #链接参数.
-LDFLAGS('-lpthread -lz -lboost_regex')
+LDFLAGS('-lpthread -lz')
 
 #依赖模块
 CONFIGS('public/sofa-pbrpc@trunk@comake')

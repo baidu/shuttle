@@ -112,9 +112,7 @@ JobTracker::~JobTracker() {
             delete *it;
         }
     }
-    if (fs_ != NULL) {
-        delete fs_;
-    }
+    delete fs_;
 }
 
 Status JobTracker::Start() {
@@ -124,17 +122,13 @@ Status JobTracker::Start() {
         state_ = kFailed;
         return kNoMore;
     }
-    if (fs_->Exist(job_descriptor_.output().c_str())) {
+    if (fs_->Exist(job_descriptor_.output())) {
         LOG(INFO, "output exists, failed: %s", job_id_.c_str());
         job_descriptor_.set_map_total(0);
         job_descriptor_.set_reduce_total(0);
         state_ = kFailed;
-        delete fs_;
-        fs_ = NULL;
         return kWriteFileFail;
     }
-    delete fs_;
-    fs_ = NULL;
     ::baidu::galaxy::JobDescription galaxy_job;
     galaxy_job.job_name = job_descriptor_.name() + "_map@minion";
     galaxy_job.type = "kBatch";
@@ -377,6 +371,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             if (map_completed_ == map_manager_->SumOfItem()) {
                 if (job_descriptor_.job_type() == kMapOnlyJob) {
                     LOG(INFO, "map-only job finish: %s", job_id_.c_str());
+                    fs_->Remove(job_descriptor_.output() + "/_temporary");
                     mu_.Unlock();
                     master_->RetractJob(job_id_);
                     mu_.Lock();
@@ -491,6 +486,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                     reduce_completed_, reduce_manager_->SumOfItem(), job_id_.c_str());
             if (reduce_completed_ == reduce_manager_->SumOfItem()) {
                 LOG(INFO, "map-reduce job finish: %s", job_id_.c_str());
+                fs_->Remove(job_descriptor_.output() + "/_temporary");
                 mu_.Unlock();
                 master_->RetractJob(job_id_);
                 mu_.Lock();
