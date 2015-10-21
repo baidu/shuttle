@@ -31,7 +31,7 @@ INCPATHS('. ./src ./output/include galaxy/output/include galaxy/common/include g
 LIBS('galaxy/common/libcommon.a galaxy/ins/libins_sdk.a ./galaxy/libgalaxy.a')
 
 #链接参数.
-LDFLAGS('-lpthread -lz')
+LDFLAGS('-lpthread -lz -lboost_regex')
 
 #依赖模块
 CONFIGS('public/sofa-pbrpc@trunk@comake')
@@ -47,7 +47,8 @@ master_src = 'src/master/master_main.cc \
               src/master/master_flags.cc \
               src/master/job_tracker.cc \
               src/master/resource_manager.cc \
-              src/common/dfs_adaptor.cc \
+              src/common/filesystem.cc \
+              src/common/tools_util.cc \
               proto/app_master.proto \
               proto/minion.proto \
               proto/shuttle.proto'
@@ -55,8 +56,9 @@ master_src = 'src/master/master_main.cc \
 minion_src = 'src/minion/minion_main.cc \
               src/minion/minion_impl.cc \
               src/minion/minion_flags.cc \
-              src/sort/filesystem.cc \
+              src/common/filesystem.cc \
               src/minion/partition.cc \
+              src/common/tools_util.cc \
               proto/minion.proto \
               proto/app_master.proto \
               proto/shuttle.proto'
@@ -76,8 +78,9 @@ executor_src = 'src/minion/executor_impl.cc \
 
 sort_src = 'proto/sortfile.proto \
             proto/shuttle.proto \
-            src/sort/filesystem.cc \
-            src/sort/sort_file_impl.cc'
+            src/sort/sort_file_impl.cc \
+            src/common/filesystem.cc \
+            src/common/tools_util.cc'
 
 sort_test_src = 'proto/sortfile.proto \
                  proto/shuttle.proto \
@@ -99,7 +102,8 @@ shuffle_tool_src = 'src/sort/shuffle_tool.cc \
                     src/sort/merge_file_impl.cc'
 
 input_reader_src = 'src/sort/input_reader.cc \
-                    src/sort/filesystem.cc \
+                    src/common/filesystem.cc \
+                    src/common/tools_util.cc \
                     proto/shuttle.proto'
 
 partition_src = 'src/minion/partition.cc \
@@ -114,7 +118,8 @@ partition_test_src = 'src/minion/partition_test.cc'
 resourcemanager_test_src = 'src/master/resource_manager.cc \
                             src/master/resource_manager_test.cc \
                             src/master/master_flags.cc \
-                            src/common/dfs_adaptor.cc \
+                            src/common/filesystem.cc \
+                            src/common/tools_util.cc \
                             proto/shuttle.proto'
 
 Application('master', Sources(master_src))

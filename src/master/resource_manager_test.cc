@@ -12,7 +12,8 @@ int sum_of_items = 0;
 TEST(ResManTest, SetInputFilesTest) {
     std::vector<std::string> input_files;
     input_files.push_back(hdfs_path);
-    ResourceManager resman(input_files);
+    FileSystem::Param p;
+    ResourceManager resman(input_files, p);
     EXPECT_EQ(resman.SumOfItem(), sum_of_items);
 }
 
@@ -20,7 +21,8 @@ TEST(ResManTest, GetItemTest) {
     std::string input_file = hdfs_path;
     std::vector<std::string> input_files;
     input_files.push_back(input_file);
-    ResourceManager resman(input_files);
+    FileSystem::Param p;
+    ResourceManager resman(input_files, p);
     int sum = resman.SumOfItem();
     int64_t last_offset = 0;
     for (int i = 0; i < sum; ++i) {
@@ -38,7 +40,8 @@ TEST(ResManTest, GetCertainItemTest) {
     std::string input_file = hdfs_path;
     std::vector<std::string> input_files;
     input_files.push_back(input_file);
-    ResourceManager resman(input_files);
+    FileSystem::Param p;
+    ResourceManager resman(input_files, p);
     int sum = resman.SumOfItem();
     int64_t last_size = 0;
     delete resman.GetItem();
@@ -58,7 +61,8 @@ TEST(ResManTest, ReturnBackItemTest) {
     std::string input_file = hdfs_path;
     std::vector<std::string> input_files;
     input_files.push_back(input_file);
-    ResourceManager resman(input_files);
+    FileSystem::Param p;
+    ResourceManager resman(input_files, p);
     int64_t last_end = 0;
     ResourceItem* cur = resman.GetItem();
     EXPECT_EQ(cur->no, 0);

@@ -2,7 +2,7 @@
 #define _BAIDU_SHUTTLE_SORT_FILE_IMPL_H_
 
 #include "sort_file.h"
-#include "filesystem.h"
+#include "common/filesystem.h"
 
 namespace baidu {
 namespace shuttle {

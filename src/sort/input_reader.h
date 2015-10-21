@@ -1,7 +1,7 @@
 #ifndef _BAIDU_SHUTTLE_SORT_INPUT_READER_
 #define _BAIDU_SHUTTLE_SORT_INPUT_READER_
 #include <string>
-#include "filesystem.h"
+#include "common/filesystem.h"
 #include "proto/shuttle.pb.h"
 
 namespace baidu {

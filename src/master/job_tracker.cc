@@ -17,6 +17,7 @@
 #include "proto/minion.pb.h"
 #include "resource_manager.h"
 #include "master_impl.h"
+#include "common/tools_util.h"
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -41,25 +42,61 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       reduce_completed_(0),
                       last_reduce_no_(-1),
                       last_reduce_attempt_(0) {
+    // Prepare job id
     char time_chars[32];
     ::baidu::common::timer::now_time_str(time_chars, 32);
     std::string time_str = time_chars;
     boost::replace_all(time_str, " ", "-");
     job_id_ = time_str;
     job_id_ += boost::lexical_cast<std::string>(random());
+
     job_descriptor_.CopyFrom(job);
     state_ = kPending;
     rpc_client_ = new RpcClient();
     std::vector<std::string> inputs;
     const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames = job.inputs();
     std::copy(input_filenames.begin(), input_filenames.end(), std::back_inserter(inputs));
-    map_manager_ = new ResourceManager(inputs);
+
+    // Build resource manager
+    FileSystem::Param input_param;
+    const DfsInfo& input_dfs = job_descriptor_.input_dfs();
+    if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
+        input_param["host"] = input_dfs.host();
+        input_param["port"] = input_dfs.port();
+    }
+    if (!input_dfs.user().empty() && !input_dfs.password().empty()) {
+        input_param["user"] = input_dfs.user();
+        input_param["password"] = input_dfs.password();
+    }
+    map_manager_ = new ResourceManager(inputs, input_param);
+
     job_descriptor_.set_map_total(map_manager_->SumOfItem());
     if (job.job_type() == kMapReduceJob) {
         reduce_manager_ = new BasicManager(job_descriptor_.reduce_total());
     } else {
         reduce_manager_ = NULL;
     }
+
+    // Prepare fs for output checking and temporary files recycling
+    FileSystem::Param output_param;
+    const DfsInfo& output_dfs = job_descriptor_.output_dfs();
+    if (!output_dfs.user().empty() && !output_dfs.password().empty()) {
+        output_param["user"] = output_dfs.user();
+        output_param["password"] = output_dfs.password();
+    } else {
+        if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
+            std::string host;
+            int port;
+            ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
+            output_param["host"] = host;
+            output_param["port"] = boost::lexical_cast<std::string>(port);
+        } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
+            output_param["host"] = output_dfs.host();
+            output_param["port"] = output_dfs.port();
+        }
+    }
+    fs_ = FileSystem::CreateInfHdfs(output_param);
+
     monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
 }
 
@@ -75,6 +112,9 @@ JobTracker::~JobTracker() {
             delete *it;
         }
     }
+    if (fs_ != NULL) {
+        delete fs_;
+    }
 }
 
 Status JobTracker::Start() {
@@ -84,6 +124,17 @@ Status JobTracker::Start() {
         state_ = kFailed;
         return kNoMore;
     }
+    if (fs_->Exist(job_descriptor_.output().c_str())) {
+        LOG(INFO, "output exists, failed: %s", job_id_.c_str());
+        job_descriptor_.set_map_total(0);
+        job_descriptor_.set_reduce_total(0);
+        state_ = kFailed;
+        delete fs_;
+        fs_ = NULL;
+        return kWriteFileFail;
+    }
+    delete fs_;
+    fs_ = NULL;
     ::baidu::galaxy::JobDescription galaxy_job;
     galaxy_job.job_name = job_descriptor_.name() + "_map@minion";
     galaxy_job.type = "kBatch";
@@ -390,7 +441,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             // TODO Maybe check returned state here?
             (*it)->state = kTaskCanceled;
             alloc_mu_.Unlock();
-            LOG(INFO, "cacel task: job:%s, task:%d, attempt:%d",
+            LOG(INFO, "cancel task: job:%s, task:%d, attempt:%d",
                 job_id_.c_str(), (*it)->resource_no, (*it)->attempt);
             bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::CancelTask,
                                                &request, &response, 2, 1);

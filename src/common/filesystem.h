@@ -15,15 +15,29 @@ enum OpenMode {
     kWriteFile = 1
 };
 
+struct FileInfo {
+    char kind;
+    std::string name;
+    int64_t size;
+    FileInfo() { }
+    FileInfo(const hdfsFileInfo& hdfsfile) :
+            kind(hdfsfile.mKind),
+            name(hdfsfile.mName),
+            size(hdfsfile.mSize) {
+    }
+};
+
 class FileSystem {
 public:
     typedef std::map<std::string, std::string> Param;
     static FileSystem* CreateInfHdfs();
-    static FileSystem* CreateInfHdfs(Param param);
+    static FileSystem* CreateInfHdfs(Param& param);
     static FileSystem* CreateLocalFs();
 
     virtual bool Open(const std::string& path,
-                      Param param,
+                      OpenMode mode) = 0;
+    virtual bool Open(const std::string& path,
+                      Param& param,
                       OpenMode mode) = 0;
     virtual bool Close() = 0;
     virtual bool Seek(int64_t pos) = 0;
@@ -33,7 +47,8 @@ public:
     virtual int64_t GetSize() = 0;
     virtual bool Rename(const std::string& old_name, const std::string& new_name) = 0;
     bool WriteAll(void* buf, size_t len);
-    virtual bool List(const std::string& dir, std::vector<std::string>* children) = 0;
+    virtual bool List(const std::string& dir, std::vector<FileInfo>* children) = 0;
+    virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Mkdirs(const std::string& dir) = 0;
     virtual bool Exist(const std::string& path) = 0;
 };
@@ -41,7 +56,7 @@ public:
 class InfSeqFile {
 public:
     InfSeqFile();
-    bool Open(const std::string& path, FileSystem::Param param, OpenMode mode);
+    bool Open(const std::string& path, FileSystem::Param& param, OpenMode mode);
     bool Close();
     bool ReadNextRecord(std::string* key, std::string* value, bool* eof);
     bool WriteNextRecord(const std::string& key, const std::string& value);

@@ -10,7 +10,7 @@
 #include <boost/algorithm/string.hpp>
 #include "sort_file.h"
 #include "logging.h"
-#include "filesystem.h"
+#include "common/filesystem.h"
 #include "common/tools_util.h"
 
 DEFINE_int32(total, 0, "total numbers of map tasks");
@@ -65,15 +65,15 @@ void CollectFilesToMerge(std::vector<std::string>* maps_to_merge) {
 void MergeMapOutput(const std::vector<std::string>& maps_to_merge) {
     std::vector<std::string> file_names;
     std::vector<std::string>::const_iterator it;
-    std::vector<std::string>::iterator jt;
+    std::vector<FileInfo>::iterator jt;
     std::vector<std::string> real_merged_maps;
     int map_ct = 0;
     for (it = maps_to_merge.begin(); it != maps_to_merge.end(); it++) {
         const std::string& map_dir = *it;
-        std::vector<std::string> sort_files;
+        std::vector<FileInfo> sort_files;
         if (g_fs->List(map_dir, &sort_files)) {
             for (jt = sort_files.begin(); jt != sort_files.end(); jt++) {
-                const std::string& file_name = *jt;
+                const std::string& file_name = jt->name;
                 if (boost::ends_with(file_name, ".sort")) {
                     file_names.push_back(file_name);
                 }
@@ -154,14 +154,14 @@ void MergeAndPrint() {
     snprintf(reduce_merge_dir, sizeof(reduce_merge_dir), 
              "%s/reduce_%d_%d",
              FLAGS_work_dir.c_str(), FLAGS_reduce_no, FLAGS_attempt_id);
-    std::vector<std::string> children;
+    std::vector<FileInfo> children;
     if (!g_fs->List(reduce_merge_dir, &children)) {
         LOG(FATAL, "fail to list: %s", reduce_merge_dir);
     }
     std::vector<std::string> file_names;
-    std::vector<std::string>::iterator it;
+    std::vector<FileInfo>::iterator it;
     for (it = children.begin(); it != children.end(); it++) {
-        const std::string& file_name = *it;
+        const std::string& file_name = it->name;
         if (boost::ends_with(file_name, ".sort")) {
             file_names.push_back(file_name);
         }

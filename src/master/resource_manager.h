@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #include "proto/shuttle.pb.h"
-#include "common/dfs_adaptor.h"
+#include "common/filesystem.h"
 #include "mutex.h"
 
 namespace baidu {
@@ -52,7 +52,8 @@ private:
 
 class ResourceManager {
 public:
-    ResourceManager(const std::vector<std::string>& input_files);
+    ResourceManager(const std::vector<std::string>& input_files,
+                    FileSystem::Param& param);
     virtual ~ResourceManager();
 
     virtual ResourceItem* GetItem();
@@ -69,7 +70,7 @@ public:
 
 private:
     Mutex mu_;
-    DfsAdaptor* dfs_;
+    FileSystem* fs_;
     std::vector<ResourceItem*> resource_pool_;
     BasicManager* manager_;
 };

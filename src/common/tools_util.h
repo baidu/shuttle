@@ -1,5 +1,6 @@
 #ifndef _BAIDU_SHUTTLE_COMMON_TOOLS_UTIL_H_
 #define _BAIDU_SHUTTLE_COMMON_TOOLS_UTIL_H_
+#include <string>
 #include "timer.h"
 
 namespace baidu {
@@ -11,6 +12,9 @@ static inline std::string GetLogName(const char* prefix) {
     snprintf(buf, sizeof(buf), "%s.%d", prefix, tm);
     return buf;
 }
+
+void ParseHdfsAddress(const std::string& address, std::string* host, int* port, std::string* path);
+bool PatternMatch(const std::string& origin, const std::string& pattern);
 
 }
 }

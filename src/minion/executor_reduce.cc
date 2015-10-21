@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <boost/scoped_ptr.hpp>
-#include "sort/filesystem.h"
+#include "common/filesystem.h"
 
 namespace baidu {
 namespace shuttle {

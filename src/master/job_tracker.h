@@ -13,6 +13,7 @@
 #include "proto/app_master.pb.h"
 #include "resource_manager.h"
 #include "common/rpc_client.h"
+#include "common/filesystem.h"
 #include "logging.h"
 
 namespace baidu {
@@ -121,6 +122,8 @@ private:
     ThreadPool monitor_;
     // To communicate with minion
     RpcClient* rpc_client_;
+    // To check if output path is exists
+    FileSystem* fs_;
 };
 
 }
