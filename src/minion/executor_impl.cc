@@ -323,6 +323,48 @@ TaskState Executor::TransBinaryOutput(FILE* user_app, const std::string& temp_fi
     return kTaskCompleted;
 }
 
+void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
+    std::string log_name;
+    if (is_map) {
+        char output_file_name[4096];
+        snprintf(output_file_name, sizeof(output_file_name),
+                "%s/_temporary/errors/map_%d/attempt_%d.log",
+                task.job().output().c_str(),
+                task.task_id(),
+                task.attempt_id()
+                );
+        log_name = output_file_name;
+    } else {
+        char output_file_name[4096];
+        snprintf(output_file_name, sizeof(output_file_name),
+                "%s/_temporary/errors/reduce_%d/attempt_%d.log",
+                task.job().output().c_str(),
+                task.task_id(),
+                task.attempt_id()
+                );
+        log_name = output_file_name;
+    }
+    FileSystem* fs = FileSystem::CreateInfHdfs();
+    boost::scoped_ptr<FileSystem> fs_guard(fs);
+    FileSystem::Param param;
+    FillParam(param, task);
+    if (fs->Open(log_name, param, kWriteFile)) {
+        FILE* reporter = popen("ls -tr | grep -P 'stdout_|stderr_|\\.log' | "
+                               "while read f_name ;do  echo $f_name && cat $f_name; done | tail -20000", "r");
+        std::string line;
+        while (ReadLine(reporter, &line)) {
+            if (feof(reporter)) {
+                break;
+            }
+            fs->WriteAll(&line[0], line.size());
+        }
+        pclose(reporter);
+        if (!fs->Close()) {
+            LOG(WARNING, "fail to report errors to hdfs");
+        }
+    }
+}
+
 } //namespace shuttle
 } //namespace baidu
 

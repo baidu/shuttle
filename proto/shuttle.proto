@@ -31,6 +31,7 @@ enum TaskState {
     kTaskKilled = 3;
     kTaskCompleted = 4;
     kTaskCanceled = 5;
+    kTaskMoveOutputFailed = 6;
     kTaskUnknown = 10;
 }
 

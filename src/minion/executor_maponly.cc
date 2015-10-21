@@ -51,8 +51,9 @@ TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
     }
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     boost::scoped_ptr<FileSystem> fs_guard(fs);
-    if (!MoveTempToOutput(task, fs, true)) {;
-        return kTaskFailed;
+    if (!MoveTempToOutput(task, fs, true)) {
+        LOG(WARNING, "fail to move output");
+        return kTaskMoveOutputFailed;
     }
     return kTaskCompleted;
 }

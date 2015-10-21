@@ -139,6 +139,13 @@ void MinionImpl::Loop() {
             LOG(FATAL, "fail to send task state to master");
             abort();            
         }
+
+        if (task_state != kTaskCompleted
+                && task_state != kTaskMoveOutputFailed
+                && task_state != kTaskCanceled) {
+            LOG(WARNING, "task state: %s", TaskState_Name(task_state).c_str());
+            executor_->ReportErrors(task, (work_mode_ != kReduce));
+        }
     }
 
     {

@@ -4,6 +4,7 @@ set -o pipefail
 
 CmdArgs=$*
 
+
 DownloadMinionTar() {
 	./NfsShell get /disk/shuttle/minion.tar.gz minion.tar.gz
 	return $?
@@ -16,6 +17,10 @@ ExtractMinionTar() {
 
 
 DownloadUserTar() {
+	if [ "$app_package" == "" ]; then
+		echo "need app_pacakge"
+		return -1
+	fi
 	./NfsShell get /disk/shuttle/${app_package} ${app_package}
 	return $?	
 }
@@ -27,7 +32,7 @@ ExtractUserTar() {
 }
 
 StartMinon() {
-	source hdfs_env.sh
+	source hdfs_env.sh > /dev/null 2>&1
 	./minion $CmdArgs
 	return $?
 }

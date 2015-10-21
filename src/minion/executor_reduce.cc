@@ -50,7 +50,8 @@ TaskState ReduceExecutor::Exec(const TaskInfo& task) {
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     boost::scoped_ptr<FileSystem> fs_guard(fs);
     if (!MoveTempToOutput(task, fs, false)) {
-        return kTaskFailed;
+        LOG(WARNING, "fail to move output");
+        return kTaskMoveOutputFailed;
     }
     return kTaskCompleted;
 }
