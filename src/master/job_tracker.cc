@@ -83,17 +83,16 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     if (!output_dfs.user().empty() && !output_dfs.password().empty()) {
         output_param["user"] = output_dfs.user();
         output_param["password"] = output_dfs.password();
-    } else {
-        if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
-            std::string host;
-            int port;
-            ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
-            output_param["host"] = host;
-            output_param["port"] = boost::lexical_cast<std::string>(port);
-        } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
-            output_param["host"] = output_dfs.host();
-            output_param["port"] = output_dfs.port();
-        }
+    }
+    if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
+        output_param["host"] = host;
+        output_param["port"] = boost::lexical_cast<std::string>(port);
+    } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
+        output_param["host"] = output_dfs.host();
+        output_param["port"] = output_dfs.port();
     }
     fs_ = FileSystem::CreateInfHdfs(output_param);
 
