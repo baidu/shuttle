@@ -325,6 +325,7 @@ TaskState Executor::TransBinaryOutput(FILE* user_app, const std::string& temp_fi
 
 void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
     std::string log_name;
+    std::string work_dir = task.job().output() + "/_temporary";
     if (is_map) {
         char output_file_name[4096];
         snprintf(output_file_name, sizeof(output_file_name),
@@ -348,7 +349,7 @@ void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
     boost::scoped_ptr<FileSystem> fs_guard(fs);
     FileSystem::Param param;
     FillParam(param, task);
-    if (fs->Open(log_name, param, kWriteFile)) {
+    if (fs->Exist(work_dir) && fs->Open(log_name, param, kWriteFile)) {
         FILE* reporter = popen("ls -tr | grep -P 'stdout_|stderr_|\\.log' | "
                                "while read f_name ;do  echo $f_name && cat $f_name; done | tail -20000", "r");
         std::string line;
