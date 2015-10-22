@@ -62,7 +62,7 @@ std::string output_password;
 
 const std::string error_message = "shuttle client - A fast computing framework base on Galaxy\n"
         "Usage:\n"
-        "\tshuttle submit [flags]\n"
+        "\tshuttle streaming/bistreaming [flags]\n"
         "\tshuttle update <jobid> [new flags]\n"
         "\tshuttle kill <jobid>\n"
         "\tshuttle list\n"
@@ -73,8 +73,9 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t-input <file>\t\t\tSpecify the input file, using a hdfs path\n"
         "\t-output <path>\t\t\tSpecify the output path, which must be empty\n"
         "\t-file <file>[,...]\t\tSpecify the files needed by your program\n"
-        "\t-map <file>\t\t\tSpecify the map program\n"
-        "\t-reduce <file>\t\t\tSpecify the reduce program\n"
+        "\t-cacheArchive <file>\\#<dir>\tSpecify the additional package and its relative path\n"
+        "\t-mapper <file>\t\t\tSpecify the map program\n"
+        "\t-reducer <file>\t\t\tSpecify the reduce program\n"
         "\t-partitioner <partitioner>\tSpecify the partitioner used when shuffling\n"
         "\t-inputformat <input format>\tSpecify the input format\n"
         "\t-outputformat <output format>\tSpecify the output format\n"
@@ -183,12 +184,17 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
                 config::file += ",";
             }
             config::file += opt[++i];
-        } else if (!strcmp(ctx, "map")) {
+        } else if (!strcmp(ctx, "cacheArchive")) {
+            if (!config::file.empty()) {
+                config::file += ",";
+            }
+            config::file += opt[++i];
+        } else if (!strcmp(ctx, "mapper")) {
             if (!config::map.empty()) {
                 config::map += ",";
             }
             config::map += opt[++i];
-        } else if (!strcmp(ctx, "reduce")) {
+        } else if (!strcmp(ctx, "reducer")) {
             if (!config::reduce.empty()) {
                 config::reduce += ",";
             }
@@ -607,6 +613,7 @@ int main(int argc, char* argv[]) {
     } else if (!strcmp(argv[1], "status")) {
         return ShowJob();
     } else {
+        fprintf(stderr, "unknown op\n");
         fprintf(stderr, "%s\n", error_message.c_str());
     }
     return 0;

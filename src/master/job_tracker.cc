@@ -31,6 +31,9 @@ namespace baidu {
 namespace shuttle {
 
 const std::string shuttle_label = "map_reduce_shuttle";
+static const int64_t additional_map_memory = 512l * 1024 * 1024;
+static const int64_t additional_reduce_memory = 1024l * 1024 * 1024;
+static const int additional_millicores = 1000;
 
 JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                        const JobDescriptor& job) :
@@ -60,13 +63,19 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     // Build resource manager
     FileSystem::Param input_param;
     const DfsInfo& input_dfs = job_descriptor_.input_dfs();
-    if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
-        input_param["host"] = input_dfs.host();
-        input_param["port"] = input_dfs.port();
-    }
-    if (!input_dfs.user().empty() && !input_dfs.password().empty()) {
+    if(!input_dfs.user().empty() && !input_dfs.password().empty()) {
         input_param["user"] = input_dfs.user();
         input_param["password"] = input_dfs.password();
+    }
+    if (boost::starts_with(inputs[0], "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(inputs[0], &host, &port, NULL);
+        input_param["host"] = host;
+        input_param["port"] = boost::lexical_cast<std::string>(port);
+    } else if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
+        input_param["host"] = input_dfs.host();
+        input_param["port"] = input_dfs.port();
     }
     map_manager_ = new ResourceManager(inputs, input_param);
 
@@ -135,11 +144,19 @@ Status JobTracker::Start() {
     galaxy_job.priority = "kOnline";
     galaxy_job.replica = job_descriptor_.map_capacity();
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
-    galaxy_job.pod.requirement.millicores = job_descriptor_.millicores();
-    galaxy_job.pod.requirement.memory = job_descriptor_.memory();
+    galaxy_job.pod.requirement.millicores = job_descriptor_.millicores() + additional_millicores;
+    galaxy_job.pod.requirement.memory = job_descriptor_.memory() + additional_map_memory;
+    std::string app_package, cache_archive;
+    if (boost::starts_with(job_descriptor_.files(0), "hdfs://")) {
+        cache_archive = job_descriptor_.files(0);
+        app_package = job_descriptor_.files(1);
+    } else {
+        app_package = job_descriptor_.files(0);
+        cache_archive = job_descriptor_.files(1);
+    }
     std::stringstream ss;
-    ss << "app_package=" << job_descriptor_.files(0) << " ./minion_boot.sh"
-       << " -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+    ss << "app_package=" << app_package << " cache_archive=" << cache_archive
+       << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
        << " -work_mode=" << ((job_descriptor_.job_type() == kMapOnlyJob) ? "map-only" : "map");
     ::baidu::galaxy::TaskDescription minion;
     minion.offset = 1;
@@ -385,8 +402,10 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     galaxy_job.priority = "kOnline";
                     galaxy_job.replica = job_descriptor_.reduce_capacity();
                     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
-                    galaxy_job.pod.requirement.millicores = job_descriptor_.millicores();
-                    galaxy_job.pod.requirement.memory = job_descriptor_.memory();
+                    galaxy_job.pod.requirement.millicores = job_descriptor_.millicores()
+                        + additional_millicores;
+                    galaxy_job.pod.requirement.memory = job_descriptor_.memory()
+                        + additional_reduce_memory;
                     std::stringstream ss;
                     ss << "app_package=" << job_descriptor_.files(0) << " ./minion_boot.sh"
                        << " -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list

@@ -118,10 +118,7 @@ InfHdfs::InfHdfs() : fs_(NULL), fd_(NULL) {
 }
 
 void InfHdfs::ConnectInfHdfs(Param& param, hdfsFS* fs) {
-    if (param.find("user") == param.end()) {
-        *fs = hdfsConnect("default", 0);
-        LOG(INFO, "connect as default user");
-    } else {
+    if (param.find("user") != param.end()) {
         const std::string& user = param["user"];
         const std::string& password = param["password"];
         const std::string& host = param["host"];
@@ -129,8 +126,16 @@ void InfHdfs::ConnectInfHdfs(Param& param, hdfsFS* fs) {
         *fs = hdfsConnectAsUser(host.c_str(), atoi(port.c_str()),
                                 user.c_str(),
                                 password.c_str());
-        LOG(INFO, "hdfsConnectAsUser: %s, %d, %s, %s", host.c_str(),
-            atoi(port.c_str()), user.c_str(), password.c_str());
+        LOG(INFO, "hdfsConnectAsUser: %s:%d, %s", host.c_str(),
+            atoi(port.c_str()), user.c_str());
+    } else if (param.find("host") != param.end()) {
+        const std::string& host = param["host"];
+        const std::string& port = param["port"];
+        *fs = hdfsConnect(host.c_str(), atoi(port.c_str()));
+        LOG(INFO, "hdfsConnect: %s:%d", host.c_str(), atoi(port.c_str()));
+    } else {
+        *fs = hdfsConnect("default", 0);
+        LOG(INFO, "hdfsConnect: default user");
     }
 }
 
