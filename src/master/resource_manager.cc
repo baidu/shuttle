@@ -117,12 +117,18 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
     }
     fs_ = FileSystem::CreateInfHdfs(param);
     std::vector<FileInfo> files;
+    std::string path;
     for (std::vector<std::string>::const_iterator it = input_files.begin();
             it != input_files.end(); ++it) {
-        if (it->find('*') == std::string::npos) {
-            fs_->List(*it, &files);
+        if (boost::starts_with(input_files[0], "hdfs://")) {
+            ParseHdfsAddress(*it, NULL, NULL, &path);
         } else {
-            fs_->Glob(*it, &files);
+            path = *it;
+        }
+        if (path.find('*') == std::string::npos) {
+            fs_->List(path, &files);
+        } else {
+            fs_->Glob(path, &files);
         }
     }
     MutexLock lock(&mu_);

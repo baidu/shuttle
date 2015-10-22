@@ -259,7 +259,6 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
         return false;
     }
     std::deque<std::string> prefixes;
-    // TODO Notice here need hdfs header
     prefixes.push_back("");
     size_t start = 0;
     int file_num = 0;
@@ -281,7 +280,8 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
                 continue;
             }
             for (int j = 0; j < file_num; ++j) {
-                std::string cur_file = file_list[j].mName;
+                std::string cur_file;
+                ParseHdfsAddress(file_list[j].mName, NULL, NULL, &cur_file);
                 if (!PatternMatch(cur_file, prefix + "/" + pattern)) {
                     continue;
                 }
@@ -303,7 +303,9 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
                 continue;
             }
             for (int i = 0; i < file_num; ++i) {
-                if (PatternMatch(file_list[i].mName, dir)) {
+                std::string cur_file;
+                ParseHdfsAddress(file_list[i].mName, NULL, NULL, &cur_file);
+                if (PatternMatch(cur_file, dir)) {
                     children->push_back(FileInfo(file_list[i]));
                 }
             }

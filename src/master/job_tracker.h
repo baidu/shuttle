@@ -66,13 +66,12 @@ public:
     TaskStatistics GetMapStatistics();
     TaskStatistics GetReduceStatistics();
 
-    template <class Inserter>
-    Status Check(Inserter& task_inserter) {
+    Status Check(ShowJobResponse* response) {
         MutexLock lock(&alloc_mu_);
         for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
                 it != allocation_table_.end(); ++it) {
-            TaskOverview task;
-            TaskInfo* info = task.mutable_info();
+            TaskOverview* task = response->add_tasks();
+            TaskInfo* info = task->mutable_info();
             info->set_task_id((*it)->resource_no);
             info->set_attempt_id((*it)->attempt);
             info->set_task_type((job_descriptor_.job_type() == kMapOnlyJob) ? kMapOnly :
@@ -82,9 +81,8 @@ public:
             input->set_input_file(res->input_file);
             input->set_input_offset(res->offset);
             input->set_input_size(res->size);
-            task.set_state((*it)->state);
-            task.set_minion_addr((*it)->endpoint);
-            task_inserter = task;
+            task->set_state((*it)->state);
+            task->set_minion_addr((*it)->endpoint);
         }
         return kOk;
     }
