@@ -27,6 +27,7 @@ DownloadUserTar() {
 			return -1
 		fi
 		mkdir $cache_archive_dir
+		rm -f $cache_archive_dir/*.tar.gz
 		./hadoop-client/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
 		if [ $? -ne 0 ]; then
 			return -1
