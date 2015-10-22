@@ -83,18 +83,18 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     if (!output_dfs.user().empty() && !output_dfs.password().empty()) {
         output_param["user"] = output_dfs.user();
         output_param["password"] = output_dfs.password();
-    } else {
-        if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
-            std::string host;
-            int port;
-            ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
-            output_param["host"] = host;
-            output_param["port"] = boost::lexical_cast<std::string>(port);
-        } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
-            output_param["host"] = output_dfs.host();
-            output_param["port"] = output_dfs.port();
-        }
     }
+    if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
+        output_param["host"] = host;
+        output_param["port"] = boost::lexical_cast<std::string>(port);
+    } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
+        output_param["host"] = output_dfs.host();
+        output_param["port"] = output_dfs.port();
+    }
+
     fs_ = FileSystem::CreateInfHdfs(output_param);
 
     monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
@@ -486,7 +486,11 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                     reduce_completed_, reduce_manager_->SumOfItem(), job_id_.c_str());
             if (reduce_completed_ == reduce_manager_->SumOfItem()) {
                 LOG(INFO, "map-reduce job finish: %s", job_id_.c_str());
-                fs_->Remove(job_descriptor_.output() + "/_temporary");
+                std::string work_dir = job_descriptor_.output() + "/_temporary";
+                LOG(INFO, "remove temp work directory: %s", work_dir.c_str());
+                if (!fs_->Remove(work_dir)) {
+                    LOG(WARNING, "remove temp failed");
+                }
                 mu_.Unlock();
                 master_->RetractJob(job_id_);
                 mu_.Lock();
