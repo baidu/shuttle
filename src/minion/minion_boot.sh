@@ -4,7 +4,6 @@ set -o pipefail
 
 CmdArgs=$*
 
-
 DownloadMinionTar() {
 	./NfsShell get /disk/shuttle/minion.tar.gz minion.tar.gz
 	return $?
@@ -21,10 +20,22 @@ DownloadUserTar() {
 		echo "need app_pacakge"
 		return -1
 	fi
+	if [ "$cache_archive" != "" ]; then
+		cache_archive_addr=`echo $cache_archive | cut -d"#" -f 1`
+		cache_archive_dir=`echo $cache_archive | cut -d"#" -f 2`
+		if [ "$cache_archive_dir" == "" ]; then
+			return -1
+		fi
+		mkdir $cache_archive_dir
+		./hadoop-client/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
+		if [ $? -ne 0 ]; then
+			return -1
+		fi
+		(cd $cache_archive_dir && tar -xzvf *.tar.gz)
+	fi
 	./NfsShell get /disk/shuttle/${app_package} ${app_package}
 	return $?	
 }
-
 
 ExtractUserTar() {
 	tar -xzvf ${app_package}
@@ -62,4 +73,3 @@ StartMinon
 CheckStatus $? "minion exit without success"
 
 echo "=== Done ==="
-
