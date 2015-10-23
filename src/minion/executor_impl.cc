@@ -10,11 +10,11 @@ const int sLineBufferSize = 40960;
 const int sKeyLimit = 65536;
 
 Executor::Executor() {
-    
+    line_buf_ = (char*)malloc(sLineBufferSize);
 }
 
 Executor::~Executor() {
-
+    free(line_buf_);
 }
 
 void Executor::Stop(int32_t task_id) {
@@ -186,16 +186,14 @@ void Executor::FillParam(FileSystem::Param& param, const TaskInfo& task) {
 }
 
 bool Executor::ReadLine(FILE* user_app, std::string* line) {
-    std::string line_buf;
-    line_buf.resize(sLineBufferSize);
-    char * s = fgets(&line_buf[0], sLineBufferSize, user_app);
+    char * s = fgets(line_buf_, sLineBufferSize, user_app);
     if (s == NULL && feof(user_app)) {
         return true;
     }
     if (ferror(user_app)) {
         return false;
     }
-    *line = line_buf.c_str();
+    *line = line_buf_;
     return true;
 }
 
@@ -248,6 +246,7 @@ TaskState Executor::TransTextOutput(FILE* user_app, const std::string& temp_file
     while (!feof(user_app)) {
         if (ShouldStop(task.task_id())) {
             LOG(WARNING, "task: %d is canceled.", task.task_id());
+            pclose(user_app);
             return kTaskCanceled;
         }
         if (pipe_style == kStreaming) {
@@ -298,6 +297,7 @@ TaskState Executor::TransBinaryOutput(FILE* user_app, const std::string& temp_fi
     while (!feof(user_app)) {
         if (ShouldStop(task.task_id())) {
             LOG(WARNING, "task: %d is canceled.", task.task_id());
+            pclose(user_app);
             return kTaskCanceled;
         }
         if (pipe_style == kStreaming) {

@@ -8,8 +8,9 @@ using baidu::common::WARNING;
 namespace baidu {
 namespace shuttle {
 
-const static int32_t sBlockSize = (32 << 10);
+const static int32_t sBlockSize = (64 << 10);
 const static int32_t sMagicNumber = 25997;
+const static int32_t sMaxIndexSize = 10000;
 
 SortFileReader* SortFileReader::Create(FileType file_type, Status* status) {
     if (file_type == kHdfsFile) {
@@ -440,9 +441,11 @@ Status SortFileWriterImpl::FlushCurBlock() {
         LOG(WARNING, "write data block fail");
         return kWriteFileFail;
     }
-    KeyOffset* item = idx_block_.add_items();
-    item->set_key(cur_block_.items(0).key());
-    item->set_offset(offset);
+    if (idx_block_.items_size() < sMaxIndexSize) {
+        KeyOffset* item = idx_block_.add_items();
+        item->set_key(cur_block_.items(0).key());
+        item->set_offset(offset);
+    }
     cur_block_.Clear();
     cur_block_size_ = 0;
     return kOk;

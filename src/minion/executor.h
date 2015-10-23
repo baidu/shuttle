@@ -47,9 +47,13 @@ protected:
                               FileSystem::Param param, const TaskInfo& task);
     TaskState TransBinaryOutput(FILE* user_app, const std::string& temp_file_name,
                                 FileSystem::Param param, const TaskInfo& task);
+protected:
+    char* line_buf_;
+
 private:
     std::set<int32_t> stop_task_ids_;
     Mutex mu_;
+
 };
 
 class MapExecutor : public Executor {
@@ -61,8 +65,6 @@ public:
                               const Partitioner* partitioner, Emitter* emitter);
     TaskState BiStreamingShuffle(FILE* user_app, const TaskInfo& task,
                                 const Partitioner* partitioner, Emitter* emitter);
-private:
-    char* line_buf_;
 };
 
 class ReduceExecutor : public Executor {

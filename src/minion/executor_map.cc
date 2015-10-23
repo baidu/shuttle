@@ -52,6 +52,7 @@ public:
         cur_byte_size_ = 0;
         file_no_ = 0;
     }
+    ~Emitter();
     Status Emit(int reduce_no, const std::string& key, const std::string& record) ;
     void Reset();
     Status FlushMemTable();
@@ -63,13 +64,13 @@ private:
     const TaskInfo& task_;
 };
 
-MapExecutor::MapExecutor() : line_buf_(NULL) {
+MapExecutor::MapExecutor() {
     ::setenv("mapred_task_is_map", "true", 1);
-    line_buf_ = (char*)malloc(sLineBufSize);
+
 }
 
 MapExecutor::~MapExecutor() {
-    free(line_buf_);
+
 }
 
 TaskState MapExecutor::Exec(const TaskInfo& task) {
@@ -125,6 +126,10 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
         return kTaskMoveOutputFailed;
     }
     return kTaskCompleted;
+}
+
+Emitter::~Emitter() {
+    Reset();
 }
 
 void Emitter::Reset() {
@@ -201,6 +206,7 @@ TaskState MapExecutor::StreamingShuffle(FILE* user_app, const TaskInfo& task,
     while (!feof(user_app)) {
         if (ShouldStop(task.task_id())) {
             LOG(WARNING, "task: %d is canceled.", task.task_id());
+            pclose(user_app);
             return kTaskCanceled;
         }
         if (fgets(line_buf_, sLineBufSize, user_app) == NULL) {
@@ -228,6 +234,7 @@ TaskState MapExecutor::BiStreamingShuffle(FILE* user_app, const TaskInfo& task,
     while (!feof(user_app)) {
         if (ShouldStop(task.task_id())) {
             LOG(WARNING, "task: %d is canceled.", task.task_id());
+            pclose(user_app);
             return kTaskCanceled;
         }
         std::string key;

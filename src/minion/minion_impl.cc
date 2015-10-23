@@ -120,11 +120,13 @@ void MinionImpl::Loop() {
             cur_attempt_id_ = task.attempt_id();
             cur_task_state_ = kTaskRunning;
         }
+        LOG(INFO, "try exec task: %s, %d, %d", jobid_.c_str(), cur_task_id_, cur_attempt_id_);
         TaskState task_state = executor_->Exec(task); //exec here~~
         {
             MutexLock locker(&mu_);
             cur_task_state_ = task_state;
         }
+        LOG(INFO, "exec done, task state: %s", TaskState_Name(task_state).c_str());
         ::baidu::shuttle::FinishTaskRequest fn_request;
         ::baidu::shuttle::FinishTaskResponse fn_response;
         fn_request.set_jobid(jobid_);
