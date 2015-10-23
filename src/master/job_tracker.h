@@ -112,7 +112,7 @@ private:
     // Reduce resource
     std::string reduce_minion_;
     ::baidu::galaxy::JobDescription reduce_description_;
-    BasicManager* reduce_manager_;
+    IdManager* reduce_manager_;
     int reduce_completed_;
     int last_reduce_no_;
     int last_reduce_attempt_;

@@ -26,17 +26,27 @@ struct ResourceItem {
     int64_t size;
 };
 
-class BasicManager {
+template <class Resource>
+class BasicResourceManager {
+    virtual Resource* GetItem() = 0;
+    virtual Resource* GetCertainItem(int no) = 0;
+    virtual void ReturnBackItem(int no) = 0;
+    virtual bool FinishItem(int no) = 0;
+    virtual Resource* const CheckCertainItem(int no) = 0;
+    virtual int SumOfItem() = 0;
+};
+
+class IdManager : public BasicResourceManager<IdItem> {
 public:
-    BasicManager(int n);
-    virtual ~BasicManager();
+    IdManager(int n);
+    virtual ~IdManager();
 
     virtual IdItem* GetItem();
     virtual IdItem* GetCertainItem(int no);
     virtual void ReturnBackItem(int no);
     virtual bool FinishItem(int no);
 
-    IdItem* const CheckCertainItem(int no);
+    virtual IdItem* const CheckCertainItem(int no);
 
     virtual int SumOfItem() {
         MutexLock lock(&mu_);
@@ -50,7 +60,7 @@ private:
     std::list<IdItem*> running_res_;
 };
 
-class ResourceManager {
+class ResourceManager : public BasicResourceManager<ResourceItem> {
 public:
     ResourceManager(const std::vector<std::string>& input_files,
                     FileSystem::Param& param);
@@ -61,9 +71,9 @@ public:
     virtual void ReturnBackItem(int no);
     virtual bool FinishItem(int no);
 
-    ResourceItem* const CheckCertainItem(int no);
+    virtual ResourceItem* const CheckCertainItem(int no);
 
-    int SumOfItem() {
+    virtual int SumOfItem() {
         MutexLock lock(&mu_);
         return resource_pool_.size();
     }
@@ -72,7 +82,7 @@ private:
     Mutex mu_;
     FileSystem* fs_;
     std::vector<ResourceItem*> resource_pool_;
-    BasicManager* manager_;
+    IdManager* manager_;
 };
 
 }

@@ -11,7 +11,7 @@ DECLARE_int32(input_block_size);
 namespace baidu {
 namespace shuttle {
 
-BasicManager::BasicManager(int n) {
+IdManager::IdManager(int n) {
     for (int i = 0; i < n; ++i) {
         IdItem* item = new IdItem();
         item->no = i;
@@ -21,7 +21,7 @@ BasicManager::BasicManager(int n) {
     }
 }
 
-BasicManager::~BasicManager() {
+IdManager::~IdManager() {
     MutexLock lock(&mu_);
     for (std::vector<IdItem*>::iterator it = resource_pool_.begin();
             it != resource_pool_.end(); ++it) {
@@ -29,7 +29,7 @@ BasicManager::~BasicManager() {
     }
 }
 
-IdItem* BasicManager::GetItem() {
+IdItem* IdManager::GetItem() {
     MutexLock lock(&mu_);
     if (pending_res_.empty()) {
         return NULL;
@@ -41,7 +41,7 @@ IdItem* BasicManager::GetItem() {
     return new IdItem(*cur);
 }
 
-IdItem* BasicManager::GetCertainItem(int no) {
+IdItem* IdManager::GetCertainItem(int no) {
     MutexLock lock(&mu_);
     std::list<IdItem*>::iterator it;
     for (it = running_res_.begin(); it != running_res_.end(); ++it) {
@@ -57,7 +57,7 @@ IdItem* BasicManager::GetCertainItem(int no) {
     return new IdItem(*(*it));
 }
 
-void BasicManager::ReturnBackItem(int no) {
+void IdManager::ReturnBackItem(int no) {
     MutexLock lock(&mu_);
     std::list<IdItem*>::iterator it;
     for (it = running_res_.begin(); it != running_res_.end(); ++it) {
@@ -74,7 +74,7 @@ void BasicManager::ReturnBackItem(int no) {
     }
 }
 
-bool BasicManager::FinishItem(int no) {
+bool IdManager::FinishItem(int no) {
     MutexLock lock(&mu_);
     std::list<IdItem*>::iterator it;
     for (it = running_res_.begin(); it != running_res_.end(); ++it) {
@@ -91,7 +91,7 @@ bool BasicManager::FinishItem(int no) {
     }
 }
 
-IdItem* const BasicManager::CheckCertainItem(int no) {
+IdItem* const IdManager::CheckCertainItem(int no) {
     MutexLock lock(&mu_);
     std::vector<IdItem*>::iterator it;
     for (it = resource_pool_.begin(); it != resource_pool_.end(); ++it) {
@@ -155,7 +155,7 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
         item->size = rest;
         resource_pool_.push_back(item);
     }
-    manager_ = new BasicManager(resource_pool_.size());
+    manager_ = new IdManager(resource_pool_.size());
 }
 
 ResourceManager::~ResourceManager() {

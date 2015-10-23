@@ -83,7 +83,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
 
     job_descriptor_.set_map_total(map_manager_->SumOfItem());
     if (job.job_type() == kMapReduceJob) {
-        reduce_manager_ = new BasicManager(job_descriptor_.reduce_total());
+        reduce_manager_ = new IdManager(job_descriptor_.reduce_total());
     } else {
         reduce_manager_ = NULL;
     }
