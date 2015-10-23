@@ -27,10 +27,16 @@ DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
 
 void FillParam(FileSystem::Param& param) {
     if (!FLAGS_dfs_user.empty()) {
-        param["host"] = FLAGS_dfs_host;
-        param["port"] = FLAGS_dfs_port;
         param["user"] = FLAGS_dfs_user;
+    }
+    if (!FLAGS_dfs_password.empty()) {
         param["password"] = FLAGS_dfs_password;
+    }
+    if (!FLAGS_dfs_host.empty()) {
+        param["host"] = FLAGS_dfs_host;
+    }
+    if (!FLAGS_dfs_port.empty()) {
+        param["port"] = FLAGS_dfs_port;
     }
 }
 

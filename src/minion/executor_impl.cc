@@ -172,10 +172,16 @@ bool Executor::MoveTempToShuffle(const TaskInfo& task) {
 
 void Executor::FillParam(FileSystem::Param& param, const TaskInfo& task) {
     if (!task.job().output_dfs().user().empty()) {
-        param["host"] = task.job().output_dfs().host();
-        param["port"] = task.job().output_dfs().port();
         param["user"] = task.job().output_dfs().user();
+    }
+    if (!task.job().output_dfs().password().empty()) {
         param["password"] = task.job().output_dfs().password();
+    }
+    if (!task.job().output_dfs().host().empty()) {
+        param["host"] = task.job().output_dfs().host();
+    }
+    if (!task.job().output_dfs().port().empty()) {
+        param["port"] = task.job().output_dfs().port();
     }
 }
 

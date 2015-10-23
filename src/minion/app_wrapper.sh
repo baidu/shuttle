@@ -6,7 +6,7 @@ user_cmd=$*
 if [ "${mapred_task_is_map}" == "true" ]
 then
 	dfs_flags=""
-	if [ "${minion_input_dfs_user}" != "" ]; then
+	if [ "${minion_input_dfs_host}" != "" ]; then
 		dfs_flags="-dfs_host=${minion_input_dfs_host} 
 		-dfs_port=${minion_input_dfs_port} 
 		-dfs_user=${minion_input_dfs_user} 
@@ -27,7 +27,7 @@ then
 elif [ "${mapred_task_is_map}" == "false" ]
 then
 	dfs_flags=""
-	if [ "${minion_output_dfs_user}" != "" ]; then
+	if [ "${minion_output_dfs_host}" != "" ]; then
 		dfs_flags="-dfs_host=${minion_output_dfs_host} 
 		-dfs_port=${minion_output_dfs_port} 
 		-dfs_user=${minion_output_dfs_user} 
