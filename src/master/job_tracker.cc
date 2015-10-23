@@ -73,6 +73,8 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
         ParseHdfsAddress(inputs[0], &host, &port, NULL);
         input_param["host"] = host;
         input_param["port"] = boost::lexical_cast<std::string>(port);
+        job_descriptor_.mutable_input_dfs()->set_host(host);
+        job_descriptor_.mutable_input_dfs()->set_port(boost::lexical_cast<std::string>(port));
     } else if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
         input_param["host"] = input_dfs.host();
         input_param["port"] = input_dfs.port();
@@ -99,6 +101,8 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
         ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
         output_param["host"] = host;
         output_param["port"] = boost::lexical_cast<std::string>(port);
+        job_descriptor_.mutable_output_dfs()->set_host(host);
+        job_descriptor_.mutable_output_dfs()->set_port(boost::lexical_cast<std::string>(port));
     } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
         output_param["host"] = output_dfs.host();
         output_param["port"] = output_dfs.port();
@@ -147,12 +151,14 @@ Status JobTracker::Start() {
     galaxy_job.pod.requirement.millicores = job_descriptor_.millicores() + additional_millicores;
     galaxy_job.pod.requirement.memory = job_descriptor_.memory() + additional_map_memory;
     std::string app_package, cache_archive;
-    if (boost::starts_with(job_descriptor_.files(0), "hdfs://")) {
-        cache_archive = job_descriptor_.files(0);
-        app_package = job_descriptor_.files(1);
-    } else {
-        app_package = job_descriptor_.files(0);
-        cache_archive = job_descriptor_.files(1);
+    int file_size = job_descriptor_.files().size();
+    for (int i = 0; i < file_size; ++i) {
+        const std::string& file = job_descriptor_.files(i);
+        if (boost::starts_with(file, "hdfs://")) {
+            cache_archive = file;
+        } else {
+            app_package = file;
+        }
     }
     std::stringstream ss;
     ss << "app_package=" << app_package << " cache_archive=" << cache_archive
