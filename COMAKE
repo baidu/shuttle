@@ -47,6 +47,7 @@ master_src = 'src/master/master_main.cc \
               src/master/master_flags.cc \
               src/master/job_tracker.cc \
               src/master/resource_manager.cc \
+              src/master/gru.cc \
               src/common/filesystem.cc \
               src/common/tools_util.cc \
               proto/app_master.proto \
@@ -56,8 +57,8 @@ master_src = 'src/master/master_main.cc \
 minion_src = 'src/minion/minion_main.cc \
               src/minion/minion_impl.cc \
               src/minion/minion_flags.cc \
-              src/common/filesystem.cc \
               src/minion/partition.cc \
+              src/common/filesystem.cc \
               src/common/tools_util.cc \
               proto/minion.proto \
               proto/app_master.proto \
@@ -88,10 +89,10 @@ sort_test_src = 'proto/sortfile.proto \
                  src/sort/sort_file_hdfs_test.cc'
 
 merge_test_src = 'src/sort/sort_file_impl.cc \
+                  src/sort/merge_file_test.cc \
                   src/sort/merge_file_impl.cc \
                   proto/sortfile.proto \
-                  proto/shuttle.proto \
-                  src/sort/merge_file_test.cc'
+                  proto/shuttle.proto'
 
 sf_tool_src = 'src/sort/sf_tool.cc \
                src/sort/sort_file_impl.cc \
