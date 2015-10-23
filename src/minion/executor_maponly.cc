@@ -20,6 +20,7 @@ MapOnlyExecutor::~MapOnlyExecutor() {
 TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
     LOG(INFO, "exec map-only task");
     std::string cmd = "sh ./app_wrapper.sh " + task.job().map_command();
+    LOG(INFO, "maponly command is: %s", cmd.c_str());
     FILE* user_app = popen(cmd.c_str(), "r");
     if (user_app == NULL) {
         LOG(WARNING, "start user app fail, cmd is %s, (%s)",

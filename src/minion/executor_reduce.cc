@@ -18,6 +18,7 @@ ReduceExecutor::~ReduceExecutor() {
 TaskState ReduceExecutor::Exec(const TaskInfo& task) {
     LOG(INFO, "exec reduce task");
     std::string cmd = "sh ./app_wrapper.sh " + task.job().reduce_command();
+    LOG(INFO, "reduce command is: %s", cmd.c_str());
     FILE* user_app = popen(cmd.c_str(), "r");
     if (user_app == NULL) {
         LOG(WARNING, "start user app fail, cmd is %s, (%s)", 
