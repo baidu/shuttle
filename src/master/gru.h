@@ -13,7 +13,8 @@ namespace shuttle {
 class Gru {
 
 public:
-    Gru(JobDescriptor* job, const std::string& job_id, WorkMode mode);
+    Gru(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
+        const std::string& job_id, WorkMode mode);
     virtual ~Gru() { Kill(); }
 
     Status Start();

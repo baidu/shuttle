@@ -5,11 +5,12 @@
 
 #include "proto/app_master.pb.h"
 #include "common/rpc_client.h"
+#include "logging.h"
 
 namespace baidu {
 namespace shuttle {
 
-const static int sDefaultRpcTimeout = 5;
+const static int sDefaultRpcTimeout = 12;
 
 class ShuttleImpl : public Shuttle {
 public:
@@ -99,7 +100,11 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
         LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());
         return false;
     }
-    if (response.status() != kOk) {
+    if (response.status() == kNoMore) {
+        LOG(WARNING, "input not exists");
+        return false;
+    } else if (response.status() == kWriteFileFail) {
+        LOG(WARNING, "output file exists");
         return false;
     }
     job_id = response.jobid();

@@ -41,7 +41,7 @@ std::string job_name = "map_reduce_job";
 ::baidu::shuttle::sdk::PipeStyle pipe_style = \
     ::baidu::shuttle::sdk::kStreaming;
 int job_cpu = 1000;
-int64_t job_memory = 1024 * 1024 * 1024;
+int64_t job_memory = 1024l * 1024 * 1024;
 int map_capacity = -1; // default value assigned during submitting
 int reduce_capacity = -1; // default value assigned during submitting
 int map_tasks = 5000;

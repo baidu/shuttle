@@ -12,6 +12,7 @@
 #include "proto/shuttle.pb.h"
 #include "proto/app_master.pb.h"
 #include "resource_manager.h"
+#include "gru.h"
 #include "common/rpc_client.h"
 #include "common/filesystem.h"
 #include "logging.h"
@@ -92,7 +93,7 @@ private:
 
 private:
     MasterImpl* master_;
-    ::baidu::galaxy::Galaxy* sdk_;
+    ::baidu::galaxy::Galaxy* galaxy_;
     Mutex mu_;
     JobDescriptor job_descriptor_;
     std::string job_id_;
@@ -103,15 +104,13 @@ private:
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;
     // Map resource
-    std::string map_minion_;
-    ::baidu::galaxy::JobDescription map_description_;
+    Gru* map_;
     ResourceManager* map_manager_;
     int map_completed_;
     int last_map_no_;
     int last_map_attempt_;
     // Reduce resource
-    std::string reduce_minion_;
-    ::baidu::galaxy::JobDescription reduce_description_;
+    Gru* reduce_;
     IdManager* reduce_manager_;
     int reduce_completed_;
     int last_reduce_no_;
