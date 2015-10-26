@@ -77,14 +77,20 @@ MergeFileReader::MergeIterator::MergeIterator(const std::vector<SortFileReader::
     int offset = 0;
     for (it = iters.begin(); it != iters.end(); it++) {
         SortFileReader::Iterator * const& reader_it = *it;
+        bool drained = false;
         if (!reader_it->Done()) {
             queue_.push(MergeItem(reader_it->Key(), reader_it->Value(), offset));
             iters_.push_back(reader_it);
             offset++;
+        } else {
+            drained = true;
         }
         if (reader_it->Error() != kOk) {
             status_ = reader_it->Error();
             merge_reader_->err_file_ = reader_it->GetFileName();
+        }
+        if (drained) {
+            delete reader_it;
         }
     }
     if (status_ == kOk && !queue_.empty()) {
