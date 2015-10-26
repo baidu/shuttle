@@ -24,6 +24,7 @@ DECLARE_string(minion_path);
 DECLARE_int32(timeout_bound);
 DECLARE_int32(replica_num);
 DECLARE_int32(replica_begin);
+DECLARE_int32(replica_begin_percent);
 DECLARE_int32(retry_bound);
 DECLARE_string(nexus_server_list);
 
@@ -34,6 +35,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                        const JobDescriptor& job) :
                       master_(master),
                       galaxy_(galaxy_sdk),
+                      average_time_(0),
                       map_(NULL),
                       map_completed_(0),
                       last_map_no_(-1),
@@ -57,6 +59,35 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames = job.inputs();
     std::copy(input_filenames.begin(), input_filenames.end(), std::back_inserter(inputs));
 
+    // Prepare fs for output checking and temporary files recycling
+    FileSystem::Param output_param;
+    const DfsInfo& output_dfs = job_descriptor_.output_dfs();
+    if (!output_dfs.user().empty() && !output_dfs.password().empty()) {
+        output_param["user"] = output_dfs.user();
+        output_param["password"] = output_dfs.password();
+    }
+    if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
+        output_param["host"] = host;
+        output_param["port"] = boost::lexical_cast<std::string>(port);
+        job_descriptor_.mutable_output_dfs()->set_host(host);
+        job_descriptor_.mutable_output_dfs()->set_port(boost::lexical_cast<std::string>(port));
+    } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
+        output_param["host"] = output_dfs.host();
+        output_param["port"] = output_dfs.port();
+    }
+
+    fs_ = FileSystem::CreateInfHdfs(output_param);
+    if (fs_->Exist(job_descriptor_.output())) {
+        LOG(INFO, "output exists, failed: %s", job_id_.c_str());
+        job_descriptor_.set_map_total(0);
+        job_descriptor_.set_reduce_total(0);
+        state_ = kFailed;
+        return;
+    }
+
     // Build resource manager
     FileSystem::Param input_param;
     const DfsInfo& input_dfs = job_descriptor_.input_dfs();
@@ -79,33 +110,29 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     map_manager_ = new ResourceManager(inputs, input_param);
 
     job_descriptor_.set_map_total(map_manager_->SumOfItem());
+    if (job_descriptor_.map_total() < 1) {
+        LOG(INFO, "map input may not inexist, failed: %s", job_id_.c_str());
+        job_descriptor_.set_reduce_total(0);
+        state_ = kFailed;
+        return;
+    }
     if (job.job_type() == kMapReduceJob) {
         reduce_manager_ = new IdManager(job_descriptor_.reduce_total());
     } else {
         reduce_manager_ = NULL;
     }
 
-    // Prepare fs for output checking and temporary files recycling
-    FileSystem::Param output_param;
-    const DfsInfo& output_dfs = job_descriptor_.output_dfs();
-    if (!output_dfs.user().empty() && !output_dfs.password().empty()) {
-        output_param["user"] = output_dfs.user();
-        output_param["password"] = output_dfs.password();
+    // For end game counter
+    map_end_game_begin_ = map_manager_->SumOfItem() - FLAGS_replica_begin;
+    int temp = map_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
+    if (map_end_game_begin_ < temp) {
+        map_end_game_begin_ = temp;
     }
-    if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
-        std::string host;
-        int port;
-        ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
-        output_param["host"] = host;
-        output_param["port"] = boost::lexical_cast<std::string>(port);
-        job_descriptor_.mutable_output_dfs()->set_host(host);
-        job_descriptor_.mutable_output_dfs()->set_port(boost::lexical_cast<std::string>(port));
-    } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
-        output_param["host"] = output_dfs.host();
-        output_param["port"] = output_dfs.port();
+    reduce_end_game_begin_ = reduce_manager_->SumOfItem() - FLAGS_replica_begin;
+    temp = reduce_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
+    if (reduce_end_game_begin_ < temp) {
+        reduce_end_game_begin_ = temp;
     }
-
-    fs_ = FileSystem::CreateInfHdfs(output_param);
 
     monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
 }
@@ -126,18 +153,12 @@ JobTracker::~JobTracker() {
 }
 
 Status JobTracker::Start() {
-    if (job_descriptor_.map_total() < 1) {
-        LOG(INFO, "map input may not inexist, failed: %s", job_id_.c_str());
-        job_descriptor_.set_reduce_total(0);
-        state_ = kFailed;
-        return kNoMore;
-    }
     if (fs_->Exist(job_descriptor_.output())) {
-        LOG(INFO, "output exists, failed: %s", job_id_.c_str());
-        job_descriptor_.set_map_total(0);
-        job_descriptor_.set_reduce_total(0);
-        state_ = kFailed;
         return kWriteFileFail;
+    }
+    if (state_ == kFailed) {
+        // For now the failed status means invalid input
+        return kNoMore;
     }
     map_ = new Gru(galaxy_, &job_descriptor_, job_id_,
             (job_descriptor_.job_type() == kMapOnlyJob) ? kMapOnly : kMap);
@@ -195,8 +216,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
     bool reach_max_retry = false;
     {
         MutexLock lock(&mu_);
-        // TODO Considered a new duplication management method here
-        if (last_map_no_ != -1 && map_manager_->SumOfItem() - last_map_no_ < FLAGS_replica_begin &&
+        if (last_map_no_ != -1 && last_map_no_ >= map_end_game_begin_ &&
                 last_map_attempt_ <= FLAGS_replica_num) {
             cur = map_manager_->GetCertainItem(last_map_no_);
             if (cur == NULL) {
@@ -222,7 +242,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
         last_map_attempt_ = cur->attempt;
 
         int attempt_bound = FLAGS_retry_bound;
-        if (map_manager_->SumOfItem() - cur->no < FLAGS_replica_begin) {
+        if (cur->no >= map_end_game_begin_) {
             attempt_bound += FLAGS_replica_num;
         }
         if (cur->attempt > attempt_bound) {
@@ -255,8 +275,8 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
     bool reach_max_retry = false;
     {
         MutexLock lock(&mu_);
-        if (last_reduce_no_ != -1 && reduce_manager_->SumOfItem() - last_reduce_no_ < FLAGS_replica_begin
-                && last_reduce_attempt_ <= FLAGS_replica_num) {
+        if (last_reduce_no_ != -1 && last_reduce_no_ >= reduce_end_game_begin_ &&
+                last_reduce_attempt_ <= FLAGS_replica_num) {
             cur = reduce_manager_->GetCertainItem(last_reduce_no_);
             if (cur == NULL) {
                 delete alloc;
@@ -281,7 +301,7 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
         last_reduce_attempt_ = cur->attempt;
 
         int attempt_bound = FLAGS_retry_bound;
-        if (reduce_manager_->SumOfItem() - cur->no < FLAGS_replica_begin) {
+        if (cur->no < reduce_end_game_begin_) {
             attempt_bound += FLAGS_replica_num;
         }
         if (cur->attempt > attempt_bound) {
@@ -327,7 +347,6 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     cur->state = state;
     {
         MutexLock lock(&mu_);
-        // TODO Statistics do not work when minion failed
         switch (state) {
         case kTaskCompleted:
             if (!map_manager_->FinishItem(cur->resource_no)) {

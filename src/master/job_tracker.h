@@ -77,11 +77,11 @@ public:
             info->set_attempt_id((*it)->attempt);
             info->set_task_type((job_descriptor_.job_type() == kMapOnlyJob) ? kMapOnly :
                     ((*it)->is_map ? kMap : kReduce));
-            ResourceItem* const res = map_manager_->CheckCertainItem((*it)->resource_no);
+            /*ResourceItem* const res = map_manager_->CheckCertainItem((*it)->resource_no);
             TaskInput* input = info->mutable_input();
             input->set_input_file(res->input_file);
             input->set_input_offset(res->offset);
-            input->set_input_size(res->size);
+            input->set_input_size(res->size);*/
             task->set_state((*it)->state);
             task->set_minion_addr((*it)->endpoint);
         }
@@ -98,6 +98,7 @@ private:
     JobDescriptor job_descriptor_;
     std::string job_id_;
     JobState state_;
+    time_t average_time_;
     // Resource allocation
     Mutex alloc_mu_;
     std::list<AllocateItem*> allocation_table_;
@@ -109,12 +110,14 @@ private:
     int map_completed_;
     int last_map_no_;
     int last_map_attempt_;
+    int map_end_game_begin_;
     // Reduce resource
     Gru* reduce_;
     IdManager* reduce_manager_;
     int reduce_completed_;
     int last_reduce_no_;
     int last_reduce_attempt_;
+    int reduce_end_game_begin_;
     // Thread for monitoring
     ThreadPool monitor_;
     // To communicate with minion
