@@ -114,6 +114,7 @@ private:
     // Reduce resource
     Gru* reduce_;
     IdManager* reduce_manager_;
+    int reduce_begin_;
     int reduce_completed_;
     int last_reduce_no_;
     int last_reduce_attempt_;

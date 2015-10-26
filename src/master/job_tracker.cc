@@ -25,6 +25,8 @@ DECLARE_int32(timeout_bound);
 DECLARE_int32(replica_num);
 DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
+DECLARE_int32(reduce_begin);
+DECLARE_int32(reduce_begin_percent);
 DECLARE_int32(retry_bound);
 DECLARE_string(nexus_server_list);
 
@@ -108,8 +110,9 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
         input_param["port"] = input_dfs.port();
     }
     map_manager_ = new ResourceManager(inputs, input_param);
+    int sum_of_map = map_manager_->SumOfItem();
 
-    job_descriptor_.set_map_total(map_manager_->SumOfItem());
+    job_descriptor_.set_map_total(sum_of_map);
     if (job_descriptor_.map_total() < 1) {
         LOG(INFO, "map input may not inexist, failed: %s", job_id_.c_str());
         job_descriptor_.set_reduce_total(0);
@@ -123,8 +126,8 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     }
 
     // For end game counter
-    map_end_game_begin_ = map_manager_->SumOfItem() - FLAGS_replica_begin;
-    int temp = map_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
+    map_end_game_begin_ = sum_of_map - FLAGS_replica_begin;
+    int temp = sum_of_map * FLAGS_replica_begin_percent / 100;
     if (map_end_game_begin_ < temp) {
         map_end_game_begin_ = temp;
     }
@@ -132,6 +135,10 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     temp = reduce_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
     if (reduce_end_game_begin_ < temp) {
         reduce_end_game_begin_ = temp;
+    }
+    reduce_begin_ = sum_of_map - FLAGS_reduce_begin;
+    if (reduce_begin_ < sum_of_map / 2) {
+        reduce_begin_ = sum_of_map * FLAGS_reduce_begin_percent;
     }
 
     monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
@@ -350,13 +357,21 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         switch (state) {
         case kTaskCompleted:
             if (!map_manager_->FinishItem(cur->resource_no)) {
-                LOG(WARNING, "ignore finish map request: %s, %d", job_id_.c_str(), cur->resource_no);
+                LOG(WARNING, "ignore finish map request: %s, %d",
+                        job_id_.c_str(), cur->resource_no);
                 state = kTaskCanceled;
                 break;
             }
             map_completed_ ++;
             LOG(INFO, "complete a map task(%d/%d): %s",
                     map_completed_, map_manager_->SumOfItem(), job_id_.c_str());
+            if (map_completed_ == reduce_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
+                LOG(INFO, "map phrase nearly ends, pull up reduce tasks: %s", job_id_.c_str());
+                reduce_ = new Gru(galaxy_, &job_descriptor_, job_id_, kReduce);
+                if (reduce_->Start() != kOk) {
+                    LOG(WARNING, "reduce failed due to galaxy issue: %s", job_id_.c_str());
+                }
+            }
             if (map_completed_ == map_manager_->SumOfItem()) {
                 if (job_descriptor_.job_type() == kMapOnlyJob) {
                     LOG(INFO, "map-only job finish: %s", job_id_.c_str());
@@ -366,11 +381,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     mu_.Lock();
                     state_ = kCompleted;
                 } else {
-                    LOG(INFO, "map phrase end now, pull up reduce tasks: %s", job_id_.c_str());
-                    reduce_ = new Gru(galaxy_, &job_descriptor_, job_id_, kReduce);
-                    if (reduce_->Start() != kOk) {
-                        LOG(WARNING, "reduce failed due to galaxy issue: %s", job_id_.c_str());
-                    }
+                    LOG(INFO, "map phrase ends now: %s", job_id_.c_str());
                     if (map_ != NULL) {
                         LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
                         delete map_;
@@ -588,6 +599,8 @@ void JobTracker::KeepMonitoring() {
         if (top->state != kTaskRunning) {
             continue;
         }
+        LOG(INFO, "Cancel a long no-response tasks: < no - %d, attempt - %d>: %s",
+                top->resource_no, top->attempt, job_id_.c_str());
         if (top->is_map) {
             map_manager_->ReturnBackItem(top->resource_no);
         } else {

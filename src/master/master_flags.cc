@@ -9,6 +9,8 @@ DEFINE_int32(timeout_bound, 10, "timeout bound in seconds for a minion response"
 DEFINE_int32(replica_num, 3, "max replicas of a single task");
 DEFINE_int32(replica_begin, 100, "the last tasks that are suitable for end game strategy");
 DEFINE_int32(replica_begin_percent, 10, "the last percentage of tasks for end game strategy");
+DEFINE_int32(reduce_begin, 10, "pull up reduce tasks before the last these map tasks finishes");
+DEFINE_int32(reduce_begin_percent, 10, "in case map is too few for the reduce_begin amount");
 DEFINE_string(nexus_root_path, "/shuttle/", "root of nexus path, compatible with galaxy nexus system");
 DEFINE_string(master_lock_path, "master_lock", "the key used for master to lock");
 DEFINE_string(master_path, "master", "the key used for minion to find master");
