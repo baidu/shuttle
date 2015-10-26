@@ -26,16 +26,14 @@ if [[ $1 == *streaming ]]; then
 
     packname=$packname-`date +%s`.tar.gz
     tar -czvf "$packname" ${files[@]} > /dev/null
-    $nfs_path/NfsShell put $packname $nfs_dir/$packname
+    $nfs_path/NfsShell put --override $packname $nfs_dir
 
     params=( "$@" )
-    i=0
-    for param in ${params[@]}; do
-        if [ "$param" = "-file" -o "$param" = "--file" ]; then
+    for i in `seq $#`; do
+        if [ "${params[i]}" = "-file" -o "${params[i]}" = "--file" ]; then
             unset params[i]
             unset params[$((i+1))]
         fi
-        i=$((i+1))
     done
 
     set -- "${params[@]}"

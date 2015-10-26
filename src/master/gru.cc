@@ -22,14 +22,14 @@ int64_t Gru::additional_reduce_memory = default_additional_reduce_memory;
 Gru::Gru(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
          const std::string& job_id, WorkMode mode) :
         galaxy_(galaxy), job_(job), job_id_(job_id), mode_(mode) {
-    mode_str_ = ((mode == kReduce) ? "_reduce" : "_map");
-    minion_name_ = job->name() + mode_str_;
+    mode_str_ = ((mode == kReduce) ? "reduce" : "map");
+    minion_name_ = job->name() + "_" + mode_str_;
 }
 
 Status Gru::Start() {
     ::baidu::galaxy::JobDescription galaxy_job;
     galaxy_job.job_name = minion_name_ + "@minion";
-    galaxy_job.type = "kBatch";
+    galaxy_job.type = "kLongRun";
     galaxy_job.priority = "kOnline";
     galaxy_job.replica = job_->map_capacity();
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
@@ -47,8 +47,8 @@ Status Gru::Start() {
         }
     }
     std::stringstream ss;
-    ss << "app_package=" << job_->files(0) << " ./minion_boot.sh"
-       << " -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+    ss << "app_package=" << app_package << " cache_archive=" << cache_archive
+       << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
        << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_);
     ::baidu::galaxy::TaskDescription minion;
     minion.offset = 1;
