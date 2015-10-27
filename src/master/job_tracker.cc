@@ -39,10 +39,12 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       galaxy_(galaxy_sdk),
                       average_time_(0),
                       map_(NULL),
+                      map_manager_(NULL),
                       map_completed_(0),
                       last_map_no_(-1),
                       last_map_attempt_(0),
                       reduce_(NULL),
+                      reduce_manager_(NULL),
                       reduce_completed_(0),
                       last_reduce_no_(-1),
                       last_reduce_attempt_(0) {
@@ -146,8 +148,12 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
 
 JobTracker::~JobTracker() {
     Kill();
-    delete map_manager_;
-    delete reduce_manager_;
+    if (map_manager_ != NULL) {
+        delete map_manager_;
+    }
+    if (reduce_manager_ != NULL) {
+        delete reduce_manager_;
+    }
     delete rpc_client_;
     {
         MutexLock lock(&alloc_mu_);
@@ -198,13 +204,17 @@ Status JobTracker::Update(const std::string& priority,
 
 Status JobTracker::Kill() {
     MutexLock lock(&mu_);
-    LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
-    delete map_;
-    map_ = NULL;
+    if (map_ != NULL) {
+        LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
+        delete map_;
+        map_ = NULL;
+    }
 
-    LOG(INFO, "reduce minion finished, kill: %s", job_id_.c_str());
-    delete reduce_;
-    reduce_ = NULL;
+    if (reduce_ != NULL) {
+        LOG(INFO, "reduce minion finished, kill: %s", job_id_.c_str());
+        delete reduce_;
+        reduce_ = NULL;
+    }
 
     if (state_ != kCompleted) {
         state_ = kKilled;
