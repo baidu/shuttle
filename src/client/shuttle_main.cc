@@ -391,8 +391,8 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
 }
 
 static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
-    ::baidu::common::TPrinter tp(4);
-    tp.AddRow(4, "job id", "state", "map(r/p/c)", "reduce(r/p/c)");
+    ::baidu::common::TPrinter tp(5);
+    tp.AddRow(5, "job id", "job name", "state", "map(r/p/c)", "reduce(r/p/c)");
     for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_iterator it = jobs.begin();
             it != jobs.end(); ++it) {
         std::string map_running = boost::lexical_cast<std::string>(it->map_stat.running)
@@ -401,7 +401,7 @@ static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance 
         std::string reduce_running = boost::lexical_cast<std::string>(it->reduce_stat.running)
             + "/" + boost::lexical_cast<std::string>(it->reduce_stat.pending)
             + "/" + boost::lexical_cast<std::string>(it->reduce_stat.completed);
-        tp.AddRow(4, it->jobid.c_str(), state_string[it->state],
+        tp.AddRow(5, it->jobid.c_str(), it->desc.name.c_str(), state_string[it->state],
                   map_running.c_str(), reduce_running.c_str());
     }
     printf("%s\n", tp.ToString().c_str());
@@ -613,8 +613,8 @@ int main(int argc, char* argv[]) {
     } else if (!strcmp(argv[1], "status")) {
         return ShowJob();
     } else {
-        fprintf(stderr, "unknown op\n");
-        fprintf(stderr, "%s\n", error_message.c_str());
+        fprintf(stderr, "unknown op: %s\n", argv[1]);
+        fprintf(stderr, "  use -h/--help for more introduction\n");
     }
     return 0;
 }

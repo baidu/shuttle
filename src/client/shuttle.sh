@@ -56,7 +56,7 @@ else
     fi
 fi
 
-if [ -z "$nexus_root" ]; then
+if [ "$nexus_root" ]; then
     nexus_root=-nexus-root\ $nexus_root
 fi
 

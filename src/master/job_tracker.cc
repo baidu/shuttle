@@ -592,8 +592,8 @@ std::string JobTracker::GenerateJobId() {
     struct tm t;
     localtime_r(&seconds, &t);
     std::stringstream ss;
-    ss << "job_" << job_descriptor_.name() << "_" << (t.tm_year + 1900)
-       << (t.tm_mon + 1) << t.tm_mday << t.tm_hour << t.tm_min << t.tm_sec << "_"
+    ss << "job_" << (t.tm_year + 1900) << (t.tm_mon + 1) << t.tm_mday
+       << t.tm_hour << t.tm_min << t.tm_sec << "_"
        << boost::lexical_cast<std::string>(random());
     return ss.str();
 }
