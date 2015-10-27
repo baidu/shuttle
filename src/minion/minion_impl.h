@@ -11,6 +11,7 @@
 namespace baidu {
 namespace shuttle {
 
+class Master_Stub;
 class MinionImpl : public Minion {
 public:
     MinionImpl();
@@ -30,6 +31,9 @@ public:
     bool IsStop();
 private:
     void Loop();
+    void SaveBreakpoint(const TaskInfo& task);
+    void ClearBreakpoint();
+    void CheckUnfinishedTask(Master_Stub* master_stub);
     std::string endpoint_;
     ThreadPool pool_;
     std::string master_endpoint_;
