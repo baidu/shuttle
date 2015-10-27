@@ -90,6 +90,7 @@ public:
 
 private:
     void KeepMonitoring();
+    std::string GenerateJobId();
 
 private:
     MasterImpl* master_;

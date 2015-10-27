@@ -10,9 +10,9 @@
 #include <string>
 #include <sstream>
 #include <set>
+#include <sys/time.h>
 
 #include "google/protobuf/repeated_field.h"
-#include "timer.h"
 #include "logging.h"
 #include "proto/minion.pb.h"
 #include "resource_manager.h"
@@ -48,15 +48,8 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       reduce_completed_(0),
                       last_reduce_no_(-1),
                       last_reduce_attempt_(0) {
-    // Prepare job id
-    char time_chars[32];
-    ::baidu::common::timer::now_time_str(time_chars, 32);
-    std::string time_str = time_chars;
-    boost::replace_all(time_str, " ", "-");
-    job_id_ = time_str;
-    job_id_ += boost::lexical_cast<std::string>(random());
-
     job_descriptor_.CopyFrom(job);
+    job_id_ = GenerateJobId();
     state_ = kPending;
     rpc_client_ = new RpcClient();
     std::vector<std::string> inputs;
@@ -548,7 +541,7 @@ TaskStatistics JobTracker::GetMapStatistics() {
     }
     MutexLock lock(&mu_);
     TaskStatistics task;
-    task.set_total(map_manager_->SumOfItem());
+    task.set_total(job_descriptor_.map_total());
     task.set_pending(task.total() - running - map_completed_);
     task.set_running(running);
     task.set_failed(failed);
@@ -558,9 +551,6 @@ TaskStatistics JobTracker::GetMapStatistics() {
 }
 
 TaskStatistics JobTracker::GetReduceStatistics() {
-    if (reduce_manager_ == NULL) {
-        return TaskStatistics();
-    }
     std::set<int> reduce_blocks;
     int running = 0, failed = 0, killed = 0;
     {
@@ -586,13 +576,26 @@ TaskStatistics JobTracker::GetReduceStatistics() {
     }
     MutexLock lock(&mu_);
     TaskStatistics task;
-    task.set_total(reduce_manager_->SumOfItem());
+    task.set_total(job_descriptor_.reduce_total());
     task.set_pending(task.total() - running - reduce_completed_);
     task.set_running(running);
     task.set_failed(failed);
     task.set_killed(killed);
     task.set_completed(reduce_completed_);
     return task;
+}
+
+std::string JobTracker::GenerateJobId() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    const time_t seconds = tv.tv_sec;
+    struct tm t;
+    localtime_r(&seconds, &t);
+    std::stringstream ss;
+    ss << "job_" << job_descriptor_.name() << "_" << (t.tm_year + 1900)
+       << (t.tm_mon + 1) << t.tm_mday << t.tm_hour << t.tm_min << t.tm_sec << "_"
+       << boost::lexical_cast<std::string>(random());
+    return ss.str();
 }
 
 void JobTracker::KeepMonitoring() {

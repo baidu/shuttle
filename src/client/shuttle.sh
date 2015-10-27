@@ -25,7 +25,11 @@ if [[ $1 == *streaming ]]; then
     unset file_detected
 
     packname=$packname-`date +%s`.tar.gz
-    tar -czvf "$packname" ${files[@]} > /dev/null
+    tar -czvf "$packname" ${files[@]} >& /dev/null
+    if [ "$?" -ne "0" ]; then
+        echo 'file options contains inexist file'
+        exit -1
+    fi
     $nfs_path/NfsShell put --override $packname $nfs_dir
 
     params=( "$@" )
@@ -52,7 +56,11 @@ else
     fi
 fi
 
-$the_dir/shuttle $nexus_param $file_param \
+if [ -z "$nexus_root" ]; then
+    nexus_root=-nexus-root\ $nexus_root
+fi
+
+$the_dir/shuttle $nexus_param $nexus_root $file_param \
     -jobconf mapred.job.input.host=$input_host \
     -jobconf mapred.job.input.port=$input_port \
     -jobconf mapred.job.input.user=$input_user \
