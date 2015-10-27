@@ -1,6 +1,7 @@
 #include "minion_impl.h"
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
+#include <boost/scoped_ptr.hpp>
 #include <gflags/gflags.h>
 #include "logging.h"
 #include "proto/app_master.pb.h"
@@ -16,6 +17,8 @@ using baidu::common::WARNING;
 
 namespace baidu {
 namespace shuttle {
+
+const std::string sBreakpointFile = "./task_running";
 
 MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
                            stop_(false) {
@@ -86,7 +89,12 @@ void MinionImpl::SetJobId(const std::string& jobid) {
 void MinionImpl::Loop() {
     Master_Stub* stub;
     rpc_client_.GetStub(master_endpoint_, &stub);
+    if (stub == NULL) {
+        LOG(FATAL, "fail to get master stub");
+    }
+    boost::scoped_ptr<Master_Stub> stub_guard(stub);
     int task_count = 0;
+    CheckUnfinishedTask(stub);
     while (!stop_) {
         LOG(INFO, "======== task:%d ========", ++task_count);
         ::baidu::shuttle::AssignTaskRequest request;
@@ -97,7 +105,7 @@ void MinionImpl::Loop() {
         LOG(INFO, "endpoint: %s", endpoint_.c_str());
         LOG(INFO, "jobid_: %s", jobid_.c_str());
         bool ok = rpc_client_.SendRequest(stub, &Master_Stub::AssignTask, 
-                                            &request, &response, 5, 1);
+                                          &request, &response, 5, 1);
         if (!ok) {
             LOG(FATAL, "fail to fetch task from master[%s]", master_endpoint_.c_str());
             abort();            
@@ -113,6 +121,7 @@ void MinionImpl::Loop() {
                 Status_Name(response.status()).c_str());
         }
         const TaskInfo& task = response.task();
+        SaveBreakpoint(task);
         executor_->SetEnv(jobid_, task);
         {
             MutexLock locker(&mu_);
@@ -141,7 +150,7 @@ void MinionImpl::Loop() {
             LOG(FATAL, "fail to send task state to master");
             abort();            
         }
-
+        ClearBreakpoint();
         if (task_state == kTaskFailed) {
             LOG(WARNING, "task state: %s", TaskState_Name(task_state).c_str());
             executor_->ReportErrors(task, (work_mode_ != kReduce));
@@ -169,6 +178,49 @@ bool MinionImpl::Run() {
     }
     pool_.AddTask(boost::bind(&MinionImpl::Loop, this));
     return true;
+}
+
+void MinionImpl::CheckUnfinishedTask(Master_Stub* master_stub) {
+    FILE* breakpoint = fopen(sBreakpointFile.c_str(), "r");
+    int task_id;
+    int attempt_id;
+    if (breakpoint) {
+        int n_ret = fscanf(breakpoint, "%d%d", &task_id, &attempt_id);
+        if (n_ret != 2) {
+            LOG(WARNING, "invalid breakpoint file");
+            return;
+        }
+        fclose(breakpoint);
+        ::baidu::shuttle::FinishTaskRequest fn_request;
+        ::baidu::shuttle::FinishTaskResponse fn_response;
+        LOG(WARNING, "found unfinished task: task_id: %d, attempt_id: %d", task_id, attempt_id);
+        fn_request.set_jobid(jobid_);
+        fn_request.set_task_id(task_id);
+        fn_request.set_attempt_id(attempt_id);
+        fn_request.set_task_state(kTaskFailed);
+        fn_request.set_endpoint(endpoint_);
+        fn_request.set_work_mode(work_mode_);
+        bool ok = rpc_client_.SendRequest(master_stub, &Master_Stub::FinishTask,
+                                     &fn_request, &fn_response, 5, 1);
+        if (!ok) {
+            LOG(FATAL, "fail to report unfinished task to master");
+            abort();
+        }
+    }
+}
+
+void MinionImpl::SaveBreakpoint(const TaskInfo& task) {
+    FILE* breakpoint = fopen(sBreakpointFile.c_str(), "w");
+    if (breakpoint) {
+        fprintf(breakpoint, "%d %d\n", task.task_id(), task.attempt_id());
+        fclose(breakpoint);
+    }
+}
+
+void MinionImpl::ClearBreakpoint() {
+    if (remove(sBreakpointFile.c_str()) != 0 ) {
+        LOG(WARNING, "failed to remove breakponit file");
+    }
 }
 
 }
