@@ -7,6 +7,7 @@
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
 DECLARE_string(nexus_server_list);
+DECLARE_string(nexus_root_path);
 
 namespace baidu {
 namespace shuttle {
@@ -49,6 +50,7 @@ Status Gru::Start() {
     std::stringstream ss;
     ss << "app_package=" << app_package << " cache_archive=" << cache_archive
        << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+       << " -master_nexus_path=" << FLAGS_nexus_root_path
        << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_);
     ::baidu::galaxy::TaskDescription minion;
     minion.offset = 1;

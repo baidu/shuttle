@@ -6,7 +6,7 @@
 
 #include <cstdio>
 #include <cstring>
-#include <tprinter.h>
+#include <pthread.h>
 
 #include "sdk/shuttle.h"
 #include "ins_sdk.h"
@@ -86,8 +86,8 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.memory.limit\tSpecify the memory resource occuptation\n"
         "\t  mapred.job.map.capacity\tSpecify the slot number that map tasks can use\n"
         "\t  mapred.job.reduce.capacity\tSpecify the slot number that reduce tasks can use\n"
-        "\t  mapred.job.map.tasks\t\tSpecify the number of map tasks\n"
-        "\t  mapred.job.reduce.tasks\tSpecify the number of reduce tasks\n"
+        "\t  mapred.map.tasks\t\tSpecify the number of map tasks\n"
+        "\t  mapred.reduce.tasks\t\tSpecify the number of reduce tasks\n"
         "\t  mapred.job.input.host\t\tSpecify the host of the dfs which stores inputs\n"
         "\t  mapred.job.input.port\t\tSpecify the port, ditto\n"
         "\t  mapred.job.input.user\t\tSpecify the user, ditto\n"
@@ -287,12 +287,12 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.job.reduce.capacity=")) {
             config::reduce_capacity = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.job.reduce.capacity=")));
-        } else if (boost::starts_with(*it, "mapred.job.map.tasks=")) {
+        } else if (boost::starts_with(*it, "mapred.map.tasks=")) {
             config::map_tasks = boost::lexical_cast<int>(
-                    it->substr(strlen("mapred.job.map.tasks=")));
-        } else if (boost::starts_with(*it, "mapred.job.reduce.tasks=")) {
+                    it->substr(strlen("mapred.map.tasks=")));
+        } else if (boost::starts_with(*it, "mapred.reduce.tasks=")) {
             config::reduce_tasks = boost::lexical_cast<int>(
-                    it->substr(strlen("mapred.job.reduce.tasks=")));
+                    it->substr(strlen("mapred.reduce.tasks=")));
         } else if (boost::starts_with(*it, "mapred.job.input.host=")) {
             config::input_host = it->substr(strlen("mapred.job.input.host="));
         } else if (boost::starts_with(*it, "mapred.job.input.port=")) {
@@ -448,7 +448,7 @@ static int SubmitJob() {
         config::map_capacity = 100;
     }
     if (config::reduce_capacity == -1) {
-        config::reduce_capacity = 10;
+        config::reduce_capacity = 100;
     }
     ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
     ::baidu::shuttle::sdk::JobDescription job_desc;
@@ -586,6 +586,13 @@ static int ShowJob() {
     return 0;
 }
 
+void* LongPeriodWarning(void* /*args*/) {
+    sleep(5);
+    fprintf(stderr, "Seems the input scale is quite large.\n");
+    fprintf(stderr, "  please wait for a while...\n");
+    pthread_exit(NULL);
+}
+
 int main(int argc, char* argv[]) {
     ParseCommandLineFlags(&argc, &argv);
     ParseJobConfig();
@@ -598,6 +605,8 @@ int main(int argc, char* argv[]) {
         config::param = argv[2];
     }
 
+    pthread_t tid;
+    pthread_create(&tid, NULL, LongPeriodWarning, NULL);
     if (!strcmp(argv[1], "streaming")) {
         config::pipe_style = ::baidu::shuttle::sdk::kStreaming;
         return SubmitJob();
