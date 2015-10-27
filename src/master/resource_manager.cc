@@ -16,6 +16,7 @@ IdManager::IdManager(int n) {
         IdItem* item = new IdItem();
         item->no = i;
         item->attempt = 0;
+        item->status = kResPending;
         resource_pool_.push_back(item);
         pending_res_.push_back(item);
     }
@@ -36,38 +37,36 @@ IdItem* IdManager::GetItem() {
     }
     IdItem* cur = pending_res_.front();
     cur->attempt ++;
+    cur->status = kResAllocated;
     pending_res_.pop_front();
-    running_res_.push_back(cur);
     return new IdItem(*cur);
 }
 
 IdItem* IdManager::GetCertainItem(int no) {
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    std::list<IdItem*>::iterator it;
-    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
-        if ((*it)->no == no) {
-            break;
-        }
-    }
-    if (it == running_res_.end()) {
-        LOG(WARNING, "this resource has not been allocated: %d", no);
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for duplication: %d", no);
         return NULL;
     }
-    (*it)->attempt ++;
-    return new IdItem(*(*it));
+    IdItem* cur = resource_pool_[n];
+    if (cur->status == kResAllocated) {
+        cur->attempt ++;
+        return new IdItem(*cur);
+    }
+    LOG(WARNING, "this resource has not been allocated: %d", no);
+    return NULL;
 }
 
 void IdManager::ReturnBackItem(int no) {
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    std::list<IdItem*>::iterator it;
-    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
-        if ((*it)->no == no) {
-            break;
-        }
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for returning: %d", no);
     }
-    if (it != running_res_.end()) {
-        IdItem* cur = *it;
-        running_res_.erase(it);
+    IdItem* cur = resource_pool_[n];
+    if (cur->status == kResAllocated) {
+        cur->status = kResPending;
         pending_res_.push_front(cur);
     } else {
         LOG(WARNING, "invalid resource: %d", no);
@@ -75,35 +74,29 @@ void IdManager::ReturnBackItem(int no) {
 }
 
 bool IdManager::FinishItem(int no) {
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    std::list<IdItem*>::iterator it;
-    for (it = running_res_.begin(); it != running_res_.end(); ++it) {
-        if ((*it)->no == no) {
-            break;
-        }
-    }
-    if (it != running_res_.end()) {
-        running_res_.erase(it);
-        return true;
-    } else {
-        LOG(WARNING, "resource may have been finished: %d", no);
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
         return false;
     }
+    IdItem* cur = resource_pool_[n];
+    if (cur->status == kResAllocated) {
+        cur->status = kResDone;
+        return true;
+    }
+    LOG(WARNING, "resource may have been finished: %d", no);
+    return false;
 }
 
 IdItem* const IdManager::CheckCertainItem(int no) {
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    std::vector<IdItem*>::iterator it;
-    for (it = resource_pool_.begin(); it != resource_pool_.end(); ++it) {
-        if ((*it)->no == no) {
-            break;
-        }
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for checking: %d", no);
+        return NULL;
     }
-    if (it != resource_pool_.end()) {
-        return *it;
-    }
-    LOG(WARNING, "resource inexist: %d", no);
-    return NULL;
+    return resource_pool_[n];
 }
 
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,

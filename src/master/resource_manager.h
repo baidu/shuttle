@@ -12,15 +12,23 @@
 
 namespace baidu {
 namespace shuttle {
+    
+enum ResourceStatus {
+    kResPending = 0,
+    kResAllocated = 1,
+    kResDone = 2
+};
 
 struct IdItem {
     int no;
     int attempt;
+    ResourceStatus status;
 };
 
 struct ResourceItem {
     int no;
     int attempt;
+    ResourceStatus status;
     std::string input_file;
     int64_t offset;
     int64_t size;
@@ -57,7 +65,6 @@ private:
     Mutex mu_;
     std::vector<IdItem*> resource_pool_;
     std::deque<IdItem*> pending_res_;
-    std::list<IdItem*> running_res_;
 };
 
 class ResourceManager : public BasicResourceManager<ResourceItem> {
