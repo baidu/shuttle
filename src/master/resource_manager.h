@@ -23,15 +23,24 @@ struct IdItem {
     int no;
     int attempt;
     ResourceStatus status;
+    int allocated;
 };
 
 struct ResourceItem {
     int no;
     int attempt;
     ResourceStatus status;
+    int allocated;
     std::string input_file;
     int64_t offset;
     int64_t size;
+    ResourceItem* CopyFrom(const IdItem& id) {
+        no = id.no;
+        attempt = id.attempt;
+        status = id.status;
+        allocated = id.allocated;
+        return this;
+    }
 };
 
 template <class Resource>

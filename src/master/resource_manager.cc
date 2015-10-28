@@ -17,6 +17,7 @@ IdManager::IdManager(int n) {
         item->no = i;
         item->attempt = 0;
         item->status = kResPending;
+        item->allocated = 0;
         resource_pool_.push_back(item);
         pending_res_.push_back(item);
     }
@@ -35,9 +36,13 @@ IdItem* IdManager::GetItem() {
     if (pending_res_.empty()) {
         return NULL;
     }
+    while (pending_res_.front()->status != kResPending) {
+        pending_res_.pop_front();
+    }
     IdItem* cur = pending_res_.front();
     cur->attempt ++;
     cur->status = kResAllocated;
+    cur->allocated ++;
     pending_res_.pop_front();
     return new IdItem(*cur);
 }
@@ -50,6 +55,10 @@ IdItem* IdManager::GetCertainItem(int no) {
         return NULL;
     }
     IdItem* cur = resource_pool_[n];
+    if (cur->status == kResPending) {
+        cur->status = kResAllocated;
+        cur->allocated ++;
+    }
     if (cur->status == kResAllocated) {
         cur->attempt ++;
         return new IdItem(*cur);
@@ -63,11 +72,14 @@ void IdManager::ReturnBackItem(int no) {
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
         LOG(WARNING, "this resource is not valid for returning: %d", no);
+        return;
     }
     IdItem* cur = resource_pool_[n];
     if (cur->status == kResAllocated) {
-        cur->status = kResPending;
-        pending_res_.push_front(cur);
+        if (-- cur->allocated <= 0) {
+            cur->status = kResPending;
+            pending_res_.push_front(cur);
+        }
     } else {
         LOG(WARNING, "invalid resource: %d", no);
     }
@@ -83,6 +95,7 @@ bool IdManager::FinishItem(int no) {
     IdItem* cur = resource_pool_[n];
     if (cur->status == kResAllocated) {
         cur->status = kResDone;
+        cur->allocated = 0;
         return true;
     }
     LOG(WARNING, "resource may have been finished: %d", no);
@@ -134,6 +147,8 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             ResourceItem* item = new ResourceItem();
             item->no = counter++;
             item->attempt = 0;
+            item->status = kResPending;
+            item->allocated = 0;
             item->input_file = it->name;
             item->offset = i * block_size;
             item->size = block_size;
@@ -143,6 +158,8 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
         ResourceItem* item = new ResourceItem();
         item->no = counter++;
         item->attempt = 0;
+        item->status = kResPending;
+        item->allocated = 0;
         item->input_file = it->name;
         item->offset = blocks * block_size;
         item->size = rest;
@@ -167,7 +184,7 @@ ResourceItem* ResourceManager::GetItem() {
         return NULL;
     }
     ResourceItem* resource = resource_pool_[item->no];
-    resource->attempt = item->attempt;
+    resource->CopyFrom(*item);
     delete item;
     return new ResourceItem(*resource);
 }
@@ -178,16 +195,34 @@ ResourceItem* ResourceManager::GetCertainItem(int no) {
         return NULL;
     }
     ResourceItem* resource = resource_pool_[no];
-    resource->attempt = item->attempt;
+    resource->CopyFrom(*item);
     delete item;
     return new ResourceItem(*resource);
 }
 
 void ResourceManager::ReturnBackItem(int no) {
     manager_->ReturnBackItem(no);
+    if (static_cast<size_t>(no) > resource_pool_.size()) {
+        return;
+    }
+    ResourceItem* resource = resource_pool_[no];
+    if (resource->status == kResAllocated) {
+        if (-- resource->allocated <= 0) {
+            resource->status = kResPending;
+        }
+    }
 }
 
 bool ResourceManager::FinishItem(int no) {
+    if (static_cast<size_t>(no) > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
+    }
+    ResourceItem* resource = resource_pool_[no];
+    if (resource->status == kResAllocated) {
+        resource->status = kResDone;
+        resource->allocated = 0;
+    }
     return manager_->FinishItem(no);
 }
 
