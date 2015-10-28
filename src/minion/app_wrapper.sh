@@ -20,9 +20,13 @@ then
 	if [ "${minion_pipe_style}" != "" ]; then
 		pipe_style="-pipe ${minion_pipe_style}"
 	fi
+	is_nline=""
+	if [ "${minion_input_is_nline}" == "true" ] ; then
+		is_nline="-is_nline"
+	fi
 	./input_tool -file=${map_input_file} \
 	-offset=${map_input_start} \
-	-len=${map_input_length} ${dfs_flags} ${format} ${pipe_style} | $user_cmd
+	-len=${map_input_length} ${dfs_flags} ${format} ${pipe_style} ${is_nline} | $user_cmd
 	exit $?
 elif [ "${mapred_task_is_map}" == "false" ]
 then

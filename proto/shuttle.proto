@@ -61,6 +61,7 @@ message DfsInfo {
 enum InputFormat {
     kTextInput = 0;
     kBinaryInput = 1;
+    kNlineInput = 2;
 }
 
 enum OutputFormat {

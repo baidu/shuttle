@@ -87,6 +87,9 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
         ::setenv("minion_input_format", "text", 1);
     } else if (task.job().input_format() == kBinaryInput) {
         ::setenv("minion_input_format", "binary", 1);
+    } else if (task.job().input_format() == kNlineInput) {
+        ::setenv("minion_input_format", "text", 1);
+        ::setenv("minion_input_is_nline", "true", 1);
     }
     if (task.job().output_format() == kTextOutput) {
         ::setenv("minion_output_format", "text", 1);

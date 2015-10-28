@@ -24,6 +24,7 @@ DEFINE_string(dfs_user, "", "user name of dfs master");
 DEFINE_string(dfs_password, "", "password of dfs master");
 DEFINE_string(format, "text", "input format: text/binary");
 DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
+DEFINE_bool(is_nline, false, "whether NlineInputformat");
 
 void FillParam(FileSystem::Param& param) {
     if (!FLAGS_dfs_user.empty()) {
@@ -64,13 +65,19 @@ void DoRead() {
         exit(-1);
     }
     InputReader::Iterator* it = reader->Read(FLAGS_offset, FLAGS_len);
+    int32_t record_no = 0;
     while (!it->Done()) {
         if (FLAGS_pipe == "streaming") {
-            std::cout << it->Record() << std::endl;
+            if (FLAGS_is_nline) {
+                std::cout << record_no << "\t" << it->Record() << std::endl;
+            } else {
+                std::cout << it->Record() << std::endl;
+            }
         } else {
             std::cout << it->Record();// no new line
         }
         it->Next();
+        record_no ++;
     }
     if (it->Error() != kOk && it->Error() != kNoMore) {
         std::cerr << "errors in reading: " << FLAGS_file << std::endl;
