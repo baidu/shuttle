@@ -3,6 +3,7 @@
 #include <string>
 #include <list>
 #include <queue>
+#include <vector>
 #include <utility>
 #include <ctime>
 
@@ -28,6 +29,7 @@ struct AllocateItem {
     std::string endpoint;
     TaskState state;
     time_t alloc_time;
+    time_t period;
     bool is_map;
 };
 
@@ -77,11 +79,7 @@ public:
             info->set_attempt_id((*it)->attempt);
             info->set_task_type((job_descriptor_.job_type() == kMapOnlyJob) ? kMapOnly :
                     ((*it)->is_map ? kMap : kReduce));
-            /*ResourceItem* const res = map_manager_->CheckCertainItem((*it)->resource_no);
-            TaskInput* input = info->mutable_input();
-            input->set_input_file(res->input_file);
-            input->set_input_offset(res->offset);
-            input->set_input_size(res->size);*/
+            // XXX Warning: input will NOT return
             task->set_state((*it)->state);
             task->set_minion_addr((*it)->endpoint);
         }
@@ -99,29 +97,30 @@ private:
     JobDescriptor job_descriptor_;
     std::string job_id_;
     JobState state_;
-    time_t average_time_;
+    // For non-duplication use
+    bool predict_assign_;
     // Resource allocation
     Mutex alloc_mu_;
     std::list<AllocateItem*> allocation_table_;
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;
+    std::vector<int> failed_count_;
     // Map resource
     Gru* map_;
     ResourceManager* map_manager_;
     int map_completed_;
-    int last_map_no_;
-    int last_map_attempt_;
     int map_end_game_begin_;
+    std::queue<int> map_slug_;
     // Reduce resource
     Gru* reduce_;
     IdManager* reduce_manager_;
     int reduce_begin_;
     int reduce_completed_;
-    int last_reduce_no_;
-    int last_reduce_attempt_;
     int reduce_end_game_begin_;
+    std::queue<int> reduce_slug_;
     // Thread for monitoring
     ThreadPool monitor_;
+    int64_t monitor_id_;
     // To communicate with minion
     RpcClient* rpc_client_;
     // To check if output path is exists
