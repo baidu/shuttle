@@ -9,6 +9,8 @@
 #include "proto/shuttle.pb.h"
 #include "proto/sortfile.pb.h"
 #include "common/filesystem.h"
+#include "thread_pool.h"
+#include "mutex.h"
 
 namespace baidu {
 namespace shuttle {
@@ -90,8 +92,14 @@ public:
     Status Close();
     const std::string& GetErrorFile() {return err_file_;}
 private:
+    void AddIter(std::vector<SortFileReader::Iterator*>* iters,
+                 SortFileReader* reader,
+                 const std::string& start_key,
+                 const std::string& end_key);
+
     std::vector<SortFileReader*> readers_;
     std::string err_file_;
+    Mutex mu_;
 };
 
 }

@@ -1,4 +1,5 @@
 #include "sort_file.h"
+#include <boost/bind.hpp>
 #include <logging.h>
 
 using baidu::common::Log;
@@ -59,14 +60,31 @@ Status MergeFileReader::Close() {
     return status;
 }
 
+void MergeFileReader::AddIter(std::vector<SortFileReader::Iterator*>* iters,
+                              SortFileReader* reader,
+                              const std::string& start_key,
+                              const std::string& end_key) {
+    SortFileReader::Iterator* it = reader->Scan(start_key, end_key);
+    {
+        MutexLock lock(&mu_);
+        iters->push_back(it);
+    }
+}
+
 SortFileReader::Iterator* MergeFileReader::Scan(const std::string& start_key, const std::string& end_key) {
-    std::vector<SortFileReader::Iterator*> iters;
+    std::vector<SortFileReader::Iterator*>* iters = new std::vector<SortFileReader::Iterator*>();
     std::vector<SortFileReader*>::iterator it;
+    ThreadPool pool;
     for (it = readers_.begin(); it != readers_.end(); it++) {
         SortFileReader * const& reader = *it;
-        iters.push_back(reader->Scan(start_key, end_key));        
+        pool.AddTask(boost::bind(&MergeFileReader::AddIter, this, iters, reader, start_key, end_key));
     }
-    return new MergeIterator(iters, this);
+    LOG(INFO, "wait for iterators init...");
+    pool.Stop(true);
+    LOG(INFO, "all iterators done. #%d", iters->size());
+    MergeIterator* merge_it = new MergeIterator(*iters, this);
+    delete iters;
+    return merge_it;
 }
 
 MergeFileReader::MergeIterator::MergeIterator(const std::vector<SortFileReader::Iterator*>& iters,

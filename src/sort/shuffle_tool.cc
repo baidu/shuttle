@@ -8,10 +8,14 @@
 #include <gflags/gflags.h>
 #include <set>
 #include <boost/algorithm/string.hpp>
+#include <boost/bind.hpp>
+#include <boost/scoped_ptr.hpp>
 #include "sort_file.h"
 #include "logging.h"
 #include "common/filesystem.h"
 #include "common/tools_util.h"
+#include "thread_pool.h"
+#include "mutex.h"
 
 DEFINE_int32(total, 0, "total numbers of map tasks");
 DEFINE_int32(reduce_no, 0, "the reduce number of this reduce task");
@@ -28,11 +32,13 @@ using baidu::common::Log;
 using baidu::common::FATAL;
 using baidu::common::INFO;
 using baidu::common::WARNING;
+using namespace baidu;
 using namespace baidu::shuttle;
 
 std::set<std::string> g_merged;
 int32_t g_file_no(0);
 FileSystem* g_fs(NULL);
+Mutex g_mu;
 
 void FillParam(FileSystem::Param& param) {
     if (!FLAGS_dfs_user.empty()) {
@@ -68,39 +74,50 @@ void CollectFilesToMerge(std::vector<std::string>* maps_to_merge) {
     }
 }
 
+void AddSortFiles(const std::string map_dir, std::vector<std::string>* file_names) {
+    assert(file_names);
+    std::vector<FileInfo> sort_files;
+    if (g_fs->List(map_dir, &sort_files)) {
+        std::vector<FileInfo>::iterator jt;
+        for (jt = sort_files.begin(); jt != sort_files.end(); jt++) {
+            const std::string& file_name = jt->name;
+            if (boost::ends_with(file_name, ".sort")) {
+                MutexLock lock(&g_mu);
+                file_names->push_back(file_name);
+            }
+        }
+    } else {
+        LOG(FATAL, "fail to list %s", map_dir.c_str());
+    }
+}
+
 void MergeMapOutput(const std::vector<std::string>& maps_to_merge) {
-    std::vector<std::string> file_names;
+    std::vector<std::string> * file_names = new std::vector<std::string>();
+    boost::scoped_ptr<std::vector<std::string> > file_names_guard(file_names);
     std::vector<std::string>::const_iterator it;
-    std::vector<FileInfo>::iterator jt;
     std::vector<std::string> real_merged_maps;
+    ThreadPool pool;
     int map_ct = 0;
     for (it = maps_to_merge.begin(); it != maps_to_merge.end(); it++) {
         const std::string& map_dir = *it;
-        std::vector<FileInfo> sort_files;
-        if (g_fs->List(map_dir, &sort_files)) {
-            for (jt = sort_files.begin(); jt != sort_files.end(); jt++) {
-                const std::string& file_name = jt->name;
-                if (boost::ends_with(file_name, ".sort")) {
-                    file_names.push_back(file_name);
-                }
-            }
-        } else {
-            LOG(FATAL, "fail to list %s", map_dir.c_str());
-        }
+        pool.AddTask(boost::bind(&AddSortFiles, map_dir, file_names));
         map_ct++;
         real_merged_maps.push_back(map_dir);
         if (map_ct >= FLAGS_batch){
             break;
         }
     }
-    if (file_names.empty()) {
+    LOG(INFO, "wait for list done");
+    pool.Stop(true);
+    if (file_names->empty()) {
         LOG(WARNING, "not map output found");
         return;
     }
+    LOG(INFO, "list #%d *.sort files", file_names->size());
     MergeFileReader reader;
     FileSystem::Param param;
     FillParam(param);
-    Status status = reader.Open(file_names, param, kHdfsFile);
+    Status status = reader.Open(*file_names, param, kHdfsFile);
     if (status != kOk) {
         LOG(FATAL, "fail to open: %s", reader.GetErrorFile().c_str());
     }
@@ -109,7 +126,7 @@ void MergeMapOutput(const std::vector<std::string>& maps_to_merge) {
     std::string s_reduce_key(s_reduce_no);
 
     SortFileReader::Iterator* scan_it = reader.Scan(s_reduce_key, 
-                                                     s_reduce_key + "\xff");
+                                                    s_reduce_key + "\xff");
     if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
         LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
     }
