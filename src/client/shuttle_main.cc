@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <pthread.h>
+#include <signal.h>
 
 #include "sdk/shuttle.h"
 #include "ins_sdk.h"
@@ -28,6 +29,7 @@ std::string nexus_file;
 std::string master = "master";
 
 bool display_all = false;
+bool immediate_return = false;
 
 std::string job_name = "map_reduce_job";
 ::baidu::shuttle::sdk::JobPriority job_priority = \
@@ -70,6 +72,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "Options:\n"
         "\t-h  --help\t\t\tShow this information\n"
         "\t-a  --all\t\t\tConsider finished and dead jobs in status and list operation\n"
+        "\t-i  --immediate\tStop monitoring the state of submitted job and return immediately\n"
         "\t-input <file>\t\t\tSpecify the input file, using a hdfs path\n"
         "\t-output <path>\t\t\tSpecify the output path, which must be empty\n"
         "\t-file <file>[,...]\t\tSpecify the files needed by your program\n"
@@ -118,6 +121,8 @@ static const char* state_string[] = {
 static const std::string task_type_string[] = {
     "map", "reduce", "map"
 };
+
+static bool done = false;
 
 static inline ::baidu::shuttle::sdk::PartitionMethod
 ParsePartitioner(const std::string& partitioner) {
@@ -223,6 +228,11 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
             config::master = opt[++i];
         } else if (!strcmp(ctx, "a") || !strcmp(ctx, "all")) {
             config::display_all = true;
+            opt[i] = NULL;
+            ++ ret;
+            continue;
+        } else if (!strcmp(ctx, "i") || !strcmp(ctx, "immediate")) {
+            config::immediate_return = true;
             opt[i] = NULL;
             ++ ret;
             continue;
@@ -483,11 +493,48 @@ static int SubmitJob() {
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);
+    done = true;
     if (!ok) {
         fprintf(stderr, "submit job failed\n");
         return 1;
     }
     printf("job successfully submitted, id: %s\n", jobid.c_str());
+    if (config::immediate_return) {
+        return 0;
+    }
+    while (true) {
+        ::baidu::shuttle::sdk::JobInstance job;
+        std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
+        bool ok = shuttle->ShowJob(jobid, job, tasks);
+        if (!ok) {
+            fprintf(stderr, "lost connection with master\n");
+            sleep(5);
+            continue;
+        }
+        switch (job.state) {
+        case ::baidu::shuttle::sdk::kPending:
+            printf("\rjob pending...");
+            fflush(stdout);
+            break;
+        case ::baidu::shuttle::sdk::kRunning:
+            printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running",
+                    job.map_stat.completed, job.map_stat.total, job.map_stat.running,
+                    job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
+            fflush(stdout);
+            break;
+        case ::baidu::shuttle::sdk::kCompleted:
+            printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                    job.map_stat.completed, job.map_stat.total, job.map_stat.running,
+                    job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
+            printf("job `%s' has completed\n", job.desc.name.c_str());
+            return 0;
+        case ::baidu::shuttle::sdk::kFailed:
+        case ::baidu::shuttle::sdk::kKilled:
+            fprintf(stderr, "\njob `%s' is failed\n", job.desc.name.c_str());
+            return -1;
+        }
+        sleep(2);
+    }
     return 0;
 }
 
@@ -509,6 +556,7 @@ static int UpdateJob() {
 
     bool ok = shuttle->UpdateJob(config::param, config::job_priority,
                                  config::map_capacity, config::reduce_capacity);
+    done = true;
     if (!ok) {
         fprintf(stderr, "update job failed\n");
         return 1;
@@ -533,6 +581,7 @@ static int KillJob() {
     ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
 
     bool ok = shuttle->KillJob(config::param);
+    done = true;
     if (!ok) {
         fprintf(stderr, "kill job failed\n");
         return 1;
@@ -550,6 +599,7 @@ static int ListJobs() {
 
     std::vector< ::baidu::shuttle::sdk::JobInstance > jobs;
     bool ok = shuttle->ListJobs(jobs, config::display_all);
+    done = true;
     if (!ok) {
         fprintf(stderr, "list job failed\n");
         return 1;
@@ -577,6 +627,7 @@ static int ShowJob() {
     ::baidu::shuttle::sdk::JobInstance job;
     std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
     bool ok = shuttle->ShowJob(config::param, job, tasks, config::display_all);
+    done = true;
     if (!ok) {
         fprintf(stderr, "show job status failed\n");
         return 1;
@@ -588,9 +639,19 @@ static int ShowJob() {
 
 void* LongPeriodWarning(void* /*args*/) {
     sleep(5);
-    fprintf(stderr, "Seems the input scale is quite large.\n");
-    fprintf(stderr, "  please wait for a while...\n");
+    if (!done) {
+        fprintf(stderr, "Seems the input scale is quite large.\n");
+        fprintf(stderr, "  please wait for a while...\n");
+    }
     pthread_exit(NULL);
+}
+
+void SignalHandler(int /*sig*/) {
+    if (done) {
+        printf("\nyour job is running, you can use `status' or `list' command to check it\n");
+        exit(0);
+    }
+    exit(-1);
 }
 
 int main(int argc, char* argv[]) {
@@ -609,9 +670,11 @@ int main(int argc, char* argv[]) {
     pthread_create(&tid, NULL, LongPeriodWarning, NULL);
     if (!strcmp(argv[1], "streaming")) {
         config::pipe_style = ::baidu::shuttle::sdk::kStreaming;
+        signal(SIGINT, SignalHandler);
         return SubmitJob();
     } else if (!strcmp(argv[1], "bistreaming")) {
         config::pipe_style = ::baidu::shuttle::sdk::kBiStreaming;
+        signal(SIGINT, SignalHandler);
         return SubmitJob();
     } else if (!strcmp(argv[1], "update")) {
         return UpdateJob();

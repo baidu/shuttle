@@ -531,6 +531,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
         default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
         }
     }
+    cur->period = std::time(NULL) - cur->alloc_time;
     if (state != kTaskCompleted) {
         return kOk;
     }
@@ -655,7 +656,7 @@ void JobTracker::KeepMonitoring() {
             }
         }
     }
-    int timeout = FLAGS_timeout_bound;
+    time_t timeout = FLAGS_timeout_bound;
     if (!time_used.empty()) {
         std::sort(time_used.begin(), time_used.end());
         timeout = time_used[time_used.size() / 2];
