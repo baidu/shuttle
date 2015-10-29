@@ -28,6 +28,7 @@ DECLARE_int32(replica_begin_percent);
 DECLARE_int32(reduce_begin);
 DECLARE_int32(reduce_begin_percent);
 DECLARE_int32(retry_bound);
+DECLARE_int32(blind_predict_num);
 DECLARE_string(nexus_server_list);
 
 namespace baidu {
@@ -44,7 +45,9 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       map_completed_(0),
                       reduce_(NULL),
                       reduce_manager_(NULL),
-                      reduce_completed_(0) {
+                      reduce_completed_(0),
+                      monitor_(1),
+                      blind_predict_(0) {
     job_descriptor_.CopyFrom(job);
     job_id_ = GenerateJobId();
     rpc_client_ = new RpcClient();
@@ -173,6 +176,16 @@ Status JobTracker::Start() {
     return kGalaxyError;
 }
 
+static inline JobPriority ParsePriority(const std::string& priority) {
+    return priority == "kMonitor" ? kVeryHigh : (
+               priority == "kOnline" ? kHigh : (
+                   priority == "kOffline" ? kNormal : (
+                       priority == "kBestEffort" ? kLow : kNormal
+                   )
+               )
+           );
+}
+
 Status JobTracker::Update(const std::string& priority,
                           int map_capacity,
                           int reduce_capacity) {
@@ -180,32 +193,55 @@ Status JobTracker::Update(const std::string& priority,
         if (map_->Update(priority, map_capacity) != kOk) {
             return kGalaxyError;
         }
+        if (map_capacity != -1) {
+            job_descriptor_.set_map_capacity(map_capacity);
+        }
+        if (!priority.empty()) {
+            job_descriptor_.set_priority(ParsePriority(priority));
+        }
     }
 
     if (reduce_ != NULL) {
         if (reduce_->Update(priority, reduce_capacity) != kOk) {
             return kGalaxyError;
         }
+        if (map_capacity != -1) {
+            job_descriptor_.set_reduce_capacity(reduce_capacity);
+        }
+        if (!priority.empty()) {
+            job_descriptor_.set_priority(ParsePriority(priority));
+        }
     }
     return kOk;
 }
 
 Status JobTracker::Kill() {
-    MutexLock lock(&mu_);
-    if (map_ != NULL) {
-        LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
-        delete map_;
-        map_ = NULL;
+    {
+        MutexLock lock(&mu_);
+        if (map_ != NULL) {
+            LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
+            delete map_;
+            map_ = NULL;
+        }
+
+        if (reduce_ != NULL) {
+            LOG(INFO, "reduce minion finished, kill: %s", job_id_.c_str());
+            delete reduce_;
+            reduce_ = NULL;
+        }
+        monitor_.Stop(false);
+
+        if (state_ != kCompleted) {
+            state_ = kKilled;
+        }
     }
 
-    if (reduce_ != NULL) {
-        LOG(INFO, "reduce minion finished, kill: %s", job_id_.c_str());
-        delete reduce_;
-        reduce_ = NULL;
-    }
-
-    if (state_ != kCompleted) {
-        state_ = kKilled;
+    MutexLock lock(&alloc_mu_);
+    for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+            it != allocation_table_.end(); ++it) {
+        if ((*it)->state == kTaskRunning) {
+            (*it)->state = kTaskKilled;
+        }
     }
     return kOk;
 }
@@ -214,46 +250,42 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
     if (state_ == kPending) {
         state_ = kRunning;
     }
-    ResourceItem* cur = NULL;
+    ResourceItem* cur = map_manager_->GetItem();
+    if (cur == NULL) {
+        MutexLock lock(&alloc_mu_);
+        while (!map_slug_.empty() &&
+               map_manager_->CheckCertainItem(map_slug_.front())->status
+               != kResAllocated) {
+            map_slug_.pop();
+        }
+        if (map_slug_.empty()) {
+            LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+            return NULL;
+        }
+        cur = map_manager_->GetCertainItem(map_slug_.front());
+        map_slug_.pop();
+        if (cur == NULL) {
+            LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+            return NULL;
+        }
+    } else if (cur->no >= map_end_game_begin_) {
+        MutexLock lock(&alloc_mu_);
+        for (int i = 0; i < FLAGS_replica_num; ++i) {
+            map_slug_.push(cur->no);
+        }
+    }
+    if (cur->no == map_end_game_begin_) {
+        monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+    }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
     alloc->state = kTaskRunning;
-    {
-        MutexLock lock(&mu_);
-        cur = map_manager_->GetItem();
-        if (cur == NULL) {
-            while (!map_slug_.empty() &&
-                   map_manager_->CheckCertainItem(map_slug_.front())->status
-                   != kResAllocated) {
-                map_slug_.pop();
-            }
-            if (map_slug_.empty()) {
-                delete alloc;
-                LOG(INFO, "assign map: no more: %s", job_id_.c_str());
-                return NULL;
-            }
-            cur = map_manager_->GetCertainItem(map_slug_.front());
-            map_slug_.pop();
-            if (cur == NULL) {
-                delete alloc;
-                LOG(INFO, "assign map: no more: %s", job_id_.c_str());
-                return NULL;
-            }
-        } else if (cur->no >= map_end_game_begin_) {
-            for (int i = 0; i < FLAGS_replica_num; ++i) {
-                map_slug_.push(cur->no);
-            }
-        }
-        if (cur->no == map_end_game_begin_) {
-            monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
-        }
-        alloc->resource_no = cur->no;
-        alloc->attempt = cur->attempt;
-        alloc->state = kTaskRunning;
-        alloc->is_map = true;
-        alloc->alloc_time = std::time(NULL);
-        alloc->period = -1;
-    } // end of mu_;
+    alloc->resource_no = cur->no;
+    alloc->attempt = cur->attempt;
+    alloc->state = kTaskRunning;
+    alloc->is_map = true;
+    alloc->alloc_time = std::time(NULL);
+    alloc->period = -1;
     MutexLock lock(&alloc_mu_);
     allocation_table_.push_back(alloc);
     time_heap_.push(alloc);
@@ -266,46 +298,42 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
     if (state_ == kPending) {
         state_ = kRunning;
     }
-    IdItem* cur = NULL;
+    IdItem* cur = reduce_manager_->GetItem();
+    if (cur == NULL) {
+        MutexLock lock(&alloc_mu_);
+        while (!reduce_slug_.empty() &&
+               reduce_manager_->CheckCertainItem(reduce_slug_.front())->status
+               != kResAllocated) {
+            reduce_slug_.pop();
+        }
+        if (reduce_slug_.empty()) {
+            LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+            return NULL;
+        }
+        cur = reduce_manager_->GetCertainItem(reduce_slug_.front());
+        reduce_slug_.pop();
+        if (cur == NULL) {
+            LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+            return NULL;
+        }
+    } else if (cur->no >= reduce_end_game_begin_) {
+        MutexLock lock(&alloc_mu_);
+        for (int i = 0; i < FLAGS_replica_num; ++i) {
+            reduce_slug_.push(cur->no);
+        }
+    }
+    if (cur->no == reduce_end_game_begin_) {
+        monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+    }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
     alloc->state = kTaskRunning;
-    {
-        MutexLock lock(&mu_);
-        cur = reduce_manager_->GetItem();
-        if (cur == NULL) {
-            while (!reduce_slug_.empty() &&
-                   reduce_manager_->CheckCertainItem(reduce_slug_.front())->status
-                   != kResAllocated) {
-                reduce_slug_.pop();
-            }
-            if (reduce_slug_.empty()) {
-                delete alloc;
-                LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
-                return NULL;
-            }
-            cur = reduce_manager_->GetCertainItem(reduce_slug_.front());
-            reduce_slug_.pop();
-            if (cur == NULL) {
-                delete alloc;
-                LOG(INFO, "assign reduce: no more: %s", job_id_.c_str());
-                return NULL;
-            }
-        } else if (cur->no >= reduce_end_game_begin_) {
-            for (int i = 0; i < FLAGS_replica_num; ++i) {
-                reduce_slug_.push(cur->no);
-            }
-        }
-        if (cur->no == reduce_end_game_begin_) {
-            monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
-        }
-        alloc->resource_no = cur->no;
-        alloc->attempt = cur->attempt;
-        alloc->state = kTaskRunning;
-        alloc->is_map = false;
-        alloc->alloc_time = std::time(NULL);
-        alloc->period = -1;
-    } //end of mu_;
+    alloc->resource_no = cur->no;
+    alloc->attempt = cur->attempt;
+    alloc->state = kTaskRunning;
+    alloc->is_map = false;
+    alloc->alloc_time = std::time(NULL);
+    alloc->period = -1;
     MutexLock lock(&alloc_mu_);
     allocation_table_.push_back(alloc);
     time_heap_.push(alloc);
@@ -368,9 +396,22 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     LOG(INFO, "map phrase ends now: %s", job_id_.c_str());
                     failed_count_.resize(0);
                     failed_count_.resize(reduce_manager_->SumOfItem(), 0);
-                    while (!time_heap_.empty()) {
-                        time_heap_.pop();
+                    mu_.Unlock();
+                    {
+                        MutexLock lock(&alloc_mu_);
+                        std::vector<AllocateItem*> rest;
+                        while (!time_heap_.empty()) {
+                            if (!time_heap_.top()->is_map) {
+                                rest.push_back(time_heap_.top());
+                            }
+                            time_heap_.pop();
+                        }
+                        for (std::vector<AllocateItem*>::iterator it = rest.begin();
+                                it != rest.end(); ++it) {
+                            time_heap_.push(*it);
+                        }
                     }
+                    mu_.Lock();
                     monitor_.CancelTask(monitor_id_);
                     if (map_ != NULL) {
                         LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
@@ -601,43 +642,63 @@ std::string JobTracker::GenerateJobId() {
 }
 
 void JobTracker::KeepMonitoring() {
+    // Dynamic determination of delay check
+    LOG(INFO, "[monitor] monitor starts to check timeout: %s", job_id_.c_str());
+    bool map_now = (map_ != NULL);
+    std::vector<int> time_used;
+    {
+        MutexLock lock(&alloc_mu_);
+        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+                it != allocation_table_.end(); ++it) {
+            if ((*it)->is_map == map_now && (*it)->state == kTaskCompleted) {
+                time_used.push_back((*it)->period);
+            }
+        }
+    }
+    int timeout = FLAGS_timeout_bound;
+    if (!time_used.empty()) {
+        std::sort(time_used.begin(), time_used.end());
+        timeout = time_used[time_used.size() / 2];
+        timeout += timeout / 5;
+        blind_predict_ = 0;
+    }
+    if (blind_predict_ >= FLAGS_blind_predict_num) {
+        monitor_id_ = monitor_.DelayTask(timeout * 1000,
+                boost::bind(&JobTracker::KeepMonitoring, this));
+        return;
+    }
     time_t now = std::time(NULL);
     int counter = 10;
-    while (-- counter > 0 && !time_heap_.empty()) {
-        alloc_mu_.Lock();
+    bool detect_timeout = false;
+    alloc_mu_.Lock();
+    while (-- counter >= 0 && !time_heap_.empty()) {
         AllocateItem* top = time_heap_.top();
-        if (now - top->alloc_time < FLAGS_timeout_bound) {
-            alloc_mu_.Unlock();
+        if (now - top->alloc_time < timeout) {
             break;
         }
         time_heap_.pop();
-        alloc_mu_.Unlock();
         if (top->state != kTaskRunning) {
+            ++ counter;
             continue;
         }
         if (top->is_map) {
             map_slug_.push(top->resource_no);
-        } else if (map_ == NULL && !top->is_map) {
+        } else {
             reduce_slug_.push(top->resource_no);
         }
+        detect_timeout = true;
         LOG(INFO, "Reallocate a long no-response tasks: < no - %d, attempt - %d>: %s",
                 top->resource_no, top->attempt, job_id_.c_str());
     }
-    // Dynamic determination of delay check
-    std::vector<int> time_used;
-    for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
-            it != allocation_table_.end(); ++it) {
-        if ((*it)->state == kTaskCompleted) {
-            time_used.push_back((*it)->period);
-        }
+    alloc_mu_.Unlock();
+    if (time_used.empty() && detect_timeout) {
+        ++ blind_predict_;
+        LOG(INFO, "[monitor] blind prediction: %d times left",
+                FLAGS_blind_predict_num - blind_predict_);
     }
-    int sleep_time = FLAGS_timeout_bound;
-    if (!time_used.empty()) {
-        std::sort(time_used.begin(), time_used.end());
-        sleep_time = time_used[time_used.size() / 2];
-    }
-    monitor_id_ = monitor_.DelayTask(FLAGS_timeout_bound * 1000,
-                       boost::bind(&JobTracker::KeepMonitoring, this));
+    monitor_id_ = monitor_.DelayTask(timeout * 1000,
+            boost::bind(&JobTracker::KeepMonitoring, this));
+    LOG(INFO, "[monitor] will now rest for %ds: %s", timeout, job_id_.c_str());
 }
 
 }

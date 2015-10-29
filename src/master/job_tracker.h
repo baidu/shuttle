@@ -35,7 +35,7 @@ struct AllocateItem {
 
 struct AllocateItemComparator {
     bool operator()(AllocateItem* const& litem, AllocateItem* const& ritem) const {
-        return litem->alloc_time < ritem->alloc_time;
+        return litem->alloc_time > ritem->alloc_time;
     }
 };
 
@@ -105,22 +105,23 @@ private:
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;
     std::vector<int> failed_count_;
+    std::queue<int> map_slug_;
+    std::queue<int> reduce_slug_;
     // Map resource
     Gru* map_;
     ResourceManager* map_manager_;
     int map_completed_;
     int map_end_game_begin_;
-    std::queue<int> map_slug_;
     // Reduce resource
     Gru* reduce_;
     IdManager* reduce_manager_;
     int reduce_begin_;
     int reduce_completed_;
     int reduce_end_game_begin_;
-    std::queue<int> reduce_slug_;
-    // Thread for monitoring
+    // For monitoring
     ThreadPool monitor_;
     int64_t monitor_id_;
+    int blind_predict_;
     // To communicate with minion
     RpcClient* rpc_client_;
     // To check if output path is exists

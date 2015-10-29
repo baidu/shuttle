@@ -82,7 +82,14 @@ void MasterImpl::UpdateJob(::google::protobuf::RpcController* /*controller*/,
         "kBestEffort"
     };
     const std::string& job_id = request->jobid();
-    std::string priority = galaxy_priority[request->priority()];
+    int map_capacity = -1, reduce_capacity = -1;
+    if (request->has_map_capacity()) {
+        map_capacity = request->map_capacity();
+    }
+    if (request->has_reduce_capacity()) {
+        reduce_capacity = request->reduce_capacity();
+    }
+    std::string priority = request->has_priority() ? galaxy_priority[request->priority()] : "";
     JobTracker* jobtracker = NULL;
     {
         MutexLock lock(&(tracker_mu_));
@@ -92,9 +99,7 @@ void MasterImpl::UpdateJob(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status status = jobtracker->Update(priority,
-                                           request->map_capacity(),
-                                           request->reduce_capacity());
+        Status status = jobtracker->Update(priority, map_capacity, reduce_capacity);
         response->set_status(status);
     } else {
         LOG(WARNING, "try to update an inexist job: %s", job_id.c_str());

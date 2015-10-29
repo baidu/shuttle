@@ -82,8 +82,12 @@ Status Gru::Kill() {
 Status Gru::Update(const std::string& priority,
                    int capacity) {
     ::baidu::galaxy::JobDescription job_desc = galaxy_job_;
-    job_desc.priority = priority;
-    job_desc.replica = capacity;
+    if (!priority.empty()) {
+        job_desc.priority = priority;
+    }
+    if (capacity != -1) {
+        job_desc.replica = capacity;
+    }
     if (galaxy_->UpdateJob(minion_id_, job_desc)) {
         galaxy_job_.priority = priority;
         galaxy_job_.replica = capacity;
