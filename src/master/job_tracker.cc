@@ -133,7 +133,10 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     }
     reduce_begin_ = sum_of_map - FLAGS_reduce_begin;
     if (reduce_begin_ < sum_of_map / 2) {
-        reduce_begin_ = sum_of_map * FLAGS_reduce_begin_percent;
+        reduce_begin_ = sum_of_map * FLAGS_reduce_begin_percent / 100;
+    }
+    if (reduce_begin_ == 0) {
+        ++ reduce_begin_;
     }
 }
 

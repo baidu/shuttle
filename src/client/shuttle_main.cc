@@ -517,12 +517,14 @@ static int SubmitJob() {
             fflush(stdout);
             break;
         case ::baidu::shuttle::sdk::kRunning:
+            printf("\r\t\t\t\t\t\t\t\t\t\t\t");
             printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running",
                     job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                     job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             fflush(stdout);
             break;
         case ::baidu::shuttle::sdk::kCompleted:
+            printf("\r\t\t\t\t\t\t\t\t\t\t\t");
             printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
                     job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                     job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
