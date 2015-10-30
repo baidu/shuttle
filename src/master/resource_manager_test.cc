@@ -17,6 +17,13 @@ TEST(ResManTest, SetInputFilesTest) {
     EXPECT_EQ(resman.SumOfItem(), sum_of_items);
 }
 
+TEST(ResManTest, SetNLineFileTest) {
+    // TODO separate from SetInputFileTest
+    ResourceManager resman;
+    resman.SetNLineFile(hdfs_path);
+    EXPECT_EQ(resman.SumOfItem(), sum_of_items);
+}
+
 TEST(ResManTest, GetItemTest) {
     std::string input_file = hdfs_path;
     std::vector<std::string> input_files;

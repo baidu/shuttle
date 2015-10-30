@@ -2,6 +2,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include "sort/input_reader.h"
 #include <gflags/gflags.h>
 #include "logging.h"
 #include "common/tools_util.h"
@@ -167,6 +168,31 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
     }
     manager_ = new IdManager(resource_pool_.size());
 }
+
+// TODO Will deal with it
+/*void SetNLineFile(const std::string& input_file) {
+    InputReader* reader = InputReader::CreateHdfsTextReader();
+    // TODO InputReader doesn't support address starting with hdfs://
+    if (reader->Open(input_file, FileSystem::Param()) != kOk) {
+        LOG(WARNING, "set n line file error: %s", input_file.c_str());
+        return;
+    }
+    int counter = 0;
+    int64_t offset_sofar = 0;
+    for (InputReader::Iterator* read_it = reader->Read(0, (signed long)~0l >> 1);
+            !read_it->Done(); read_it->Next()) {
+        const std::string& line = read_it->Line();
+        ResourceItem* item = new ResourceItem();
+        item->no = counter++;
+        item->attempt = 0;
+        item->input_file = input_file;
+        item->offset = offset_sofar;
+        item->size = line.size();
+        resource_pool_.push_back(item);
+        pending_res_.push_back(item);
+        offset_sofar += item->size;
+    }
+}*/
 
 ResourceManager::~ResourceManager() {
     MutexLock lock(&mu_);

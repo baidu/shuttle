@@ -50,6 +50,7 @@ master_src = 'src/master/master_main.cc \
               src/master/gru.cc \
               src/common/filesystem.cc \
               src/common/tools_util.cc \
+              src/sort/input_reader.cc \
               proto/app_master.proto \
               proto/minion.proto \
               proto/shuttle.proto'
@@ -131,7 +132,7 @@ Application('sf_tool', Sources(sort_src, sf_tool_src))
 Application('input_tool', Sources(input_tool_src, input_reader_src))
 Application('input_test', Sources(input_test_src, input_reader_src))
 Application('partition_test', Sources(partition_src, partition_test_src))
-Application('resourcemanager_test', Sources(resourcemanager_test_src))
+Application('resourcemanager_test', Sources(resourcemanager_test_src, input_reader_src))
 Application('shuffle_tool', Sources(sort_src, shuffle_tool_src))
 
 StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
