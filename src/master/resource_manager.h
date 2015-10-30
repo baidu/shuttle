@@ -45,6 +45,7 @@ struct ResourceItem {
 
 template <class Resource>
 class BasicResourceManager {
+public:
     virtual Resource* GetItem() = 0;
     virtual Resource* GetCertainItem(int no) = 0;
     virtual void ReturnBackItem(int no) = 0;
@@ -70,7 +71,7 @@ public:
         return resource_pool_.size();
     }
 
-private:
+protected:
     Mutex mu_;
     std::vector<IdItem*> resource_pool_;
     std::deque<IdItem*> pending_res_;
@@ -94,11 +95,33 @@ public:
         return resource_pool_.size();
     }
 
-private:
+protected:
+    ResourceManager() : fs_(NULL), manager_(NULL) { }
+
+protected:
     Mutex mu_;
     FileSystem* fs_;
     std::vector<ResourceItem*> resource_pool_;
     IdManager* manager_;
+};
+
+class NLineResourceManager : public ResourceManager {
+public:
+    NLineResourceManager(const std::vector<std::string>& input_files,
+                         FileSystem::Param& param);
+    virtual ~NLineResourceManager() { }
+
+    /* Public method inherited from ResourceManager
+     *
+     * virtual ResourceItem* GetItem();
+     * virtual ResourceItem* GetCertainItem(int no);
+     * virtual void ReturnBackItem(int no);
+     * virtual bool FinishItem(int no);
+
+     * virtual ResourceItem* const CheckCertainItem(int no);
+
+     * virtual int SumOfItem();
+     */
 };
 
 }

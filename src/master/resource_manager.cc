@@ -2,9 +2,9 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
-#include "sort/input_reader.h"
 #include <gflags/gflags.h>
 #include "logging.h"
+#include "sort/input_reader.h"
 #include "common/tools_util.h"
 
 DECLARE_int32(input_block_size);
@@ -138,8 +138,7 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             fs_->Glob(path, &files);
         }
     }
-    MutexLock lock(&mu_);
-    int counter = resource_pool_.size();
+    int counter = 0;
     const int64_t block_size = FLAGS_input_block_size;
     for (std::vector<FileInfo>::iterator it = files.begin();
             it != files.end(); ++it) {
@@ -169,31 +168,6 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
     manager_ = new IdManager(resource_pool_.size());
 }
 
-// TODO Will deal with it
-/*void SetNLineFile(const std::string& input_file) {
-    InputReader* reader = InputReader::CreateHdfsTextReader();
-    // TODO InputReader doesn't support address starting with hdfs://
-    if (reader->Open(input_file, FileSystem::Param()) != kOk) {
-        LOG(WARNING, "set n line file error: %s", input_file.c_str());
-        return;
-    }
-    int counter = 0;
-    int64_t offset_sofar = 0;
-    for (InputReader::Iterator* read_it = reader->Read(0, (signed long)~0l >> 1);
-            !read_it->Done(); read_it->Next()) {
-        const std::string& line = read_it->Line();
-        ResourceItem* item = new ResourceItem();
-        item->no = counter++;
-        item->attempt = 0;
-        item->input_file = input_file;
-        item->offset = offset_sofar;
-        item->size = line.size();
-        resource_pool_.push_back(item);
-        pending_res_.push_back(item);
-        offset_sofar += item->size;
-    }
-}*/
-
 ResourceManager::~ResourceManager() {
     MutexLock lock(&mu_);
     for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
@@ -209,6 +183,7 @@ ResourceItem* ResourceManager::GetItem() {
     if (item == NULL) {
         return NULL;
     }
+    MutexLock lock(&mu_);
     ResourceItem* resource = resource_pool_[item->no];
     resource->CopyFrom(*item);
     delete item;
@@ -220,6 +195,7 @@ ResourceItem* ResourceManager::GetCertainItem(int no) {
     if (item == NULL) {
         return NULL;
     }
+    MutexLock lock(&mu_);
     ResourceItem* resource = resource_pool_[no];
     resource->CopyFrom(*item);
     delete item;
@@ -228,6 +204,7 @@ ResourceItem* ResourceManager::GetCertainItem(int no) {
 
 void ResourceManager::ReturnBackItem(int no) {
     manager_->ReturnBackItem(no);
+    MutexLock lock(&mu_);
     if (static_cast<size_t>(no) > resource_pool_.size()) {
         return;
     }
@@ -240,6 +217,7 @@ void ResourceManager::ReturnBackItem(int no) {
 }
 
 bool ResourceManager::FinishItem(int no) {
+    MutexLock lock(&mu_);
     if (static_cast<size_t>(no) > resource_pool_.size()) {
         LOG(WARNING, "this resource is not valid for finishing: %d", no);
         return false;
@@ -254,7 +232,65 @@ bool ResourceManager::FinishItem(int no) {
 
 ResourceItem* const ResourceManager::CheckCertainItem(int no) {
     IdItem* const item = manager_->CheckCertainItem(no);
+    if (item == NULL) {
+        return NULL;
+    }
+    MutexLock lock(&mu_);
     return resource_pool_[item->no];
+}
+
+NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input_files,
+                                           FileSystem::Param& param) : ResourceManager() {
+    if (boost::starts_with(input_files[0], "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(input_files[0], &host, &port, NULL);
+        param["host"] = host;
+        param["port"] = boost::lexical_cast<std::string>(port);
+    }
+    fs_ = FileSystem::CreateInfHdfs(param);
+    std::vector<FileInfo> files;
+    std::string path;
+    for (std::vector<std::string>::const_iterator it = input_files.begin();
+            it != input_files.end(); ++it) {
+        if (boost::starts_with(input_files[0], "hdfs://")) {
+            ParseHdfsAddress(*it, NULL, NULL, &path);
+        } else {
+            path = *it;
+        }
+        if (path.find('*') == std::string::npos) {
+            fs_->List(path, &files);
+        } else {
+            fs_->Glob(path, &files);
+        }
+    }
+    int counter = 0;
+    for (std::vector<FileInfo>::iterator it = files.begin();
+            it != files.end(); ++it) {
+        std::string path;
+        ParseHdfsAddress(it->name, NULL, NULL, &path);
+        InputReader* reader = InputReader::CreateHdfsTextReader();
+        if (reader->Open(path, param) != kOk) {
+            LOG(WARNING, "set n line file error: %s", it->name.c_str());
+            continue;
+        }
+        int64_t offset = 0;
+        for (InputReader::Iterator* read_it = reader->Read(0, ((unsigned long)~0l) >> 1);
+                !read_it->Done(); read_it->Next()) {
+            const std::string& line = read_it->Record();
+            ResourceItem* item = new ResourceItem();
+            item->no = counter++;
+            item->attempt = 0;
+            item->status = kResPending;
+            item->allocated = 0;
+            item->input_file = it->name;
+            item->offset = offset;
+            item->size = line.size();
+            offset += item->size;
+            resource_pool_.push_back(item);
+        }
+    }
+    manager_ = new IdManager(resource_pool_.size());
 }
 
 }

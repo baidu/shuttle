@@ -9,18 +9,19 @@ using namespace baidu::shuttle;
 std::string hdfs_path = "hdfs://0.0.0.0:0/users/";
 int sum_of_items = 0;
 
-TEST(ResManTest, SetInputFilesTest) {
+/*TEST(ResManTest, SetInputFilesTest) {
     std::vector<std::string> input_files;
     input_files.push_back(hdfs_path);
     FileSystem::Param p;
     ResourceManager resman(input_files, p);
     EXPECT_EQ(resman.SumOfItem(), sum_of_items);
-}
+}*/
 
-TEST(ResManTest, SetNLineFileTest) {
-    // TODO separate from SetInputFileTest
-    ResourceManager resman;
-    resman.SetNLineFile(hdfs_path);
+TEST(ResManTest, NLineFileTest) {
+    std::vector<std::string> input_files;
+    input_files.push_back(hdfs_path);
+    FileSystem::Param p;
+    NLineResourceManager resman(input_files, p);
     EXPECT_EQ(resman.SumOfItem(), sum_of_items);
 }
 
