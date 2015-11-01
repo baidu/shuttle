@@ -96,7 +96,11 @@ private:
                  SortFileReader* reader,
                  const std::string& start_key,
                  const std::string& end_key);
-
+    void AddReader(const std::string& file_name,
+                   FileSystem::Param param,
+                   FileType type,
+                   Status* st); 
+    void CloseReader(SortFileReader* reader, Status* st);
     std::vector<SortFileReader*> readers_;
     std::string err_file_;
     Mutex mu_;

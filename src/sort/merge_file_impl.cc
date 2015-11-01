@@ -17,6 +17,28 @@ MergeFileReader::~MergeFileReader() {
     }
 }
 
+void MergeFileReader::AddReader(const std::string& file_name, FileSystem::Param param, 
+                                FileType file_type, Status* status) {
+    Status st;
+    SortFileReader* reader = SortFileReader::Create(file_type, &st);
+    if (st == kOk) {
+        st = reader->Open(file_name, param);
+    }
+    if (st != kOk) {
+        {
+            MutexLock lock(&mu_);
+            *status = st;
+            err_file_ = file_name;
+        }
+        LOG(WARNING, "failed to open %s, status: %s", 
+            file_name.c_str(), Status_Name(st).c_str());
+        return;
+    } else {
+        MutexLock lock(&mu_);
+        readers_.push_back(reader);
+    }
+}
+
 Status MergeFileReader::Open(const std::vector<std::string>& files, 
                              FileSystem::Param param,
                              FileType file_type) {
@@ -24,39 +46,44 @@ Status MergeFileReader::Open(const std::vector<std::string>& files,
         return kInvalidArg;
     }
     Status status = kOk;
-
+    Status* st = new Status();
+    ThreadPool pool;
     std::vector<std::string>::const_iterator it;
+	LOG(INFO, "wait for #%d readers open", files.size());
     for (it = files.begin(); it != files.end(); it++) {
         const std::string& file_name = *it;
-        Status st;
-        SortFileReader* reader = SortFileReader::Create(file_type, &st);
-        if (st == kOk) {
-            st = reader->Open(file_name, param);
-        }
-        if (st != kOk) {
-            status = st;
-            LOG(WARNING, "failed to open %s, status: %s", 
-                file_name.c_str(), Status_Name(st).c_str());
-            err_file_ = file_name;
-            break;
-        }
-        readers_.push_back(reader);
+        pool.AddTask(boost::bind(&MergeFileReader::AddReader, this, file_name, param, file_type, st)); 
     }
-    
+    pool.Stop(true);
+    LOG(INFO, "wait file open done");
+    status = *st; 
+    delete st;
     return status;
+}
+
+void MergeFileReader::CloseReader(SortFileReader* reader, Status* st) {
+	Status status = reader->Close();
+	if (status != kOk) {
+		MutexLock lock(&mu_);
+		*st = status;
+		err_file_ = reader->GetFileName();
+	}
 }
 
 Status MergeFileReader::Close() {
     std::vector<SortFileReader*>::iterator it;
     Status status = kOk;
+	Status* st = new Status();
+	ThreadPool pool;
+	LOG(INFO, "wait #%d readers close", readers_.size());
     for (it = readers_.begin(); it != readers_.end(); it++) {
-        Status st = (*it)->Close();
-        if (st != kOk) {
-            status = st;
-            err_file_ = (*it)->GetFileName();
-            break;
-        }
+		SortFileReader* reader = *it;
+		pool.AddTask(boost::bind(&MergeFileReader::CloseReader, this, reader, st));
     }
+	pool.Stop(true);
+	LOG(INFO, "wait readers close done");
+	status = *st;
+	delete st;
     return status;
 }
 
@@ -75,12 +102,12 @@ SortFileReader::Iterator* MergeFileReader::Scan(const std::string& start_key, co
     std::vector<SortFileReader::Iterator*>* iters = new std::vector<SortFileReader::Iterator*>();
     std::vector<SortFileReader*>::iterator it;
     ThreadPool pool;
+	LOG(INFO, "wait for iterators init...");
     for (it = readers_.begin(); it != readers_.end(); it++) {
         SortFileReader * const& reader = *it;
         pool.AddTask(boost::bind(&MergeFileReader::AddIter, this, iters, reader, start_key, end_key));
     }
-    LOG(INFO, "wait for iterators init...");
-    pool.Stop(true);
+	pool.Stop(true);
     LOG(INFO, "all iterators done. #%d", iters->size());
     MergeIterator* merge_it = new MergeIterator(*iters, this);
     delete iters;
