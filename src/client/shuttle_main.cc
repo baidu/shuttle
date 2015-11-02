@@ -69,6 +69,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\tshuttle kill <jobid>\n"
         "\tshuttle list\n"
         "\tshuttle status <jobid>\n"
+        "\tshuttle monitor <jobid>\n"
         "Options:\n"
         "\t-h  --help\t\t\tShow this information\n"
         "\t-a  --all\t\t\tConsider finished and dead jobs in status and list operation\n"
@@ -417,6 +418,62 @@ static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance 
     printf("%s\n", tp.ToString().c_str());
 }
 
+static int MonitorJob() {
+    std::string master_endpoint = GetMasterAddr();
+    if (master_endpoint.empty()) {
+        fprintf(stderr, "fail to get master endpoint\n");
+        return -1;
+    }
+    if (config::param.empty()) {
+        fprintf(stderr, "job id is required\n");
+        return -1;
+    }
+    if (config::param[0] == '-') {
+        fprintf(stderr, "invalid flag detected\n");
+        return -1;
+    }
+    ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
+    done = true;
+    while (true) {
+        ::baidu::shuttle::sdk::JobInstance job;
+        std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
+        bool ok = shuttle->ShowJob(config::param, job, tasks);
+        if (!ok) {
+            fprintf(stderr, "lost connection with master\n");
+            sleep(5);
+            continue;
+        }
+        switch (job.state) {
+        case ::baidu::shuttle::sdk::kPending:
+            printf("\rjob pending...");
+            fflush(stdout);
+            break;
+        case ::baidu::shuttle::sdk::kRunning:
+            printf("\r\t\t\t\t\t\t\t\t\t\t\t");
+            printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running",
+                    job.map_stat.completed, job.map_stat.total, job.map_stat.running,
+                    job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
+            fflush(stdout);
+            break;
+        case ::baidu::shuttle::sdk::kCompleted:
+            printf("\r\t\t\t\t\t\t\t\t\t\t\t");
+            printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                    job.map_stat.completed, job.map_stat.total, job.map_stat.running,
+                    job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
+            printf("job `%s' has completed\n", job.desc.name.c_str());
+            return 0;
+        case ::baidu::shuttle::sdk::kFailed:
+        case ::baidu::shuttle::sdk::kKilled:
+            fprintf(stderr, "\njob `%s' is failed\n", job.desc.name.c_str());
+            delete shuttle;
+            return -1;
+        }
+        sleep(2);
+    }
+    delete shuttle;
+    return 0;
+}
+
 static int SubmitJob() {
     std::string master_endpoint = GetMasterAddr();
     if (master_endpoint.empty()) {
@@ -493,6 +550,7 @@ static int SubmitJob() {
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);
+    delete shuttle;
     done = true;
     if (!ok) {
         fprintf(stderr, "submit job failed\n");
@@ -502,42 +560,8 @@ static int SubmitJob() {
     if (config::immediate_return) {
         return 0;
     }
-    while (true) {
-        ::baidu::shuttle::sdk::JobInstance job;
-        std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
-        bool ok = shuttle->ShowJob(jobid, job, tasks);
-        if (!ok) {
-            fprintf(stderr, "lost connection with master\n");
-            sleep(5);
-            continue;
-        }
-        switch (job.state) {
-        case ::baidu::shuttle::sdk::kPending:
-            printf("\rjob pending...");
-            fflush(stdout);
-            break;
-        case ::baidu::shuttle::sdk::kRunning:
-            printf("\r\t\t\t\t\t\t\t\t\t\t\t");
-            printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running",
-                    job.map_stat.completed, job.map_stat.total, job.map_stat.running,
-                    job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
-            fflush(stdout);
-            break;
-        case ::baidu::shuttle::sdk::kCompleted:
-            printf("\r\t\t\t\t\t\t\t\t\t\t\t");
-            printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
-                    job.map_stat.completed, job.map_stat.total, job.map_stat.running,
-                    job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
-            printf("job `%s' has completed\n", job.desc.name.c_str());
-            return 0;
-        case ::baidu::shuttle::sdk::kFailed:
-        case ::baidu::shuttle::sdk::kKilled:
-            fprintf(stderr, "\njob `%s' is failed\n", job.desc.name.c_str());
-            return -1;
-        }
-        sleep(2);
-    }
-    return 0;
+    config::param = jobid;
+    return MonitorJob();
 }
 
 static int UpdateJob() {
@@ -558,6 +582,7 @@ static int UpdateJob() {
 
     bool ok = shuttle->UpdateJob(config::param, config::job_priority,
                                  config::map_capacity, config::reduce_capacity);
+    delete shuttle;
     done = true;
     if (!ok) {
         fprintf(stderr, "update job failed\n");
@@ -583,6 +608,7 @@ static int KillJob() {
     ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
 
     bool ok = shuttle->KillJob(config::param);
+    delete shuttle;
     done = true;
     if (!ok) {
         fprintf(stderr, "kill job failed\n");
@@ -601,6 +627,7 @@ static int ListJobs() {
 
     std::vector< ::baidu::shuttle::sdk::JobInstance > jobs;
     bool ok = shuttle->ListJobs(jobs, config::display_all);
+    delete shuttle;
     done = true;
     if (!ok) {
         fprintf(stderr, "list job failed\n");
@@ -629,6 +656,7 @@ static int ShowJob() {
     ::baidu::shuttle::sdk::JobInstance job;
     std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
     bool ok = shuttle->ShowJob(config::param, job, tasks, config::display_all);
+    delete shuttle;
     done = true;
     if (!ok) {
         fprintf(stderr, "show job status failed\n");
@@ -686,6 +714,8 @@ int main(int argc, char* argv[]) {
         return ListJobs();
     } else if (!strcmp(argv[1], "status")) {
         return ShowJob();
+    } else if (!strcmp(argv[1], "monitor")) {
+        return MonitorJob();
     } else {
         fprintf(stderr, "unknown op: %s\n", argv[1]);
         fprintf(stderr, "  use -h/--help for more introduction\n");
