@@ -25,8 +25,6 @@ DECLARE_int32(timeout_bound);
 DECLARE_int32(replica_num);
 DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
-DECLARE_int32(reduce_begin);
-DECLARE_int32(reduce_begin_percent);
 DECLARE_int32(retry_bound);
 DECLARE_int32(blind_predict_num);
 DECLARE_string(nexus_server_list);
@@ -130,13 +128,6 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     temp = reduce_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
     if (reduce_end_game_begin_ < temp) {
         reduce_end_game_begin_ = temp;
-    }
-    reduce_begin_ = sum_of_map - FLAGS_reduce_begin;
-    if (reduce_begin_ < sum_of_map / 2) {
-        reduce_begin_ = sum_of_map * FLAGS_reduce_begin_percent / 100;
-    }
-    if (reduce_begin_ == 0) {
-        ++ reduce_begin_;
     }
 }
 
@@ -388,7 +379,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             map_completed_ ++;
             LOG(INFO, "complete a map task(%d/%d): %s",
                     map_completed_, map_manager_->SumOfItem(), job_id_.c_str());
-            if (map_completed_ == reduce_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
+            if (map_completed_ == map_end_game_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
                 LOG(INFO, "map phrase nearly ends, pull up reduce tasks: %s", job_id_.c_str());
                 reduce_ = new Gru(galaxy_, &job_descriptor_, job_id_, kReduce);
                 if (reduce_->Start() != kOk) {
