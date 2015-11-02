@@ -93,6 +93,8 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_input_format((InputFormat)job_desc.input_format);
     job->set_output_format((OutputFormat)job_desc.output_format);
     job->set_pipe_style((PipeStyle)job_desc.pipe_style);
+    job->set_map_allow_duplicates(job_desc.map_allow_duplicates);
+    job->set_reduce_allow_duplicates(job_desc.reduce_allow_duplicates);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, rpc_timeout_, 1);
@@ -201,6 +203,8 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
     job.desc.input_format = (sdk::InputFormat)desc.input_format();
     job.desc.output_format = (sdk::OutputFormat)desc.output_format();
     job.desc.pipe_style = (sdk::PipeStyle)desc.pipe_style();
+    job.desc.map_allow_duplicates = desc.map_allow_duplicates();
+    job.desc.reduce_allow_duplicates = desc.reduce_allow_duplicates();
 
     job.jobid = joboverview.jobid();
     job.state = (sdk::JobState)joboverview.state();
@@ -288,6 +292,8 @@ bool ShuttleImpl::ListJobs(std::vector<sdk::JobInstance>& jobs,
         job.desc.input_format = (sdk::InputFormat)desc.input_format();
         job.desc.output_format = (sdk::OutputFormat)desc.output_format();
         job.desc.pipe_style = (sdk::PipeStyle)desc.pipe_style();
+        job.desc.map_allow_duplicates = desc.map_allow_duplicates();
+        job.desc.reduce_allow_duplicates = desc.reduce_allow_duplicates();
 
         job.jobid = it->jobid();
         job.state = (sdk::JobState)it->state();
