@@ -354,10 +354,10 @@ void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
                 );
         log_name = output_file_name;
     }
-    FileSystem* fs = FileSystem::CreateInfHdfs();
-    boost::scoped_ptr<FileSystem> fs_guard(fs);
     FileSystem::Param param;
     FillParam(param, task);
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    boost::scoped_ptr<FileSystem> fs_guard(fs);
     if (fs->Exist(work_dir) && fs->Open(log_name, param, kWriteFile)) {
         FILE* reporter = popen("ls -tr | grep -P 'stdout_|stderr_|\\.log' | "
                                "while read f_name ;do  echo $f_name && cat $f_name; done | tail -20000", "r");
