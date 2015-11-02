@@ -126,6 +126,9 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     if (map_end_game_begin_ < temp) {
         map_end_game_begin_ = temp;
     }
+    if (reduce_manager_ == NULL) {
+        return;
+    }
     reduce_end_game_begin_ = reduce_manager_->SumOfItem() - FLAGS_replica_begin;
     temp = reduce_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
     if (reduce_end_game_begin_ < temp) {

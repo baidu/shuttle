@@ -59,6 +59,7 @@ Status Gru::Start() {
     minion.source_type = "kSourceTypeFTP";
     minion.start_cmd = ss.str().c_str();
     minion.requirement = galaxy_job.pod.requirement;
+    minion.mem_isolation_type = "kMemIsolationCgroup";
     galaxy_job.pod.tasks.push_back(minion);
     std::string minion_id;
     if (galaxy_->SubmitJob(galaxy_job, &minion_id)) {
