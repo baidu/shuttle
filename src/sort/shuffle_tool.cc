@@ -27,6 +27,7 @@ DEFINE_string(dfs_port, "", "port of dfs master");
 DEFINE_string(dfs_user, "", "user name of dfs master");
 DEFINE_string(dfs_password, "", "password of dfs master");
 DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
+DEFINE_bool(skip_merge, false, "whether skip merge phase");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -228,7 +229,7 @@ int main(int argc, char* argv[]) {
     if (FLAGS_total == 0 ) {
         LOG(FATAL, "invalid map task total");
     }    
-    while ((int32_t)g_merged.size() < FLAGS_total) {
+    while (!FLAGS_skip_merge && (int32_t)g_merged.size() < FLAGS_total) {
         std::vector<std::string> maps_to_merge;
         CollectFilesToMerge(&maps_to_merge);
         if (maps_to_merge.empty()) {

@@ -429,7 +429,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             failed_count_[cur->resource_no] = failed_count_[cur->resource_no] + 1;
             if (failed_count_[cur->resource_no] >= FLAGS_retry_bound) {
                 LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
+                mu_.Unlock(); 
                 master_->RetractJob(job_id_);
+                mu_.Lock();
                 state_ = kFailed;
             }
             break;
@@ -524,7 +526,9 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             failed_count_[cur->resource_no] = failed_count_[cur->resource_no] + 1;
             if (failed_count_[cur->resource_no] >= FLAGS_retry_bound) {
                 LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
+                mu_.Unlock();
                 master_->RetractJob(job_id_);
+                mu_.Lock();
                 state_ = kFailed;
             }
             break;

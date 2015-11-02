@@ -14,7 +14,7 @@ namespace baidu {
 namespace shuttle {
 
 static const int64_t default_additional_map_memory = 1024l * 1024 * 1024;
-static const int64_t default_additional_reduce_memory = 1024l * 1024 * 1024;
+static const int64_t default_additional_reduce_memory = 1500l * 1024 * 1024;
 static const int default_additional_millicores = 1000;
 
 int Gru::additional_millicores = default_additional_millicores;
