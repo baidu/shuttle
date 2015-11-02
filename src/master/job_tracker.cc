@@ -255,6 +255,10 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
     }
     ResourceItem* cur = map_manager_->GetItem();
     if (cur == NULL) {
+        if (!predict_assign_) {
+            LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+            return NULL;
+        }
         MutexLock lock(&alloc_mu_);
         while (!map_slug_.empty() &&
                map_manager_->CheckCertainItem(map_slug_.front())->status
@@ -271,13 +275,13 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
             LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
             return NULL;
         }
-    } else if (cur->no >= map_end_game_begin_) {
+    } else if (predict_assign_ && cur->no >= map_end_game_begin_) {
         MutexLock lock(&alloc_mu_);
         for (int i = 0; i < FLAGS_replica_num; ++i) {
             map_slug_.push(cur->no);
         }
     }
-    if (cur->no == map_end_game_begin_) {
+    if (predict_assign_ && cur->no == map_end_game_begin_) {
         monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
     }
     AllocateItem* alloc = new AllocateItem();
@@ -303,6 +307,10 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
     }
     IdItem* cur = reduce_manager_->GetItem();
     if (cur == NULL) {
+        if (!predict_assign_) {
+            LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+            return NULL;
+        }
         MutexLock lock(&alloc_mu_);
         while (!reduce_slug_.empty() &&
                reduce_manager_->CheckCertainItem(reduce_slug_.front())->status
@@ -319,13 +327,13 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
             LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
             return NULL;
         }
-    } else if (cur->no >= reduce_end_game_begin_) {
+    } else if (predict_assign_ && cur->no >= reduce_end_game_begin_) {
         MutexLock lock(&alloc_mu_);
         for (int i = 0; i < FLAGS_replica_num; ++i) {
             reduce_slug_.push(cur->no);
         }
     }
-    if (cur->no == reduce_end_game_begin_) {
+    if (predict_assign_ && cur->no == reduce_end_game_begin_) {
         monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
     }
     AllocateItem* alloc = new AllocateItem();
@@ -400,7 +408,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     failed_count_.resize(0);
                     failed_count_.resize(reduce_manager_->SumOfItem(), 0);
                     mu_.Unlock();
-                    {
+                    if (predict_assign_) {
                         MutexLock lock(&alloc_mu_);
                         std::vector<AllocateItem*> rest;
                         while (!time_heap_.empty()) {
@@ -415,7 +423,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                         }
                     }
                     mu_.Lock();
-                    monitor_.CancelTask(monitor_id_);
+                    if (predict_assign_) {
+                        monitor_.CancelTask(monitor_id_);
+                    }
                     if (map_ != NULL) {
                         LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
                         delete map_;
@@ -442,6 +452,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     }
     cur->period = std::time(NULL) - cur->alloc_time;
     if (state != kTaskCompleted) {
+        return kOk;
+    }
+    if (!predict_assign_) {
         return kOk;
     }
     Minion_Stub* stub = NULL;
@@ -540,6 +553,9 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     }
     cur->period = std::time(NULL) - cur->alloc_time;
     if (state != kTaskCompleted) {
+        return kOk;
+    }
+    if (!predict_assign_) {
         return kOk;
     }
     Minion_Stub* stub = NULL;
