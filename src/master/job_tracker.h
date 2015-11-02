@@ -115,7 +115,6 @@ private:
     // Reduce resource
     Gru* reduce_;
     IdManager* reduce_manager_;
-    int reduce_begin_;
     int reduce_completed_;
     int reduce_end_game_begin_;
     // For monitoring
