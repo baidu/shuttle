@@ -61,7 +61,7 @@ message DfsInfo {
 enum InputFormat {
     kTextInput = 0;
     kBinaryInput = 1;
-    kNlineInput = 2;
+    kNLineInput = 2;
 }
 
 enum OutputFormat {
@@ -99,6 +99,8 @@ message JobDescriptor {
     optional InputFormat input_format = 22;
     optional OutputFormat output_format = 23;
     optional PipeStyle pipe_style = 24;
+    optional bool map_allow_duplicates = 25 [default = true];
+    optional bool reduce_allow_duplicates = 26 [default = true];
 }
 
 message TaskInput {

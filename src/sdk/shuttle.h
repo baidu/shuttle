@@ -46,7 +46,8 @@ enum PartitionMethod {
 
 enum InputFormat {
     kTextInput = 0,
-    kBinaryInput = 1
+    kBinaryInput = 1,
+    kNLineInput = 2
 };
 
 enum OutputFormat {
@@ -105,6 +106,8 @@ struct JobDescription {
     InputFormat input_format;
     OutputFormat output_format;
     PipeStyle pipe_style;
+    bool map_allow_duplicates;
+    bool reduce_allow_duplicates;
 };
 
 struct  TaskInstance {

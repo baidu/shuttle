@@ -59,6 +59,8 @@ std::string output_host;
 std::string output_port;
 std::string output_user;
 std::string output_password;
+bool map_speculative_exec = true;
+bool reduce_speculative_exec = true;
 
 }
 
@@ -100,6 +102,8 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.output.port\tSpecify the port, ditto\n"
         "\t  mapred.job.output.user\tSpecify the user, ditto\n"
         "\t  mapred.job.output.password\tSpecify the password, ditto\n"
+        "\t  mapred.map.tasks.speculative.execution\tAllow if shuttle can speculatively decide attempts of a map\n"
+        "\t  mapred.reduce.tasks.speculative.execution\tDitto on reduce tasks\n"
         "\t  map.key.field.separator\tSpecify the separator for key field in shuffling\n"
         "\t  stream.num.map.output.key.fields\tSpecify the output fields number of key after mapper\n"
         "\t  num.key.fields.for.partition\tSpecify the first n fields in key in partitioning\n"
@@ -144,6 +148,8 @@ ParseInputFormat(const std::string& input_format) {
     } else if (boost::starts_with(input_format, "Binary") ||
             boost::starts_with(input_format, "SequenceFile")) {
         return ::baidu::shuttle::sdk::kBinaryInput;
+    } else if (boost::starts_with(input_format, "NLine")) {
+        return ::baidu::shuttle::sdk::kNLineInput;
     }
     return ::baidu::shuttle::sdk::kTextInput;
 }
@@ -157,6 +163,17 @@ ParseOutputFormat(const std::string& output_format) {
         return ::baidu::shuttle::sdk::kBinaryOutput;
     }
     return ::baidu::shuttle::sdk::kTextOutput;
+}
+
+static bool ParseBooleanValue(const std::string& boolean) {
+    if (boost::iequals(boolean, "true") ||
+            boost::iequals(boolean, "1")) {
+        return true;
+    } else if (boost::iequals(boolean, "false") ||
+            boost::iequals(boolean, "0")) {
+        return false;
+    }
+    return true;
 }
 
 static int ParseCommandLineFlags(int* argc, char***argv) {
@@ -328,6 +345,12 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "num.key.fields.for.partition=")) {
             config::partition_fields_num = boost::lexical_cast<int>(
                     it->substr(strlen("num.key.fields.for.partition=")));
+        } else if (boost::starts_with(*it, "mapred.map.tasks.speculative.execution=")) {
+            config::map_speculative_exec =
+                ParseBooleanValue(it->substr(strlen("mapred.map.tasks.speculative.execution=")));
+        } else if (boost::starts_with(*it, "mapred.reduce.tasks.speculative.execution=")) {
+            config::reduce_speculative_exec =
+                ParseBooleanValue(it->substr(strlen("mapred.reduce.tasks.speculative.execution=")));
         }
     }
 }
@@ -547,6 +570,8 @@ static int SubmitJob() {
     job_desc.input_format = config::input_format;
     job_desc.output_format = config::output_format;
     job_desc.pipe_style = config::pipe_style;
+    job_desc.map_allow_duplicates = config::map_speculative_exec;
+    job_desc.reduce_allow_duplicates = config::reduce_speculative_exec;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);

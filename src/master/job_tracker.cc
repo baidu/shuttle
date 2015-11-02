@@ -37,7 +37,8 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       master_(master),
                       galaxy_(galaxy_sdk),
                       state_(kPending),
-                      predict_assign_(true),
+                      map_allow_duplicates_(true),
+                      reduce_allow_duplicates_(true),
                       map_(NULL),
                       map_manager_(NULL),
                       map_completed_(0),
@@ -101,7 +102,11 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
         input_param["host"] = input_dfs.host();
         input_param["port"] = input_dfs.port();
     }
-    map_manager_ = new ResourceManager(inputs, input_param);
+    if (job_descriptor_.input_format() == kNLineInput) {
+        map_manager_ = new NLineResourceManager(inputs, input_param);
+    } else {
+        map_manager_ = new ResourceManager(inputs, input_param);
+    }
     int sum_of_map = map_manager_->SumOfItem();
 
     job_descriptor_.set_map_total(sum_of_map);
@@ -132,6 +137,8 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     if (reduce_end_game_begin_ < temp) {
         reduce_end_game_begin_ = temp;
     }
+    map_allow_duplicates_ = job_descriptor_.map_allow_duplicates();
+    reduce_allow_duplicates_ = job_descriptor_.reduce_allow_duplicates();
 }
 
 JobTracker::~JobTracker() {
@@ -249,7 +256,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
     }
     ResourceItem* cur = map_manager_->GetItem();
     if (cur == NULL) {
-        if (!predict_assign_) {
+        if (!map_allow_duplicates_) {
             LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
             return NULL;
         }
@@ -269,13 +276,14 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
             LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
             return NULL;
         }
-    } else if (predict_assign_ && cur->no >= map_end_game_begin_) {
+    } else if (map_allow_duplicates_ && cur->no >= map_end_game_begin_) {
         MutexLock lock(&alloc_mu_);
         for (int i = 0; i < FLAGS_replica_num; ++i) {
             map_slug_.push(cur->no);
         }
     }
-    if (predict_assign_ && cur->no == map_end_game_begin_) {
+    if (map_allow_duplicates_ && cur->no == map_end_game_begin_) {
+        // TODO Pull up monitor here may conflict with the reduce no-allow-duplicates policy
         monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
     }
     AllocateItem* alloc = new AllocateItem();
@@ -301,7 +309,7 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
     }
     IdItem* cur = reduce_manager_->GetItem();
     if (cur == NULL) {
-        if (!predict_assign_) {
+        if (!reduce_allow_duplicates_) {
             LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
             return NULL;
         }
@@ -321,13 +329,13 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
             LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
             return NULL;
         }
-    } else if (predict_assign_ && cur->no >= reduce_end_game_begin_) {
+    } else if (reduce_allow_duplicates_ && cur->no >= reduce_end_game_begin_) {
         MutexLock lock(&alloc_mu_);
         for (int i = 0; i < FLAGS_replica_num; ++i) {
             reduce_slug_.push(cur->no);
         }
     }
-    if (predict_assign_ && cur->no == reduce_end_game_begin_) {
+    if (reduce_allow_duplicates_ && cur->no == reduce_end_game_begin_) {
         monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
     }
     AllocateItem* alloc = new AllocateItem();
@@ -402,7 +410,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     failed_count_.resize(0);
                     failed_count_.resize(reduce_manager_->SumOfItem(), 0);
                     mu_.Unlock();
-                    if (predict_assign_) {
+                    if (map_allow_duplicates_) {
                         MutexLock lock(&alloc_mu_);
                         std::vector<AllocateItem*> rest;
                         while (!time_heap_.empty()) {
@@ -417,7 +425,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                         }
                     }
                     mu_.Lock();
-                    if (predict_assign_) {
+                    if (map_allow_duplicates_) {
                         monitor_.CancelTask(monitor_id_);
                     }
                     if (map_ != NULL) {
@@ -448,7 +456,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     if (state != kTaskCompleted) {
         return kOk;
     }
-    if (!predict_assign_) {
+    if (!map_allow_duplicates_) {
         return kOk;
     }
     Minion_Stub* stub = NULL;
@@ -549,7 +557,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     if (state != kTaskCompleted) {
         return kOk;
     }
-    if (!predict_assign_) {
+    if (!reduce_allow_duplicates_) {
         return kOk;
     }
     Minion_Stub* stub = NULL;

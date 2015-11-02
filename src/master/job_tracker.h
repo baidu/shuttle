@@ -98,7 +98,8 @@ private:
     std::string job_id_;
     JobState state_;
     // For non-duplication use
-    bool predict_assign_;
+    bool map_allow_duplicates_;
+    bool reduce_allow_duplicates_;
     // Resource allocation
     Mutex alloc_mu_;
     std::list<AllocateItem*> allocation_table_;
