@@ -2,8 +2,10 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/bind.hpp>
 #include <gflags/gflags.h>
 #include "logging.h"
+#include "thread_pool.h"
 #include "sort/input_reader.h"
 #include "common/tools_util.h"
 
@@ -11,6 +13,8 @@ DECLARE_int32(input_block_size);
 
 namespace baidu {
 namespace shuttle {
+
+static const int parallel_level = 5;
 
 IdManager::IdManager(int n) {
     for (int i = 0; i < n; ++i) {
@@ -124,19 +128,28 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
     }
     fs_ = FileSystem::CreateInfHdfs(param);
     std::vector<FileInfo> files;
-    std::string path;
+    ::baidu::common::ThreadPool tp(parallel_level);
+    std::vector<FileInfo> sub_files[parallel_level];
+    int i = 0;
     for (std::vector<std::string>::const_iterator it = input_files.begin();
             it != input_files.end(); ++it) {
+        std::string path;
         if (boost::starts_with(input_files[0], "hdfs://")) {
             ParseHdfsAddress(*it, NULL, NULL, &path);
         } else {
             path = *it;
         }
         if (path.find('*') == std::string::npos) {
-            fs_->List(path, &files);
+            tp.AddTask(boost::bind(&FileSystem::List, fs_, path, &sub_files[i]));
         } else {
-            fs_->Glob(path, &files);
+            tp.AddTask(boost::bind(&FileSystem::Glob, fs_, path, &sub_files[i]));
         }
+        i = (i + 1) % parallel_level;
+    }
+    tp.Stop(true);
+    for (int i = 0; i < parallel_level; ++i) {
+        files.reserve(files.size() + sub_files[i].size());
+        files.insert(files.end(), sub_files[i].begin(), sub_files[i].end());
     }
     int counter = 0;
     const int64_t block_size = FLAGS_input_block_size;

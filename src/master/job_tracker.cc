@@ -283,7 +283,6 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
         }
     }
     if (map_allow_duplicates_ && cur->no == map_end_game_begin_) {
-        // TODO Pull up monitor here may conflict with the reduce no-allow-duplicates policy
         monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
     }
     AllocateItem* alloc = new AllocateItem();
