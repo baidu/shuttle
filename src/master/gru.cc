@@ -35,6 +35,7 @@ Status Gru::Start() {
     galaxy_job.priority = "kOnline";
     galaxy_job.replica = job_->map_capacity();
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
+    galaxy_job.pod.version = "1.0.0";
     galaxy_job.pod.requirement.millicores = job_->millicores() + additional_millicores;
     galaxy_job.pod.requirement.memory = job_->memory() +
         ((mode_ == kReduce) ? additional_reduce_memory : additional_map_memory);
