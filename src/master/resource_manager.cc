@@ -285,7 +285,7 @@ NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input
             item->allocated = 0;
             item->input_file = it->name;
             item->offset = offset;
-            item->size = line.size();
+            item->size = line.size() + 1;
             offset += item->size;
             resource_pool_.push_back(item);
         }
