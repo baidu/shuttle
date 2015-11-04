@@ -283,7 +283,6 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
         }
     }
     if (map_allow_duplicates_ && cur->no == map_end_game_begin_) {
-        // TODO Pull up monitor here may conflict with the reduce no-allow-duplicates policy
         monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
     }
     AllocateItem* alloc = new AllocateItem();
@@ -466,7 +465,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     MutexLock lock(&alloc_mu_);
     for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
-        if ((*it)->resource_no == no && (*it)->attempt != attempt) {
+        if ((*it)->is_map && (*it)->resource_no == no && (*it)->attempt != attempt) {
             rpc_client_->GetStub((*it)->endpoint, &stub);
             boost::scoped_ptr<Minion_Stub> stub_guard(stub);
             request.set_task_id((*it)->resource_no);
