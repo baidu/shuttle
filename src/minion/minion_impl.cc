@@ -9,6 +9,7 @@
 DECLARE_string(master_nexus_path);
 DECLARE_string(nexus_addr);
 DECLARE_string(work_mode);
+DECLARE_bool(kill_task);
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -31,23 +32,24 @@ MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
     } else if (FLAGS_work_mode == "map-only") {
         executor_ = Executor::GetExecutor(kMapOnly);
         work_mode_ = kMapOnly;
-    } else if (FLAGS_work_mode == "kill") {
-        galaxy::ins::sdk::SDKError err;
-        ins_.Get(FLAGS_master_nexus_path, &master_endpoint_, &err);
-        if (err == galaxy::ins::sdk::kOK) {
-            Master_Stub* stub;
-            rpc_client_.GetStub(master_endpoint_, &stub);
-            if (stub != NULL) {
-                boost::scoped_ptr<Master_Stub> stub_guard(stub);
-                CheckUnfinishedTask(stub);
-                _exit(0);
-            }
-        } else {
-            LOG(WARNING, "fail to connect nexus");
-        }
     } else {
         LOG(FATAL, "unkown work mode: %s", FLAGS_work_mode.c_str());
         abort();
+    }
+    if (FLAGS_kill_task) {
+       galaxy::ins::sdk::SDKError err;
+       ins_.Get(FLAGS_master_nexus_path, &master_endpoint_, &err);
+       if (err == galaxy::ins::sdk::kOK) {
+           Master_Stub* stub;
+           rpc_client_.GetStub(master_endpoint_, &stub);
+           if (stub != NULL) {
+               boost::scoped_ptr<Master_Stub> stub_guard(stub);
+               CheckUnfinishedTask(stub);
+               _exit(0);
+           }
+       } else {
+           LOG(WARNING, "fail to connect nexus");
+       }
     }
     cur_task_id_ = -1;
     cur_attempt_id_ = -1;

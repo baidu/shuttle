@@ -5,3 +5,4 @@ DEFINE_string(jobid, "", "the job id that minion works on");
 DEFINE_string(nexus_addr, "", "nexus server list");
 DEFINE_string(master_nexus_path, "/shuttle/master", "master address on nexus");
 DEFINE_string(work_mode, "map", "there are 3 kinds: map, reduce, map-only");
+DEFINE_bool(kill_task, false, "kill unfinished task");
