@@ -436,7 +436,6 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             }
             break;
         case kTaskFailed:
-            map_manager_->ReturnBackItem(cur->resource_no);
             failed_count_[cur->resource_no] = failed_count_[cur->resource_no] + 1;
             if (failed_count_[cur->resource_no] >= FLAGS_retry_bound) {
                 LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
@@ -445,9 +444,10 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 mu_.Lock();
                 state_ = kFailed;
             }
+        case kTaskKilled:
+            map_manager_->ReturnBackItem(cur->resource_no);
             break;
-        case kTaskKilled: break;
-        case kTaskCanceled: break; // TODO Think carefully
+        case kTaskCanceled: break;
         default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
         }
     }
@@ -536,7 +536,6 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             }
             break;
         case kTaskFailed:
-            reduce_manager_->ReturnBackItem(cur->resource_no);
             failed_count_[cur->resource_no] = failed_count_[cur->resource_no] + 1;
             if (failed_count_[cur->resource_no] >= FLAGS_retry_bound) {
                 LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
@@ -545,10 +544,10 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 mu_.Lock();
                 state_ = kFailed;
             }
+        case kKilled:
+            reduce_manager_->ReturnBackItem(cur->resource_no);
             break;
-            break;
-        case kKilled: break;
-        case kTaskCanceled: break; // TODO Think carefully
+        case kTaskCanceled: break;
         default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
         }
     }
