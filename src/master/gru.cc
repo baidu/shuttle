@@ -55,10 +55,10 @@ Status Gru::Start() {
        << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
        << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_);
     std::stringstream ss_stop;
-    ss_stop << "./minion -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+    ss_stop << "source hdfs_env.sh; ./minion -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
             << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
             << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_)
-            << " -kill-task";
+            << " -kill_task";
     ::baidu::galaxy::TaskDescription minion;
     minion.offset = 1;
     minion.binary = FLAGS_minion_path;
