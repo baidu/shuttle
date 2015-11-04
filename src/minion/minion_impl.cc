@@ -31,6 +31,20 @@ MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
     } else if (FLAGS_work_mode == "map-only") {
         executor_ = Executor::GetExecutor(kMapOnly);
         work_mode_ = kMapOnly;
+    } else if (FLAGS_work_mode == "kill") {
+        galaxy::ins::sdk::SDKError err;
+        ins_.Get(FLAGS_master_nexus_path, &master_endpoint_, &err);
+        if (err == galaxy::ins::sdk::kOK) {
+            Master_Stub* stub;
+            rpc_client_.GetStub(master_endpoint_, &stub);
+            if (stub != NULL) {
+                boost::scoped_ptr<Master_Stub> stub_guard(stub);
+                CheckUnfinishedTask(stub);
+                _exit(0);
+            }
+        } else {
+            LOG(WARNING, "fail to connect nexus");
+        }
     } else {
         LOG(FATAL, "unkown work mode: %s", FLAGS_work_mode.c_str());
         abort();
@@ -197,7 +211,7 @@ void MinionImpl::CheckUnfinishedTask(Master_Stub* master_stub) {
         fn_request.set_jobid(jobid_);
         fn_request.set_task_id(task_id);
         fn_request.set_attempt_id(attempt_id);
-        fn_request.set_task_state(kTaskFailed);
+        fn_request.set_task_state(kTaskKilled);
         fn_request.set_endpoint(endpoint_);
         fn_request.set_work_mode(work_mode_);
         bool ok = rpc_client_.SendRequest(master_stub, &Master_Stub::FinishTask,

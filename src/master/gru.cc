@@ -54,11 +54,16 @@ Status Gru::Start() {
        << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
        << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
        << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_);
+    std::stringstream ss_stop;
+    ss_stop << "./minion -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+            << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
+            << " -work_mode=kill";
     ::baidu::galaxy::TaskDescription minion;
     minion.offset = 1;
     minion.binary = FLAGS_minion_path;
     minion.source_type = "kSourceTypeFTP";
     minion.start_cmd = ss.str().c_str();
+    minion.stop_cmd = ss_stop.str().c_str();
     minion.requirement = galaxy_job.pod.requirement;
     minion.mem_isolation_type = "kMemIsolationCgroup";
     galaxy_job.pod.tasks.push_back(minion);
