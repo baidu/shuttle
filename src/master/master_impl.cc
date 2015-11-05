@@ -212,10 +212,11 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
+        Status assign_status;
         if (request->work_mode() == kReduce) {
-            IdItem* resource = jobtracker->AssignReduce(request->endpoint());
+            IdItem* resource = jobtracker->AssignReduce(request->endpoint(), &assign_status);
+            response->set_status(assign_status);
             if (resource == NULL) {
-                response->set_status(kNoMore);
                 done->Run();
                 return;
             }
@@ -226,9 +227,9 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
             task->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
             delete resource;
         } else {
-            ResourceItem* resource = jobtracker->AssignMap(request->endpoint());
+            ResourceItem* resource = jobtracker->AssignMap(request->endpoint(), &assign_status);
+            response->set_status(assign_status);
             if (resource == NULL) {
-                response->set_status(kNoMore);
                 done->Run();
                 return;
             }
@@ -243,8 +244,6 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
             task->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
             delete resource;
         }
-
-        response->set_status(kOk); 
     } else {
         {
             MutexLock lock(&(dead_mu_));
