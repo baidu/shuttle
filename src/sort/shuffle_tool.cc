@@ -58,6 +58,7 @@ void FillParam(FileSystem::Param& param) {
 
 void CollectFilesToMerge(std::vector<std::string>* maps_to_merge) {
     assert(maps_to_merge);
+    std::vector<std::string> candidates;
     for (int i = 0; i < FLAGS_total; i++) {
         std::stringstream ss;
         ss << FLAGS_work_dir << "/map_" << i;
@@ -65,6 +66,11 @@ void CollectFilesToMerge(std::vector<std::string>* maps_to_merge) {
         if (g_merged.find(map_dir) != g_merged.end()) {
             continue;
         }
+        candidates.push_back(map_dir);
+    }
+    std::vector<std::string>::const_iterator it;
+    for (it = candidates.begin(); it != candidates.end(); it++) {
+        const std::string& map_dir = *it;
         if (g_fs->Exist(map_dir)) {
             LOG(INFO, "maps_to_merge: %s", map_dir.c_str());
             maps_to_merge->push_back(map_dir);
@@ -228,7 +234,7 @@ int main(int argc, char* argv[]) {
     g_fs = FileSystem::CreateInfHdfs(param);
     if (FLAGS_total == 0 ) {
         LOG(FATAL, "invalid map task total");
-    }    
+    }
     while (!FLAGS_skip_merge && (int32_t)g_merged.size() < FLAGS_total) {
         std::vector<std::string> maps_to_merge;
         CollectFilesToMerge(&maps_to_merge);
@@ -240,7 +246,6 @@ int main(int argc, char* argv[]) {
         if (maps_to_merge.size() >= (size_t)FLAGS_batch || 
             maps_to_merge.size() + g_merged.size() >= (size_t)FLAGS_total) {
             LOG(INFO, "try merge %d maps", maps_to_merge.size());
-            std::random_shuffle(maps_to_merge.begin(), maps_to_merge.end());
             MergeMapOutput(maps_to_merge);
         } else {
             LOG(INFO, "merged: %d, wait-for merge: %d", g_merged.size(), maps_to_merge.size());

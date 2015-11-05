@@ -14,7 +14,7 @@ namespace baidu {
 namespace shuttle {
 
 static const int64_t default_additional_map_memory = 1024l * 1024 * 1024;
-static const int64_t default_additional_reduce_memory = 1500l * 1024 * 1024;
+static const int64_t default_additional_reduce_memory = 2048l * 1024 * 1024;
 static const int default_additional_millicores = 1000;
 
 int Gru::additional_millicores = default_additional_millicores;
@@ -55,10 +55,10 @@ Status Gru::Start() {
        << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
        << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_);
     std::stringstream ss_stop;
-    ss_stop << "./minion -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+    ss_stop << "source hdfs_env.sh; ./minion -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
             << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
             << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_)
-            << " -kill-task";
+            << " -kill_task";
     ::baidu::galaxy::TaskDescription minion;
     minion.offset = 1;
     minion.binary = FLAGS_minion_path;

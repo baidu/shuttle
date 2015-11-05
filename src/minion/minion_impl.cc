@@ -10,6 +10,7 @@
 DECLARE_string(master_nexus_path);
 DECLARE_string(nexus_addr);
 DECLARE_string(work_mode);
+DECLARE_string(jobid);
 DECLARE_bool(kill_task);
 DECLARE_int32(suspend_time);
 
@@ -215,7 +216,7 @@ void MinionImpl::CheckUnfinishedTask(Master_Stub* master_stub) {
         ::baidu::shuttle::FinishTaskRequest fn_request;
         ::baidu::shuttle::FinishTaskResponse fn_response;
         LOG(WARNING, "found unfinished task: task_id: %d, attempt_id: %d", task_id, attempt_id);
-        fn_request.set_jobid(jobid_);
+        fn_request.set_jobid(FLAGS_jobid);
         fn_request.set_task_id(task_id);
         fn_request.set_attempt_id(attempt_id);
         fn_request.set_task_state(kTaskKilled);
