@@ -465,7 +465,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 break;
             }
             ++ map_completed_;
-            map_dismiss_minion_num_ = job_descriptor_.map_capacity() 
+            map_dismiss_minion_num_ = job_descriptor_.map_capacity() -
                 (job_descriptor_.map_total() - map_completed_) * FLAGS_left_percent / 100;
             LOG(INFO, "complete a map task(%d/%d): %s",
                     map_completed_, map_manager_->SumOfItem(), job_id_.c_str());
