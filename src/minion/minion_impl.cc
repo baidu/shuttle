@@ -138,6 +138,7 @@ void MinionImpl::Loop() {
         } else if (response.status() == kSuspend) {
             LOG(INFO, "minion will suspend for a while");
             sleep(FLAGS_suspend_time);
+            continue;
         } else if (response.status() != kOk) {
             LOG(FATAL, "invalid responst status: %s",
                 Status_Name(response.status()).c_str());
