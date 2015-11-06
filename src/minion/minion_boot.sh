@@ -34,12 +34,13 @@ DownloadUserTar() {
 		fi
 		(cd $cache_archive_dir && tar -xzvf *.tar.gz)
 	fi
-	./NfsShell get /disk/shuttle/${app_package} ${app_package}
+	local_package=`echo $app_package | awk -F"/" '{print $NF}'`
+	./NfsShell get /disk/shuttle/${app_package} ${local_package}
 	return $?	
 }
 
 ExtractUserTar() {
-	tar -xzvf ${app_package}
+	tar -xzvf ${local_package}
 	return $?
 }
 

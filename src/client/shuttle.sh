@@ -43,7 +43,7 @@ if [[ $1 == *streaming ]]; then
     done
 
     set -- "${params[@]}"
-    file_param=-file\ $packname
+    file_param=-file\ $timestamp/$packname
 
     rm -rf $packname
 fi
