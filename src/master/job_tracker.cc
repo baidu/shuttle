@@ -45,12 +45,14 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       map_completed_(0),
                       map_dismiss_minion_num_(0),
                       map_dismissed_(0),
+                      reduce_begin_(0),
                       reduce_(NULL),
                       reduce_manager_(NULL),
                       reduce_completed_(0),
                       reduce_dismiss_minion_num_(0),
                       reduce_dismissed_(0),
-                      monitor_(1),
+                      monitor_(NULL),
+                      reduce_monitoring_(false),
                       blind_predict_(0) {
     job_descriptor_.CopyFrom(job);
     job_id_ = GenerateJobId();
@@ -130,13 +132,14 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
 
     // For end game counter
     map_end_game_begin_ = sum_of_map - FLAGS_replica_begin;
-    int temp = sum_of_map * FLAGS_replica_begin_percent / 100;
-    if (map_end_game_begin_ < temp) {
+    int temp = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
+    if (map_end_game_begin_ > temp) {
         map_end_game_begin_ = temp;
     }
     if (reduce_manager_ == NULL) {
         return;
     }
+    reduce_begin_ = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
     reduce_end_game_begin_ = reduce_manager_->SumOfItem() - FLAGS_replica_begin;
     temp = reduce_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
     if (reduce_end_game_begin_ < temp) {
@@ -144,6 +147,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     }
     map_allow_duplicates_ = job_descriptor_.map_allow_duplicates();
     reduce_allow_duplicates_ = job_descriptor_.reduce_allow_duplicates();
+    monitor_ = new ThreadPool(1);
 }
 
 JobTracker::~JobTracker() {
@@ -238,7 +242,10 @@ Status JobTracker::Kill() {
             delete reduce_;
             reduce_ = NULL;
         }
-        monitor_.Stop(false);
+        if (monitor_ != NULL) {
+            delete monitor_;
+            monitor_ = NULL;
+        }
 
         if (state_ != kCompleted) {
             state_ = kKilled;
@@ -321,7 +328,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
         }
     }
     if (map_allow_duplicates_ && cur->no == map_end_game_begin_) {
-        monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
     }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
@@ -410,7 +417,8 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
         }
     }
     if (reduce_allow_duplicates_ && cur->no == reduce_end_game_begin_) {
-        monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+        reduce_monitoring_ = true;
     }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
@@ -454,6 +462,13 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     LOG(INFO, "finish a map task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     cur->state = state;
+    if (state == kTaskMoveOutputFailed) {
+        if (map_manager_->CheckCertainItem(cur->resource_no)->status != kResDone) {
+            cur->state = kTaskFailed;
+        } else {
+            cur->state = kTaskCanceled;
+        }
+    }
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -469,7 +484,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 (job_descriptor_.map_total() - map_completed_) * FLAGS_left_percent / 100;
             LOG(INFO, "complete a map task(%d/%d): %s",
                     map_completed_, map_manager_->SumOfItem(), job_id_.c_str());
-            if (map_completed_ == map_end_game_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
+            if (map_completed_ == reduce_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
                 LOG(INFO, "map phrase nearly ends, pull up reduce tasks: %s", job_id_.c_str());
                 reduce_ = new Gru(galaxy_, &job_descriptor_, job_id_, kReduce);
                 if (reduce_->Start() != kOk) {
@@ -505,7 +520,13 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     }
                     mu_.Lock();
                     if (map_allow_duplicates_) {
-                        monitor_.CancelTask(monitor_id_);
+                        if (monitor_ != NULL) {
+                            delete monitor_;
+                        }
+                        monitor_ = new ThreadPool(1);
+                        if (reduce_monitoring_) {
+                            monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+                        }
                     }
                     if (map_ != NULL) {
                         LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
@@ -589,6 +610,13 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     LOG(INFO, "finish a reduce task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     cur->state = state;
+    if (state == kTaskMoveOutputFailed) {
+        if (reduce_manager_->CheckCertainItem(cur->resource_no)->status != kResDone) {
+            cur->state = kTaskFailed;
+        } else {
+            cur->state = kTaskCanceled;
+        }
+    }
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -626,7 +654,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 mu_.Lock();
                 state_ = kFailed;
             }
-        case kKilled:
+        case kTaskKilled:
             reduce_manager_->ReturnBackItem(cur->resource_no);
             break;
         case kTaskCanceled: break;
@@ -769,7 +797,7 @@ void JobTracker::KeepMonitoring() {
         blind_predict_ = 0;
     }
     if (blind_predict_ >= FLAGS_blind_predict_num) {
-        monitor_id_ = monitor_.DelayTask(timeout * 1000,
+        monitor_->DelayTask(timeout * 1000,
                 boost::bind(&JobTracker::KeepMonitoring, this));
         return;
     }
@@ -802,7 +830,7 @@ void JobTracker::KeepMonitoring() {
         LOG(INFO, "[monitor] blind prediction: %d times left",
                 FLAGS_blind_predict_num - blind_predict_);
     }
-    monitor_id_ = monitor_.DelayTask(timeout * 1000,
+    monitor_->DelayTask(timeout * 1000,
             boost::bind(&JobTracker::KeepMonitoring, this));
     LOG(INFO, "[monitor] will now rest for %ds: %s", timeout, job_id_.c_str());
 }

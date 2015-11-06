@@ -68,7 +68,11 @@ IdItem* IdManager::GetCertainItem(int no) {
         cur->attempt ++;
         return new IdItem(*cur);
     }
-    LOG(WARNING, "this resource has not been allocated: %d", no);
+    if (cur->status == kResDone) {
+        LOG(INFO, "this resource has been done: %d", no);
+    } else {
+        LOG(WARNING, "this resource has not been allocated: %d", no);
+    }
     return NULL;
 }
 

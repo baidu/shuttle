@@ -116,6 +116,7 @@ private:
     int map_dismiss_minion_num_;
     int map_dismissed_;
     // Reduce resource
+    int reduce_begin_;
     Gru* reduce_;
     IdManager* reduce_manager_;
     int reduce_completed_;
@@ -123,8 +124,8 @@ private:
     int reduce_dismiss_minion_num_;
     int reduce_dismissed_;
     // For monitoring
-    ThreadPool monitor_;
-    int64_t monitor_id_;
+    ThreadPool* monitor_;
+    bool reduce_monitoring_;
     int blind_predict_;
     // To communicate with minion
     RpcClient* rpc_client_;
