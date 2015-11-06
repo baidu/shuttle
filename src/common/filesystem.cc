@@ -8,6 +8,8 @@
 #include "filesystem.h"
 #include "logging.h"
 #include "common/tools_util.h"
+#include "mutex.h"
+#include "nfs.h"
 
 using baidu::common::INFO;
 using baidu::common::WARNING;
@@ -86,12 +88,50 @@ private:
     std::string path_;
 };
 
+class Nfs : public FileSystem {
+public:
+    Nfs();
+    virtual ~Nfs();
+    void Connect(Param& param);
+    bool Open(const std::string& path,
+              OpenMode mode);
+    bool Open(const std::string& path,
+              Param& param,
+              OpenMode mode);
+    bool Close();
+    bool Seek(int64_t pos);
+    int32_t Read(void* buf, size_t len);
+    int32_t Write(void* buf, size_t len);
+    int64_t Tell();
+    int64_t GetSize();
+    bool Rename(const std::string& old_name, const std::string& new_name);
+    bool Remove(const std::string& path);
+    bool List(const std::string& dir, std::vector<FileInfo>* children);
+    bool Glob(const std::string&, std::vector<FileInfo>* ) {return false;}
+    bool Mkdirs(const std::string& dir);
+    bool Exist(const std::string& path);
+private:
+    nfs::NFS* fs_;
+    nfs::NFSFILE* fd_;
+    std::string path_;
+};
+
 FileSystem* FileSystem::CreateInfHdfs() {
     return new InfHdfs();
 }
 
 FileSystem* FileSystem::CreateInfHdfs(Param& param) {
     InfHdfs* fs = new InfHdfs();
+    fs->Connect(param);
+    return fs;
+}
+
+FileSystem* FileSystem::CreateNfs() {
+    return new Nfs();
+}
+
+FileSystem* FileSystem::CreateNfs(Param& param) {
+    Nfs* fs = new Nfs();
     fs->Connect(param);
     return fs;
 }
@@ -467,5 +507,156 @@ int64_t InfSeqFile::Tell() {
     return getSeqFilePos(sf_);
 }
 
+
+Nfs::Nfs() : fs_(NULL), fd_(NULL){
+}
+
+Nfs::~Nfs() {
+    /*if (fs_) {
+        fs_->Destroy();
+        delete fs_;
+    }*/
+    if (fd_) {
+        free(fd_);
+    }
+}
+
+void Nfs::Connect(Param& param) {
+    static Mutex s_mu;
+    static nfs::NFS* s_fs = NULL;
+    MutexLock lock(&s_mu);
+    if (s_fs != NULL) {
+        fs_ = s_fs;
+        return;
+    }
+    fs_ = nfs::NFS::CreateNFS();
+    nfs::SetComlogLevel(2);
+    if (param.find("host") == param.end()) {
+        fs_->Init(sNfsMountPoint.c_str(), sNfsConfName.c_str());
+    } else {
+        nfs::NfsOptions options;
+        options.username = param["user"].c_str();
+        options.password = param["password"].c_str();
+        options.master_ip = param["host"].c_str();
+        options.master_port = atoi(param["port"].c_str());
+        fs_->Init(sNfsMountPoint.c_str(), options);
+    }
+    s_fs = fs_;
+}
+
+bool Nfs::Open(const std::string& path, OpenMode mode) {
+    path_ = path;
+    LOG(INFO, "try to open %s", path.c_str());
+    if (mode == kReadFile) {
+        fd_ = fs_->Open(path.c_str(), "r");
+    } else if (mode == kWriteFile) {
+        fd_ = fs_->Open(path.c_str(), "w");
+    }
+    return fd_ != NULL;
+}
+
+bool Nfs::Open(const std::string& path, Param& param, OpenMode mode) {
+    if (fs_ == NULL) {
+        Connect(param);
+    }
+    return Open(path, mode);
+}
+
+bool Nfs::Close() {
+    if (!fd_) {
+        return false;
+    }
+    LOG(INFO, "try to close: %s", path_.c_str());
+    return nfs::Close(fd_) == 0;
+}
+
+bool Nfs::Seek(int64_t pos) {
+    if (!fd_) {
+        return false;
+    }
+    return nfs::Seek(fd_, pos) == 0;
+}
+
+int32_t Nfs::Read(void* buf, size_t len) {
+    return nfs::Read(fd_, buf, len);
+}
+
+int32_t Nfs::Write(void* buf, size_t len) {
+    return nfs::Write(fd_, buf, len);
+}
+
+int64_t Nfs::Tell() {
+    return nfs::Tell(fd_);
+}
+
+int64_t Nfs::GetSize() {
+    struct ::stat st;
+    if (fs_->Stat(path_.c_str(), &st) == 0){
+        return st.st_size;
+    }
+    return 0;
+}
+
+bool Nfs::Rename(const std::string& old_name,
+                 const std::string& new_name) {
+    if (!fs_) {
+        return false;
+    }
+    return fs_->Rename(old_name.c_str(), new_name.c_str()) == 0;
+}
+
+bool Nfs::Remove(const std::string& path) {
+    if (!fs_) {
+        return false;
+    }
+    return fs_->Unlink(path.c_str()) == 0;
+}
+
+bool Nfs::List(const std::string& dir_name, std::vector<FileInfo>* children) {
+    struct dirent *ptr = NULL;
+    if (!fs_) {
+        return false;
+    }
+    nfs::NFSDIR*  dir = fs_->Opendir(dir_name.c_str());
+    if (dir == NULL) {
+        nfs::Closedir(dir);
+        return false;
+    }
+    while ((ptr = nfs::Readdir(dir)) != NULL) {
+        if (strcmp(ptr->d_name, ".") != 0 && strcmp(ptr->d_name, "..") != 0) {
+            FileInfo fileinfo;
+            fileinfo.name = ptr->d_name;
+            children->push_back(fileinfo);
+        }
+    }
+    nfs::Closedir(dir);
+    return true;
+}
+
+bool Nfs::Mkdirs(const std::string& dir_path) {
+    if (!fs_) {
+        return false;
+    }
+    size_t beg = 0;
+    size_t seg = dir_path.find('/', beg);
+    while (seg != std::string::npos) {
+        if (seg + 1 >= dir_path.size()) {
+            break;
+        }
+        fs_->Mkdir(dir_path.substr(0, seg + 1).c_str());
+        beg = seg + 1;
+        seg = dir_path.find('/', beg);
+    }
+    return fs_->Mkdir(dir_path.c_str()) == 0;
+}
+
+bool Nfs::Exist(const std::string& path) {
+    if (!fs_) {
+        return false;
+    }
+    return fs_->Access(path.c_str(), R_OK) == 0;
+}
+
 } //namespace shuttle
 } //namespace baidu
+

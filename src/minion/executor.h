@@ -38,7 +38,7 @@ protected:
     const std::string GetMapWorkDir(const TaskInfo& task);
     bool MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
     bool MoveTempToShuffle(const TaskInfo& task);
-    const std::string GetShuffleWorkDir(const TaskInfo& task);
+    const std::string GetShuffleWorkDir();
 
     bool ReadLine(FILE* user_app, std::string* line);
     bool ReadRecord(FILE* user_app, std::string* key, std::string* value);

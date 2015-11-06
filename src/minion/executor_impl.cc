@@ -2,6 +2,9 @@
 #include <unistd.h>
 #include <boost/lexical_cast.hpp>
 #include <boost/scoped_ptr.hpp>
+#include <gflags/gflags.h>
+
+DECLARE_string(jobid);
 
 namespace baidu {
 namespace shuttle {
@@ -74,7 +77,7 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     ::setenv("mapred_attempt_id",
              boost::lexical_cast<std::string>(task.attempt_id()).c_str(),
              1);
-    ::setenv("minion_shuffle_work_dir", GetShuffleWorkDir(task).c_str(), 1);
+    ::setenv("minion_shuffle_work_dir", GetShuffleWorkDir().c_str(), 1);
     ::setenv("minion_input_dfs_host", task.job().input_dfs().host().c_str(), 1);
     ::setenv("minion_input_dfs_port", task.job().input_dfs().port().c_str(), 1);
     ::setenv("minion_input_dfs_user", task.job().input_dfs().user().c_str(), 1);
@@ -103,8 +106,8 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     }
 }
 
-const std::string Executor::GetShuffleWorkDir(const TaskInfo& task) {
-    std::string shuffle_work_dir = task.job().output() + "/_temporary/shuffle";
+const std::string Executor::GetShuffleWorkDir() {
+    std::string shuffle_work_dir = sNfsMountPoint + "/shuffle/" + FLAGS_jobid;
     return shuffle_work_dir;
 }
 
@@ -123,8 +126,9 @@ const std::string Executor::GetMapWorkFilename(const TaskInfo& task) {
 const std::string Executor::GetMapWorkDir(const TaskInfo& task) {
     char output_file_name[4096];
     snprintf(output_file_name, sizeof(output_file_name), 
-            "%s/_temporary/map_%d/attempt_%d",
-            task.job().output().c_str(),
+            "%s/work/%s/%d_%d",
+            sNfsMountPoint.c_str(),
+            FLAGS_jobid.c_str(),
             task.task_id(),
             task.attempt_id()
             );
@@ -161,12 +165,12 @@ bool Executor::MoveTempToShuffle(const TaskInfo& task) {
     std::string old_dir = GetMapWorkDir(task);
     char new_dir[4096];
     snprintf(new_dir, sizeof(new_dir), 
-            "%s/_temporary/shuffle/map_%d",
-            task.job().output().c_str(),
+            "%s/map_%d",
+            GetShuffleWorkDir().c_str(),
             task.task_id());
     FileSystem::Param param;
-    FillParam(param, task);
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    //FillParam(param, task);
+    FileSystem* fs = FileSystem::CreateNfs(param);
     LOG(INFO, "rename %s -> %s", old_dir.c_str(), new_dir);
     bool ret = fs->Rename(old_dir, new_dir);
     delete fs;

@@ -92,9 +92,22 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
     }
 
     FileSystem::Param param;
-    FillParam(param, task);
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
-    fs->Mkdirs(GetShuffleWorkDir(task));
+    //FillParam(param, task);
+    FileSystem* fs = FileSystem::CreateNfs(param);
+    const std::string shuffle_dir = GetShuffleWorkDir();
+    const std::string map_work_dir = GetMapWorkDir(task);
+    if (!fs->Mkdirs(shuffle_dir)) {
+        if (!fs->Exist(shuffle_dir)) {
+            LOG(WARNING, "fail to make dir on NFS, %s", shuffle_dir.c_str());
+            return kTaskFailed;
+        }
+    }
+    if (!fs->Mkdirs(map_work_dir)) {
+        if (!fs->Exist(map_work_dir)) {
+            LOG(WARNING, "fail to make dir on NFS: %s", map_work_dir.c_str());
+            return kTaskFailed;
+        }
+    }
     delete fs;
 
     Emitter emitter(GetMapWorkDir(task), task);
@@ -161,13 +174,13 @@ Status Emitter::FlushMemTable() {
     char s_reduce_no[256];
     do {
         std::sort(mem_table_.begin(), mem_table_.end(), EmitItemLess());
-        writer = SortFileWriter::Create(kHdfsFile, &status);
+        writer = SortFileWriter::Create(kNfsFile, &status);
         if (status != kOk) {
             break;
         }
         FileSystem::Param param;
-        Executor::FillParam(param, task_);
-        param["replica"] = "3";
+        //Executor::FillParam(param, task_);
+        //param["replica"] = "3";
         snprintf(file_name, sizeof(file_name), "%s/%d.sort",
                  work_dir_.c_str(), file_no_);
         status = writer->Open(file_name, param);

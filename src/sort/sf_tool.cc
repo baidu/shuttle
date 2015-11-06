@@ -12,7 +12,7 @@ DEFINE_string(mode, "read", "work mode: read/write/seek");
 DEFINE_string(file, "", "file path, use ',' to seperate multiple files");
 DEFINE_string(start, "", "start key, in 'read' mode");
 DEFINE_string(end, "", "end key, in 'read' mode");
-DEFINE_string(fs, "hdfs", "filesytem: 'hdfs' or 'local' ");
+DEFINE_string(fs, "hdfs", "filesytem: 'hdfs' or 'local' or 'nfs' ");
 DEFINE_string(replica, "3", "the replication number on dfs");
 
 using baidu::common::Log;
@@ -195,6 +195,8 @@ int main(int argc, char* argv[]) {
         g_file_type = kHdfsFile;
     } else if (FLAGS_fs == "local") {
         g_file_type = kLocalFile;
+    } else if (FLAGS_fs == "nfs") {
+        g_file_type = kNfsFile;
     } else {
         std::cerr << "unkonw file type: " << FLAGS_fs << std::endl;
         return -1;

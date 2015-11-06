@@ -10,6 +10,9 @@
 namespace baidu {
 namespace shuttle {
 
+const static std::string sNfsMountPoint = "/disk/shuttle";
+const static std::string sNfsConfName = "./nfs.conf";
+
 enum OpenMode {
     kReadFile = 0,
     kWriteFile = 1
@@ -33,6 +36,8 @@ public:
     static FileSystem* CreateInfHdfs();
     static FileSystem* CreateInfHdfs(Param& param);
     static FileSystem* CreateLocalFs();
+    static FileSystem* CreateNfs();
+    static FileSystem* CreateNfs(Param& param);
 
     virtual bool Open(const std::string& path,
                       OpenMode mode) = 0;

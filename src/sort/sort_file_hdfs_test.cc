@@ -346,6 +346,8 @@ int main(int argc, char* argv[]) {
             g_file_type = kHdfsFile;
         } else if (strcmp(argv[2], "local") == 0) {
             g_file_type = kLocalFile;
+        } else if (strcmp(argv[2], "nfs") == 0) {
+            g_file_type = kNfsFile;
         }
     }
     g_work_dir = argv[1];

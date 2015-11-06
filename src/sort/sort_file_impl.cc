@@ -19,6 +19,9 @@ SortFileReader* SortFileReader::Create(FileType file_type, Status* status) {
     } else if (file_type == kLocalFile) {
         *status = kOk;
         return new SortFileReaderImpl(FileSystem::CreateLocalFs());
+    } else if (file_type == kNfsFile) {
+        *status = kOk;
+        return new SortFileReaderImpl(FileSystem::CreateNfs());
     } else {
         *status = kNotImplement;
         return NULL;
@@ -32,6 +35,9 @@ SortFileWriter* SortFileWriter::Create(FileType file_type, Status* status) {
     } else if (file_type == kLocalFile) {
         *status = kOk;
         return new SortFileWriterImpl(FileSystem::CreateLocalFs());
+    } else if (file_type == kNfsFile) {
+        *status = kOk;
+        return new SortFileWriterImpl(FileSystem::CreateNfs());
     } else {
         *status = kNotImplement;
         return NULL;
