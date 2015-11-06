@@ -87,7 +87,7 @@ public:
     }
 
 private:
-    void KeepMonitoring();
+    void KeepMonitoring(bool map_now);
     std::string GenerateJobId();
 
 private:
@@ -125,6 +125,7 @@ private:
     int reduce_dismissed_;
     // For monitoring
     ThreadPool* monitor_;
+    bool map_monitoring_;
     bool reduce_monitoring_;
     int blind_predict_;
     // To communicate with minion

@@ -52,6 +52,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       reduce_dismiss_minion_num_(0),
                       reduce_dismissed_(0),
                       monitor_(NULL),
+                      map_monitoring_(false),
                       reduce_monitoring_(false),
                       blind_predict_(0) {
     job_descriptor_.CopyFrom(job);
@@ -327,8 +328,9 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
             map_slug_.push(cur->no);
         }
     }
-    if (map_allow_duplicates_ && cur->no == map_end_game_begin_) {
-        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+    if (map_allow_duplicates_ && cur->no == map_end_game_begin_ && !map_monitoring_) {
+        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, true));
+        map_monitoring_ = true;
     }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
@@ -416,8 +418,8 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
             reduce_slug_.push(cur->no);
         }
     }
-    if (reduce_allow_duplicates_ && cur->no == reduce_end_game_begin_) {
-        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+    if (reduce_allow_duplicates_ && cur->no == reduce_end_game_begin_ && !reduce_monitoring_) {
+        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, false));
         reduce_monitoring_ = true;
     }
     AllocateItem* alloc = new AllocateItem();
@@ -461,14 +463,14 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     }
     LOG(INFO, "finish a map task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
-    cur->state = state;
     if (state == kTaskMoveOutputFailed) {
         if (map_manager_->CheckCertainItem(cur->resource_no)->status != kResDone) {
-            cur->state = kTaskFailed;
+            state = kTaskFailed;
         } else {
-            cur->state = kTaskCanceled;
+            state = kTaskCanceled;
         }
     }
+    cur->state = state;
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -525,7 +527,8 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                         }
                         monitor_ = new ThreadPool(1);
                         if (reduce_monitoring_) {
-                            monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+                            monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring,
+                                        this, false));
                         }
                     }
                     if (map_ != NULL) {
@@ -609,14 +612,14 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     }
     LOG(INFO, "finish a reduce task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
-    cur->state = state;
     if (state == kTaskMoveOutputFailed) {
         if (reduce_manager_->CheckCertainItem(cur->resource_no)->status != kResDone) {
-            cur->state = kTaskFailed;
+            state = kTaskFailed;
         } else {
-            cur->state = kTaskCanceled;
+            state = kTaskCanceled;
         }
     }
+    cur->state = state;
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -775,10 +778,9 @@ std::string JobTracker::GenerateJobId() {
     return ss.str();
 }
 
-void JobTracker::KeepMonitoring() {
+void JobTracker::KeepMonitoring(bool map_now) {
     // Dynamic determination of delay check
     LOG(INFO, "[monitor] monitor starts to check timeout: %s", job_id_.c_str());
-    bool map_now = (map_ != NULL);
     std::vector<int> time_used;
     {
         MutexLock lock(&alloc_mu_);
@@ -798,12 +800,13 @@ void JobTracker::KeepMonitoring() {
     }
     if (blind_predict_ >= FLAGS_blind_predict_num) {
         monitor_->DelayTask(timeout * 1000,
-                boost::bind(&JobTracker::KeepMonitoring, this));
+                boost::bind(&JobTracker::KeepMonitoring, this, map_now));
         return;
     }
     time_t now = std::time(NULL);
     int counter = 10;
     bool detect_timeout = false;
+    std::vector<AllocateItem*> other_phase_item;
     alloc_mu_.Lock();
     while (-- counter >= 0 && !time_heap_.empty()) {
         AllocateItem* top = time_heap_.top();
@@ -815,7 +818,12 @@ void JobTracker::KeepMonitoring() {
             ++ counter;
             continue;
         }
-        if (top->is_map) {
+        if (top->is_map != map_now) {
+            ++ counter;
+            other_phase_item.push_back(top);
+            continue;
+        }
+        if (map_now) {
             map_slug_.push(top->resource_no);
         } else {
             reduce_slug_.push(top->resource_no);
@@ -824,6 +832,10 @@ void JobTracker::KeepMonitoring() {
         LOG(INFO, "Reallocate a long no-response tasks: < no - %d, attempt - %d>: %s",
                 top->resource_no, top->attempt, job_id_.c_str());
     }
+    for (std::vector<AllocateItem*>::iterator it = other_phase_item.begin();
+            it != other_phase_item.end(); ++it) {
+        time_heap_.push(*it);
+    }
     alloc_mu_.Unlock();
     if (time_used.empty() && detect_timeout) {
         ++ blind_predict_;
@@ -831,7 +843,7 @@ void JobTracker::KeepMonitoring() {
                 FLAGS_blind_predict_num - blind_predict_);
     }
     monitor_->DelayTask(timeout * 1000,
-            boost::bind(&JobTracker::KeepMonitoring, this));
+            boost::bind(&JobTracker::KeepMonitoring, this, map_now));
     LOG(INFO, "[monitor] will now rest for %ds: %s", timeout, job_id_.c_str());
 }
 
