@@ -470,7 +470,6 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             state = kTaskCanceled;
         }
     }
-    cur->state = state;
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -552,10 +551,16 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             map_manager_->ReturnBackItem(cur->resource_no);
             break;
         case kTaskCanceled: break;
-        default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
+        default:
+            LOG(WARNING, "unfamiliar task finish status: %d", state);
+            return kNoMore;
         }
     }
-    cur->period = std::time(NULL) - cur->alloc_time;
+    {
+        MutexLock lock(&alloc_mu_);
+        cur->state = state;
+        cur->period = std::time(NULL) - cur->alloc_time;
+    }
     if (state != kTaskCompleted) {
         return kOk;
     }
@@ -619,7 +624,6 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             state = kTaskCanceled;
         }
     }
-    cur->state = state;
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -661,10 +665,16 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             reduce_manager_->ReturnBackItem(cur->resource_no);
             break;
         case kTaskCanceled: break;
-        default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
+        default:
+            LOG(WARNING, "unfamiliar task finish status: %d", state);
+            return kNoMore;
         }
     }
-    cur->period = std::time(NULL) - cur->alloc_time;
+    {
+        MutexLock lock(&alloc_mu_);
+        cur->state = state;
+        cur->period = std::time(NULL) - cur->alloc_time;
+    }
     if (state != kTaskCompleted) {
         return kOk;
     }
