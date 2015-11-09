@@ -51,9 +51,12 @@ public:
     virtual Resource* CheckCertainItem(int no) = 0;
     virtual void ReturnBackItem(int no) = 0;
     virtual bool FinishItem(int no) = 0;
-    virtual bool IsRunning(int no) = 0;
+    virtual bool IsAllocated(int no) = 0;
     virtual bool IsDone(int no) = 0;
     virtual int SumOfItem() = 0;
+    virtual int Pending() = 0;
+    virtual int Allocated() = 0;
+    virtual int Done() = 0;
 };
 
 class IdManager : public BasicResourceManager<IdItem> {
@@ -67,18 +70,33 @@ public:
     virtual void ReturnBackItem(int no);
     virtual bool FinishItem(int no);
 
-    virtual bool IsRunning(int no);
+    virtual bool IsAllocated(int no);
     virtual bool IsDone(int no);
 
     virtual int SumOfItem() {
         MutexLock lock(&mu_);
         return resource_pool_.size();
     }
+    virtual int Pending() {
+        MutexLock lock(&mu_);
+        return pending_;
+    }
+    virtual int Allocated() {
+        MutexLock lock(&mu_);
+        return allocated_;
+    }
+    virtual int Done() {
+        MutexLock lock(&mu_);
+        return done_;
+    }
 
 protected:
     Mutex mu_;
     std::vector<IdItem*> resource_pool_;
     std::deque<IdItem*> pending_res_;
+    int pending_;
+    int allocated_;
+    int done_;
 };
 
 class ResourceManager : public BasicResourceManager<ResourceItem> {
@@ -93,12 +111,24 @@ public:
     virtual void ReturnBackItem(int no);
     virtual bool FinishItem(int no);
 
-    virtual bool IsRunning(int no);
+    virtual bool IsAllocated(int no);
     virtual bool IsDone(int no);
 
     virtual int SumOfItem() {
         MutexLock lock(&mu_);
         return resource_pool_.size();
+    }
+    virtual int Pending() {
+        MutexLock lock(&mu_);
+        return manager_->Pending();
+    }
+    virtual int Allocated() {
+        MutexLock lock(&mu_);
+        return manager_->Allocated();
+    }
+    virtual int Done() {
+        MutexLock lock(&mu_);
+        return manager_->Done();
     }
 
 protected:

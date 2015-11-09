@@ -17,7 +17,7 @@ namespace shuttle {
 
 static const int parallel_level = 5;
 
-IdManager::IdManager(int n) {
+IdManager::IdManager(int n) : pending_(n), allocated_(0), done_(0) {
     for (int i = 0; i < n; ++i) {
         IdItem* item = new IdItem();
         item->no = i;
@@ -52,6 +52,7 @@ IdItem* IdManager::GetItem() {
     cur->attempt ++;
     cur->status = kResAllocated;
     cur->allocated ++;
+    -- pending_; ++ allocated_;
     return new IdItem(*cur);
 }
 
@@ -69,10 +70,11 @@ IdItem* IdManager::GetCertainItem(int no) {
     }
     if (cur->status == kResPending) {
         cur->status = kResAllocated;
-        cur->allocated ++;
+        -- pending_; ++ allocated_;
     }
     if (cur->status == kResAllocated) {
         cur->attempt ++;
+        cur->allocated ++;
         return new IdItem(*cur);
     }
     if (cur->status == kResDone) {
@@ -105,6 +107,7 @@ void IdManager::ReturnBackItem(int no) {
         if (-- cur->allocated <= 0) {
             cur->status = kResPending;
             pending_res_.push_front(cur);
+            -- allocated_; ++ pending_;
         }
     } else {
         LOG(WARNING, "invalid resource: %d", no);
@@ -122,13 +125,14 @@ bool IdManager::FinishItem(int no) {
     if (cur->status == kResAllocated) {
         cur->status = kResDone;
         cur->allocated = 0;
+        -- allocated_; ++ done_;
         return true;
     }
     LOG(WARNING, "resource may have been finished: %d", no);
     return false;
 }
 
-bool IdManager::IsRunning(int no) {
+bool IdManager::IsAllocated(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
@@ -288,7 +292,7 @@ bool ResourceManager::FinishItem(int no) {
     return manager_->FinishItem(n);
 }
 
-bool ResourceManager::IsRunning(int no) {
+bool ResourceManager::IsAllocated(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {

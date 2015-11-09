@@ -111,7 +111,6 @@ private:
     // Map resource
     Gru* map_;
     ResourceManager* map_manager_;
-    int map_completed_;
     int map_end_game_begin_;
     int map_dismiss_minion_num_;
     int map_dismissed_;
@@ -119,7 +118,6 @@ private:
     int reduce_begin_;
     Gru* reduce_;
     IdManager* reduce_manager_;
-    int reduce_completed_;
     int reduce_end_game_begin_;
     int reduce_dismiss_minion_num_;
     int reduce_dismissed_;
