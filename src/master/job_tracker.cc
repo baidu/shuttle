@@ -449,7 +449,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         MutexLock lock(&alloc_mu_);
         std::list<AllocateItem*>::iterator it;
         for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
-            if ((*it)->resource_no == no && (*it)->attempt == attempt) {
+            if ((*it)->is_map && (*it)->resource_no == no && (*it)->attempt == attempt) {
                 if ((*it)->state == kTaskRunning) {
                     cur = *it;
                 }
