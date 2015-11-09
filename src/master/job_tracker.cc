@@ -279,8 +279,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
         }
         MutexLock lock(&alloc_mu_);
         while (!map_slug_.empty() &&
-               map_manager_->CheckCertainItem(map_slug_.front())->status
-               != kResAllocated) {
+               !map_manager_->IsRunning(map_slug_.front())) {
             map_slug_.pop();
         }
         if (map_slug_.empty()) {
@@ -369,8 +368,7 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
         }
         MutexLock lock(&alloc_mu_);
         while (!reduce_slug_.empty() &&
-               reduce_manager_->CheckCertainItem(reduce_slug_.front())->status
-               != kResAllocated) {
+               !reduce_manager_->IsRunning(reduce_slug_.front())) {
             reduce_slug_.pop();
         }
         if (reduce_slug_.empty()) {
@@ -465,7 +463,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     LOG(INFO, "finish a map task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     if (state == kTaskMoveOutputFailed) {
-        if (map_manager_->CheckCertainItem(cur->resource_no)->status != kResDone) {
+        if (!map_manager_->IsDone(cur->resource_no)) {
             state = kTaskFailed;
         } else {
             state = kTaskCanceled;
@@ -619,7 +617,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     LOG(INFO, "finish a reduce task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     if (state == kTaskMoveOutputFailed) {
-        if (reduce_manager_->CheckCertainItem(cur->resource_no)->status != kResDone) {
+        if (!reduce_manager_->IsDone(cur->resource_no)) {
             state = kTaskFailed;
         } else {
             state = kTaskCanceled;

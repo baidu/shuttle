@@ -83,6 +83,16 @@ IdItem* IdManager::GetCertainItem(int no) {
     return NULL;
 }
 
+IdItem* IdManager::CheckCertainItem(int no) {
+    size_t n = static_cast<size_t>(no);
+    MutexLock lock(&mu_);
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for checking: %d", no);
+        return NULL;
+    }
+    return new IdItem(*(resource_pool_[n]));
+}
+
 void IdManager::ReturnBackItem(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
@@ -118,14 +128,24 @@ bool IdManager::FinishItem(int no) {
     return false;
 }
 
-IdItem* const IdManager::CheckCertainItem(int no) {
+bool IdManager::IsRunning(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for checking: %d", no);
-        return NULL;
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
     }
-    return resource_pool_[n];
+    return resource_pool_[n]->status == kResAllocated;
+}
+
+bool IdManager::IsDone(int no) {
+    size_t n = static_cast<size_t>(no);
+    MutexLock lock(&mu_);
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
+    }
+    return resource_pool_[n]->status == kResDone;
 }
 
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
@@ -226,13 +246,26 @@ ResourceItem* ResourceManager::GetCertainItem(int no) {
     return new ResourceItem(*resource);
 }
 
+ResourceItem* ResourceManager::CheckCertainItem(int no) {
+    IdItem* item = manager_->CheckCertainItem(no);
+    if (item == NULL) {
+        return NULL;
+    }
+    MutexLock lock(&mu_);
+    ResourceItem* resource = resource_pool_[item->no];
+    resource->CopyFrom(*item);
+    delete item;
+    return new ResourceItem(*resource);
+}
+
 void ResourceManager::ReturnBackItem(int no) {
     manager_->ReturnBackItem(no);
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    if (static_cast<size_t>(no) > resource_pool_.size()) {
+    if (n > resource_pool_.size()) {
         return;
     }
-    ResourceItem* resource = resource_pool_[no];
+    ResourceItem* resource = resource_pool_[n];
     if (resource->status == kResAllocated) {
         if (-- resource->allocated <= 0) {
             resource->status = kResPending;
@@ -241,26 +274,38 @@ void ResourceManager::ReturnBackItem(int no) {
 }
 
 bool ResourceManager::FinishItem(int no) {
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    if (static_cast<size_t>(no) > resource_pool_.size()) {
+    if (n > resource_pool_.size()) {
         LOG(WARNING, "this resource is not valid for finishing: %d", no);
         return false;
     }
-    ResourceItem* resource = resource_pool_[no];
+    ResourceItem* resource = resource_pool_[n];
     if (resource->status == kResAllocated) {
         resource->status = kResDone;
         resource->allocated = 0;
     }
-    return manager_->FinishItem(no);
+    return manager_->FinishItem(n);
 }
 
-ResourceItem* const ResourceManager::CheckCertainItem(int no) {
-    IdItem* const item = manager_->CheckCertainItem(no);
-    if (item == NULL) {
-        return NULL;
-    }
+bool ResourceManager::IsRunning(int no) {
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    return resource_pool_[item->no];
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
+    }
+    return resource_pool_[n]->status == kResAllocated;
+}
+
+bool ResourceManager::IsDone(int no) {
+    size_t n = static_cast<size_t>(no);
+    MutexLock lock(&mu_);
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
+    }
+    return resource_pool_[n]->status == kResDone;
 }
 
 NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input_files,

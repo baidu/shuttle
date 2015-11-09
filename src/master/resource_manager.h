@@ -48,9 +48,11 @@ class BasicResourceManager {
 public:
     virtual Resource* GetItem() = 0;
     virtual Resource* GetCertainItem(int no) = 0;
+    virtual Resource* CheckCertainItem(int no) = 0;
     virtual void ReturnBackItem(int no) = 0;
     virtual bool FinishItem(int no) = 0;
-    virtual Resource* const CheckCertainItem(int no) = 0;
+    virtual bool IsRunning(int no) = 0;
+    virtual bool IsDone(int no) = 0;
     virtual int SumOfItem() = 0;
 };
 
@@ -61,10 +63,12 @@ public:
 
     virtual IdItem* GetItem();
     virtual IdItem* GetCertainItem(int no);
+    virtual IdItem* CheckCertainItem(int no);
     virtual void ReturnBackItem(int no);
     virtual bool FinishItem(int no);
 
-    virtual IdItem* const CheckCertainItem(int no);
+    virtual bool IsRunning(int no);
+    virtual bool IsDone(int no);
 
     virtual int SumOfItem() {
         MutexLock lock(&mu_);
@@ -85,10 +89,12 @@ public:
 
     virtual ResourceItem* GetItem();
     virtual ResourceItem* GetCertainItem(int no);
+    virtual ResourceItem* CheckCertainItem(int no);
     virtual void ReturnBackItem(int no);
     virtual bool FinishItem(int no);
 
-    virtual ResourceItem* const CheckCertainItem(int no);
+    virtual bool IsRunning(int no);
+    virtual bool IsDone(int no);
 
     virtual int SumOfItem() {
         MutexLock lock(&mu_);
