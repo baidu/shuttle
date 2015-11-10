@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <fstream>
@@ -129,6 +130,19 @@ static const std::string task_type_string[] = {
 };
 
 static bool done = false;
+
+struct TaskComparator {
+    bool operator()(const ::baidu::shuttle::sdk::TaskInstance& task1,
+                    const ::baidu::shuttle::sdk::TaskInstance& task2) const {
+        if (task1.type != task2.type) {
+            return task1.type == ::baidu::shuttle::sdk::kMap;
+        }
+        if (task1.task_id != task2.task_id) {
+            return task1.task_id < task2.task_id;
+        }
+        return task1.attempt_id < task2.attempt_id;
+    }
+};
 
 static inline ::baidu::shuttle::sdk::PartitionMethod
 ParsePartitioner(const std::string& partitioner) {
@@ -713,6 +727,7 @@ static int ShowJob() {
         fprintf(stderr, "show job status failed\n");
         return 1;
     }
+    std::sort(tasks.begin(), tasks.end(), TaskComparator());
     PrintJobDetails(job);
     PrintTasksInfo(tasks);
     return 0;

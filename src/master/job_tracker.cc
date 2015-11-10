@@ -27,6 +27,7 @@ DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
 DECLARE_int32(retry_bound);
 DECLARE_int32(blind_predict_num);
+DECLARE_int32(left_percent);
 DECLARE_string(nexus_server_list);
 
 namespace baidu {
@@ -41,11 +42,16 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       reduce_allow_duplicates_(true),
                       map_(NULL),
                       map_manager_(NULL),
-                      map_completed_(0),
+                      map_dismiss_minion_num_(0),
+                      map_dismissed_(0),
+                      reduce_begin_(0),
                       reduce_(NULL),
                       reduce_manager_(NULL),
-                      reduce_completed_(0),
-                      monitor_(1),
+                      reduce_dismiss_minion_num_(0),
+                      reduce_dismissed_(0),
+                      monitor_(NULL),
+                      map_monitoring_(false),
+                      reduce_monitoring_(false),
                       blind_predict_(0) {
     job_descriptor_.CopyFrom(job);
     job_id_ = GenerateJobId();
@@ -123,15 +129,18 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     }
     failed_count_.resize(sum_of_map, 0);
 
+    monitor_ = new ThreadPool(1);
+
     // For end game counter
     map_end_game_begin_ = sum_of_map - FLAGS_replica_begin;
-    int temp = sum_of_map * FLAGS_replica_begin_percent / 100;
-    if (map_end_game_begin_ < temp) {
+    int temp = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
+    if (map_end_game_begin_ > temp) {
         map_end_game_begin_ = temp;
     }
     if (reduce_manager_ == NULL) {
         return;
     }
+    reduce_begin_ = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
     reduce_end_game_begin_ = reduce_manager_->SumOfItem() - FLAGS_replica_begin;
     temp = reduce_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
     if (reduce_end_game_begin_ < temp) {
@@ -233,7 +242,10 @@ Status JobTracker::Kill() {
             delete reduce_;
             reduce_ = NULL;
         }
-        monitor_.Stop(false);
+        if (monitor_ != NULL) {
+            delete monitor_;
+            monitor_ = NULL;
+        }
 
         if (state_ != kCompleted) {
             state_ = kKilled;
@@ -250,7 +262,7 @@ Status JobTracker::Kill() {
     return kOk;
 }
 
-ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
+ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status) {
     if (state_ == kPending) {
         state_ = kRunning;
     }
@@ -258,22 +270,54 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
     if (cur == NULL) {
         if (!map_allow_duplicates_) {
             LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+            if (status != NULL) {
+                *status = kNoMore;
+            }
             return NULL;
         }
         MutexLock lock(&alloc_mu_);
         while (!map_slug_.empty() &&
-               map_manager_->CheckCertainItem(map_slug_.front())->status
-               != kResAllocated) {
+               !map_manager_->IsAllocated(map_slug_.front())) {
             map_slug_.pop();
         }
         if (map_slug_.empty()) {
-            LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+            alloc_mu_.Unlock();
+            mu_.Lock();
+            if (map_dismissed_ > 0 && map_dismissed_ >= map_dismiss_minion_num_) {
+                LOG(DEBUG, "assign map: suspend: %s", job_id_.c_str());
+                if (status != NULL) {
+                    *status = kSuspend;
+                }
+            } else {
+                ++ map_dismissed_;
+                LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+                if (status != NULL) {
+                    *status = kNoMore;
+                }
+            }
+            mu_.Unlock();
+            alloc_mu_.Lock();
             return NULL;
         }
         cur = map_manager_->GetCertainItem(map_slug_.front());
         map_slug_.pop();
         if (cur == NULL) {
-            LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+            alloc_mu_.Unlock();
+            mu_.Lock();
+            if (map_dismissed_ > 0 && map_dismissed_ >= map_dismiss_minion_num_) {
+                LOG(DEBUG, "assign map: suspend: %s", job_id_.c_str());
+                if (status != NULL) {
+                    *status = kSuspend;
+                }
+            } else {
+                ++ map_dismissed_;
+                LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+                if (status != NULL) {
+                    *status = kNoMore;
+                }
+            }
+            mu_.Unlock();
+            alloc_mu_.Lock();
             return NULL;
         }
     } else if (map_allow_duplicates_ && cur->no >= map_end_game_begin_) {
@@ -282,8 +326,9 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
             map_slug_.push(cur->no);
         }
     }
-    if (map_allow_duplicates_ && cur->no == map_end_game_begin_) {
-        monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+    if (map_allow_duplicates_ && cur->no == map_end_game_begin_ && !map_monitoring_) {
+        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, true));
+        map_monitoring_ = true;
     }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
@@ -299,33 +344,69 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint) {
     time_heap_.push(alloc);
     LOG(INFO, "assign map: < no - %d, attempt - %d >, to %s: %s",
             alloc->resource_no, alloc->attempt, endpoint.c_str(), job_id_.c_str());
+    if (status != NULL) {
+        *status = kOk;
+    }
     return cur;
 }
 
-IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
+IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
     if (state_ == kPending) {
         state_ = kRunning;
     }
     IdItem* cur = reduce_manager_->GetItem();
     if (cur == NULL) {
         if (!reduce_allow_duplicates_) {
+            ++ reduce_dismissed_;
             LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+            if (status != NULL) {
+                *status = kNoMore;
+            }
             return NULL;
         }
         MutexLock lock(&alloc_mu_);
         while (!reduce_slug_.empty() &&
-               reduce_manager_->CheckCertainItem(reduce_slug_.front())->status
-               != kResAllocated) {
+               !reduce_manager_->IsAllocated(reduce_slug_.front())) {
             reduce_slug_.pop();
         }
         if (reduce_slug_.empty()) {
-            LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+            alloc_mu_.Unlock();
+            mu_.Lock();
+            if (reduce_dismissed_ > 0 && reduce_dismissed_ >= reduce_dismiss_minion_num_) {
+                LOG(DEBUG, "assign reduce: suspend: %s", job_id_.c_str());
+                if (status != NULL) {
+                    *status = kSuspend;
+                }
+            } else {
+                ++ reduce_dismissed_;
+                LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+                if (status != NULL) {
+                    *status = kNoMore;
+                }
+            }
+            mu_.Unlock();
+            alloc_mu_.Lock();
             return NULL;
         }
         cur = reduce_manager_->GetCertainItem(reduce_slug_.front());
         reduce_slug_.pop();
         if (cur == NULL) {
-            LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+            alloc_mu_.Unlock();
+            mu_.Lock();
+            if (reduce_dismissed_ > 0 && reduce_dismissed_ >= reduce_dismiss_minion_num_) {
+                LOG(DEBUG, "assign reduce: suspend: %s", job_id_.c_str());
+                if (status != NULL) {
+                    *status = kSuspend;
+                }
+            } else {
+                ++ reduce_dismissed_;
+                LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+                if (status != NULL) {
+                    *status = kNoMore;
+                }
+            }
+            mu_.Unlock();
+            alloc_mu_.Lock();
             return NULL;
         }
     } else if (reduce_allow_duplicates_ && cur->no >= reduce_end_game_begin_) {
@@ -334,8 +415,9 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
             reduce_slug_.push(cur->no);
         }
     }
-    if (reduce_allow_duplicates_ && cur->no == reduce_end_game_begin_) {
-        monitor_.AddTask(boost::bind(&JobTracker::KeepMonitoring, this));
+    if (reduce_allow_duplicates_ && cur->no == reduce_end_game_begin_ && !reduce_monitoring_) {
+        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, false));
+        reduce_monitoring_ = true;
     }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
@@ -351,6 +433,9 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint) {
     time_heap_.push(alloc);
     LOG(INFO, "assign reduce: < no - %d, attempt - %d >, to %s: %s",
             alloc->resource_no, alloc->attempt, endpoint.c_str(), job_id_.c_str());
+    if (status != NULL) {
+        *status = kOk;
+    }
     return cur;
 }
 
@@ -360,7 +445,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         MutexLock lock(&alloc_mu_);
         std::list<AllocateItem*>::iterator it;
         for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
-            if ((*it)->resource_no == no && (*it)->attempt == attempt) {
+            if ((*it)->is_map && (*it)->resource_no == no && (*it)->attempt == attempt) {
                 if ((*it)->state == kTaskRunning) {
                     cur = *it;
                 }
@@ -375,7 +460,13 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     }
     LOG(INFO, "finish a map task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
-    cur->state = state;
+    if (state == kTaskMoveOutputFailed) {
+        if (!map_manager_->IsDone(cur->resource_no)) {
+            state = kTaskFailed;
+        } else {
+            state = kTaskCanceled;
+        }
+    }
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -386,17 +477,19 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 state = kTaskCanceled;
                 break;
             }
-            map_completed_ ++;
+            int completed = map_manager_->Done();
+            map_dismiss_minion_num_ = job_descriptor_.map_capacity() -
+                (job_descriptor_.map_total() - completed) * FLAGS_left_percent / 100;
             LOG(INFO, "complete a map task(%d/%d): %s",
-                    map_completed_, map_manager_->SumOfItem(), job_id_.c_str());
-            if (map_completed_ == map_end_game_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
+                    completed, map_manager_->SumOfItem(), job_id_.c_str());
+            if (completed == reduce_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
                 LOG(INFO, "map phrase nearly ends, pull up reduce tasks: %s", job_id_.c_str());
                 reduce_ = new Gru(galaxy_, &job_descriptor_, job_id_, kReduce);
                 if (reduce_->Start() != kOk) {
                     LOG(WARNING, "reduce failed due to galaxy issue: %s", job_id_.c_str());
                 }
             }
-            if (map_completed_ == map_manager_->SumOfItem()) {
+            if (completed == map_manager_->SumOfItem()) {
                 if (job_descriptor_.job_type() == kMapOnlyJob) {
                     LOG(INFO, "map-only job finish: %s", job_id_.c_str());
                     fs_->Remove(job_descriptor_.output() + "/_temporary");
@@ -425,7 +518,14 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     }
                     mu_.Lock();
                     if (map_allow_duplicates_) {
-                        monitor_.CancelTask(monitor_id_);
+                        if (monitor_ != NULL) {
+                            delete monitor_;
+                        }
+                        monitor_ = new ThreadPool(1);
+                        if (reduce_monitoring_) {
+                            monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring,
+                                        this, false));
+                        }
                     }
                     if (map_ != NULL) {
                         LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
@@ -448,10 +548,16 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             map_manager_->ReturnBackItem(cur->resource_no);
             break;
         case kTaskCanceled: break;
-        default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
+        default:
+            LOG(WARNING, "unfamiliar task finish status: %d", state);
+            return kNoMore;
         }
     }
-    cur->period = std::time(NULL) - cur->alloc_time;
+    {
+        MutexLock lock(&alloc_mu_);
+        cur->state = state;
+        cur->period = std::time(NULL) - cur->alloc_time;
+    }
     if (state != kTaskCompleted) {
         return kOk;
     }
@@ -508,7 +614,13 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     }
     LOG(INFO, "finish a reduce task: < no - %d, attempt - %d >, state %s: %s",
             cur->resource_no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
-    cur->state = state;
+    if (state == kTaskMoveOutputFailed) {
+        if (!reduce_manager_->IsDone(cur->resource_no)) {
+            state = kTaskFailed;
+        } else {
+            state = kTaskCanceled;
+        }
+    }
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -519,10 +631,12 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 state = kTaskCanceled;
                 break;
             }
-            reduce_completed_ ++;
+            int completed = reduce_manager_->Done();
+            reduce_dismiss_minion_num_ = job_descriptor_.reduce_capacity() -
+                (job_descriptor_.reduce_total() - completed) * FLAGS_left_percent / 100;
             LOG(INFO, "complete a reduce task(%d/%d): %s",
-                    reduce_completed_, reduce_manager_->SumOfItem(), job_id_.c_str());
-            if (reduce_completed_ == reduce_manager_->SumOfItem()) {
+                    completed, reduce_manager_->SumOfItem(), job_id_.c_str());
+            if (completed == reduce_manager_->SumOfItem()) {
                 LOG(INFO, "map-reduce job finish: %s", job_id_.c_str());
                 std::string work_dir = job_descriptor_.output() + "/_temporary";
                 LOG(INFO, "remove temp work directory: %s", work_dir.c_str());
@@ -544,14 +658,20 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 mu_.Lock();
                 state_ = kFailed;
             }
-        case kKilled:
+        case kTaskKilled:
             reduce_manager_->ReturnBackItem(cur->resource_no);
             break;
         case kTaskCanceled: break;
-        default: LOG(WARNING, "unfamiliar task finish status: %d", cur->state);
+        default:
+            LOG(WARNING, "unfamiliar task finish status: %d", state);
+            return kNoMore;
         }
     }
-    cur->period = std::time(NULL) - cur->alloc_time;
+    {
+        MutexLock lock(&alloc_mu_);
+        cur->state = state;
+        cur->period = std::time(NULL) - cur->alloc_time;
+    }
     if (state != kTaskCompleted) {
         return kOk;
     }
@@ -583,8 +703,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
 }
 
 TaskStatistics JobTracker::GetMapStatistics() {
-    std::set<int> map_blocks;
-    int running = 0, failed = 0, killed = 0;
+    int failed = 0, killed = 0;
     {
         MutexLock lock(&alloc_mu_);
         for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
@@ -594,32 +713,25 @@ TaskStatistics JobTracker::GetMapStatistics() {
                 continue;
             }
             switch (cur->state) {
-            case kTaskRunning:
-                if (map_blocks.find(cur->resource_no) != map_blocks.end()) {
-                    continue;
-                }
-                ++ running; break;
             case kTaskFailed: ++ failed; break;
             case kTaskKilled: ++ killed; break;
             default: break;
             }
-            map_blocks.insert(cur->resource_no);
         }
     }
     MutexLock lock(&mu_);
     TaskStatistics task;
     task.set_total(job_descriptor_.map_total());
-    task.set_pending(task.total() - running - map_completed_);
-    task.set_running(running);
+    task.set_pending(map_manager_->Pending());
+    task.set_running(map_manager_->Allocated());
     task.set_failed(failed);
     task.set_killed(killed);
-    task.set_completed(map_completed_);
+    task.set_completed(map_manager_->Done());
     return task;
 }
 
 TaskStatistics JobTracker::GetReduceStatistics() {
-    std::set<int> reduce_blocks;
-    int running = 0, failed = 0, killed = 0;
+    int failed = 0, killed = 0;
     {
         MutexLock lock(&alloc_mu_);
         for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
@@ -629,26 +741,20 @@ TaskStatistics JobTracker::GetReduceStatistics() {
                 continue;
             }
             switch (cur->state) {
-            case kTaskRunning:
-                if (reduce_blocks.find(cur->resource_no) != reduce_blocks.end()) {
-                    continue;
-                }
-                ++ running; break;
             case kTaskFailed: ++ failed; break;
             case kTaskKilled: ++ killed; break;
             default: break;
             }
-            reduce_blocks.insert(cur->resource_no);
         }
     }
     MutexLock lock(&mu_);
     TaskStatistics task;
     task.set_total(job_descriptor_.reduce_total());
-    task.set_pending(task.total() - running - reduce_completed_);
-    task.set_running(running);
+    task.set_pending(reduce_manager_->Pending());
+    task.set_running(reduce_manager_->Allocated());
     task.set_failed(failed);
     task.set_killed(killed);
-    task.set_completed(reduce_completed_);
+    task.set_completed(reduce_manager_->Done());
     return task;
 }
 
@@ -665,10 +771,9 @@ std::string JobTracker::GenerateJobId() {
     return ss.str();
 }
 
-void JobTracker::KeepMonitoring() {
+void JobTracker::KeepMonitoring(bool map_now) {
     // Dynamic determination of delay check
     LOG(INFO, "[monitor] monitor starts to check timeout: %s", job_id_.c_str());
-    bool map_now = (map_ != NULL);
     std::vector<int> time_used;
     {
         MutexLock lock(&alloc_mu_);
@@ -687,13 +792,14 @@ void JobTracker::KeepMonitoring() {
         blind_predict_ = 0;
     }
     if (blind_predict_ >= FLAGS_blind_predict_num) {
-        monitor_id_ = monitor_.DelayTask(timeout * 1000,
-                boost::bind(&JobTracker::KeepMonitoring, this));
+        monitor_->DelayTask(timeout * 1000,
+                boost::bind(&JobTracker::KeepMonitoring, this, map_now));
         return;
     }
     time_t now = std::time(NULL);
     int counter = 10;
     bool detect_timeout = false;
+    std::vector<AllocateItem*> other_phase_item;
     alloc_mu_.Lock();
     while (-- counter >= 0 && !time_heap_.empty()) {
         AllocateItem* top = time_heap_.top();
@@ -705,7 +811,12 @@ void JobTracker::KeepMonitoring() {
             ++ counter;
             continue;
         }
-        if (top->is_map) {
+        if (top->is_map != map_now) {
+            ++ counter;
+            other_phase_item.push_back(top);
+            continue;
+        }
+        if (map_now) {
             map_slug_.push(top->resource_no);
         } else {
             reduce_slug_.push(top->resource_no);
@@ -714,14 +825,18 @@ void JobTracker::KeepMonitoring() {
         LOG(INFO, "Reallocate a long no-response tasks: < no - %d, attempt - %d>: %s",
                 top->resource_no, top->attempt, job_id_.c_str());
     }
+    for (std::vector<AllocateItem*>::iterator it = other_phase_item.begin();
+            it != other_phase_item.end(); ++it) {
+        time_heap_.push(*it);
+    }
     alloc_mu_.Unlock();
     if (time_used.empty() && detect_timeout) {
         ++ blind_predict_;
         LOG(INFO, "[monitor] blind prediction: %d times left",
                 FLAGS_blind_predict_num - blind_predict_);
     }
-    monitor_id_ = monitor_.DelayTask(timeout * 1000,
-            boost::bind(&JobTracker::KeepMonitoring, this));
+    monitor_->DelayTask(timeout * 1000,
+            boost::bind(&JobTracker::KeepMonitoring, this, map_now));
     LOG(INFO, "[monitor] will now rest for %ds: %s", timeout, job_id_.c_str());
 }
 

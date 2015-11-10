@@ -14,6 +14,7 @@ enum Status {
     kReadFileFail = 10;
     kNotImplement = 11;
     kNoSuchTask = 12;
+    kSuspend = 13;
     kUnKnown = 20;
 }
 

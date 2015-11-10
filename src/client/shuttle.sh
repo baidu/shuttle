@@ -24,13 +24,15 @@ if [[ $1 == *streaming ]]; then
     done
     unset file_detected
 
+    timestamp=`date +%F`
     packname=$packname-`date +%s`.tar.gz
     tar -czvf "$packname" ${files[@]} >& /dev/null
     if [ "$?" -ne "0" ]; then
         echo 'file options contains inexist file'
         exit -1
     fi
-    $nfs_path/NfsShell put --override $packname $nfs_dir
+    $nfs_path/NfsShell mkdir $nfs_dir/$timestamp
+    $nfs_path/NfsShell put --override $packname $nfs_dir/$timestamp
 
     params=( "$@" )
     for i in `seq $#`; do
@@ -41,7 +43,7 @@ if [[ $1 == *streaming ]]; then
     done
 
     set -- "${params[@]}"
-    file_param=-file\ $packname
+    file_param=-file\ $timestamp/$packname
 
     rm -rf $packname
 fi

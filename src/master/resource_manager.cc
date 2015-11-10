@@ -10,13 +10,14 @@
 #include "common/tools_util.h"
 
 DECLARE_int32(input_block_size);
+DECLARE_int32(max_replica);
 
 namespace baidu {
 namespace shuttle {
 
 static const int parallel_level = 5;
 
-IdManager::IdManager(int n) {
+IdManager::IdManager(int n) : pending_(n), allocated_(0), done_(0) {
     for (int i = 0; i < n; ++i) {
         IdItem* item = new IdItem();
         item->no = i;
@@ -38,17 +39,20 @@ IdManager::~IdManager() {
 
 IdItem* IdManager::GetItem() {
     MutexLock lock(&mu_);
+    while (!pending_res_.empty() &&
+           (pending_res_.front()->attempt > FLAGS_max_replica ||
+           pending_res_.front()->status != kResPending)) {
+        pending_res_.pop_front();
+    }
     if (pending_res_.empty()) {
         return NULL;
     }
-    while (pending_res_.front()->status != kResPending) {
-        pending_res_.pop_front();
-    }
     IdItem* cur = pending_res_.front();
+    pending_res_.pop_front();
     cur->attempt ++;
     cur->status = kResAllocated;
     cur->allocated ++;
-    pending_res_.pop_front();
+    -- pending_; ++ allocated_;
     return new IdItem(*cur);
 }
 
@@ -60,16 +64,35 @@ IdItem* IdManager::GetCertainItem(int no) {
         return NULL;
     }
     IdItem* cur = resource_pool_[n];
+    if (cur->attempt > FLAGS_max_replica) {
+        LOG(INFO, "resource distribution has reached limitation: %d", cur->no);
+        return NULL;
+    }
     if (cur->status == kResPending) {
         cur->status = kResAllocated;
-        cur->allocated ++;
+        -- pending_; ++ allocated_;
     }
     if (cur->status == kResAllocated) {
         cur->attempt ++;
+        cur->allocated ++;
         return new IdItem(*cur);
     }
-    LOG(WARNING, "this resource has not been allocated: %d", no);
+    if (cur->status == kResDone) {
+        LOG(INFO, "this resource has been done: %d", no);
+    } else {
+        LOG(WARNING, "this resource has not been allocated: %d", no);
+    }
     return NULL;
+}
+
+IdItem* IdManager::CheckCertainItem(int no) {
+    size_t n = static_cast<size_t>(no);
+    MutexLock lock(&mu_);
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for checking: %d", no);
+        return NULL;
+    }
+    return new IdItem(*(resource_pool_[n]));
 }
 
 void IdManager::ReturnBackItem(int no) {
@@ -84,6 +107,7 @@ void IdManager::ReturnBackItem(int no) {
         if (-- cur->allocated <= 0) {
             cur->status = kResPending;
             pending_res_.push_front(cur);
+            -- allocated_; ++ pending_;
         }
     } else {
         LOG(WARNING, "invalid resource: %d", no);
@@ -101,20 +125,31 @@ bool IdManager::FinishItem(int no) {
     if (cur->status == kResAllocated) {
         cur->status = kResDone;
         cur->allocated = 0;
+        -- allocated_; ++ done_;
         return true;
     }
     LOG(WARNING, "resource may have been finished: %d", no);
     return false;
 }
 
-IdItem* const IdManager::CheckCertainItem(int no) {
+bool IdManager::IsAllocated(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for checking: %d", no);
-        return NULL;
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
     }
-    return resource_pool_[n];
+    return resource_pool_[n]->status == kResAllocated;
+}
+
+bool IdManager::IsDone(int no) {
+    size_t n = static_cast<size_t>(no);
+    MutexLock lock(&mu_);
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
+    }
+    return resource_pool_[n]->status == kResDone;
 }
 
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
@@ -215,13 +250,26 @@ ResourceItem* ResourceManager::GetCertainItem(int no) {
     return new ResourceItem(*resource);
 }
 
+ResourceItem* ResourceManager::CheckCertainItem(int no) {
+    IdItem* item = manager_->CheckCertainItem(no);
+    if (item == NULL) {
+        return NULL;
+    }
+    MutexLock lock(&mu_);
+    ResourceItem* resource = resource_pool_[item->no];
+    resource->CopyFrom(*item);
+    delete item;
+    return new ResourceItem(*resource);
+}
+
 void ResourceManager::ReturnBackItem(int no) {
     manager_->ReturnBackItem(no);
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    if (static_cast<size_t>(no) > resource_pool_.size()) {
+    if (n > resource_pool_.size()) {
         return;
     }
-    ResourceItem* resource = resource_pool_[no];
+    ResourceItem* resource = resource_pool_[n];
     if (resource->status == kResAllocated) {
         if (-- resource->allocated <= 0) {
             resource->status = kResPending;
@@ -230,26 +278,38 @@ void ResourceManager::ReturnBackItem(int no) {
 }
 
 bool ResourceManager::FinishItem(int no) {
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    if (static_cast<size_t>(no) > resource_pool_.size()) {
+    if (n > resource_pool_.size()) {
         LOG(WARNING, "this resource is not valid for finishing: %d", no);
         return false;
     }
-    ResourceItem* resource = resource_pool_[no];
+    ResourceItem* resource = resource_pool_[n];
     if (resource->status == kResAllocated) {
         resource->status = kResDone;
         resource->allocated = 0;
     }
-    return manager_->FinishItem(no);
+    return manager_->FinishItem(n);
 }
 
-ResourceItem* const ResourceManager::CheckCertainItem(int no) {
-    IdItem* const item = manager_->CheckCertainItem(no);
-    if (item == NULL) {
-        return NULL;
-    }
+bool ResourceManager::IsAllocated(int no) {
+    size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
-    return resource_pool_[item->no];
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
+    }
+    return resource_pool_[n]->status == kResAllocated;
+}
+
+bool ResourceManager::IsDone(int no) {
+    size_t n = static_cast<size_t>(no);
+    MutexLock lock(&mu_);
+    if (n > resource_pool_.size()) {
+        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        return false;
+    }
+    return resource_pool_[n]->status == kResDone;
 }
 
 NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input_files,

@@ -2,6 +2,7 @@
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
 #include <boost/scoped_ptr.hpp>
+#include <cstdlib>
 #include <gflags/gflags.h>
 #include "logging.h"
 #include "proto/app_master.pb.h"
@@ -9,8 +10,9 @@
 DECLARE_string(master_nexus_path);
 DECLARE_string(nexus_addr);
 DECLARE_string(work_mode);
-DECLARE_bool(kill_task);
 DECLARE_string(jobid);
+DECLARE_bool(kill_task);
+DECLARE_int32(suspend_time);
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -125,7 +127,7 @@ void MinionImpl::Loop() {
                                           &request, &response, 5, 1);
         if (!ok) {
             LOG(FATAL, "fail to fetch task from master[%s]", master_endpoint_.c_str());
-            abort();            
+            abort();
         }
         if (response.status() == kNoMore) {
             LOG(INFO, "master has no more task for minion, so exit.");
@@ -133,6 +135,10 @@ void MinionImpl::Loop() {
         } else if (response.status() == kNoSuchJob) {
             LOG(INFO, "the job may be finished.");
             break;
+        } else if (response.status() == kSuspend) {
+            LOG(INFO, "minion will suspend for a while");
+            sleep(FLAGS_suspend_time);
+            continue;
         } else if (response.status() != kOk) {
             LOG(FATAL, "invalid responst status: %s",
                 Status_Name(response.status()).c_str());

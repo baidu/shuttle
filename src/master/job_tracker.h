@@ -49,8 +49,8 @@ public:
     Status Start();
     Status Update(const std::string& priority, int map_capacity, int reduce_capacity);
     Status Kill();
-    ResourceItem* AssignMap(const std::string& endpoint);
-    IdItem* AssignReduce(const std::string& endpoint);
+    ResourceItem* AssignMap(const std::string& endpoint, Status* status);
+    IdItem* AssignReduce(const std::string& endpoint, Status* status);
     Status FinishMap(int no, int attempt, TaskState state);
     Status FinishReduce(int no, int attempt, TaskState state);
 
@@ -87,7 +87,7 @@ public:
     }
 
 private:
-    void KeepMonitoring();
+    void KeepMonitoring(bool map_now);
     std::string GenerateJobId();
 
 private:
@@ -111,16 +111,20 @@ private:
     // Map resource
     Gru* map_;
     ResourceManager* map_manager_;
-    int map_completed_;
     int map_end_game_begin_;
+    int map_dismiss_minion_num_;
+    int map_dismissed_;
     // Reduce resource
+    int reduce_begin_;
     Gru* reduce_;
     IdManager* reduce_manager_;
-    int reduce_completed_;
     int reduce_end_game_begin_;
+    int reduce_dismiss_minion_num_;
+    int reduce_dismissed_;
     // For monitoring
-    ThreadPool monitor_;
-    int64_t monitor_id_;
+    ThreadPool* monitor_;
+    bool map_monitoring_;
+    bool reduce_monitoring_;
     int blind_predict_;
     // To communicate with minion
     RpcClient* rpc_client_;
