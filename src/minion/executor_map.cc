@@ -84,6 +84,12 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
         return kTaskFailed;
     }
 
+    FileSystem::Param hdfs_param;
+    FillParam(hdfs_param, task);
+    FileSystem* output_fs = FileSystem::CreateInfHdfs(hdfs_param);
+    output_fs->Mkdirs(task.job().output());
+    delete output_fs;
+
     KeyFieldBasedPartitioner key_field_partition(task);
     IntHashPartitioner int_hash_partition(task);
     Partitioner* partitioner = &key_field_partition;
@@ -92,22 +98,11 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
     }
 
     FileSystem::Param param;
-    //FillParam(param, task);
     FileSystem* fs = FileSystem::CreateNfs(param);
     const std::string shuffle_dir = GetShuffleWorkDir();
     const std::string map_work_dir = GetMapWorkDir(task);
-    if (!fs->Mkdirs(shuffle_dir)) {
-        if (!fs->Exist(shuffle_dir)) {
-            LOG(WARNING, "fail to make dir on NFS, %s", shuffle_dir.c_str());
-            return kTaskFailed;
-        }
-    }
-    if (!fs->Mkdirs(map_work_dir)) {
-        if (!fs->Exist(map_work_dir)) {
-            LOG(WARNING, "fail to make dir on NFS: %s", map_work_dir.c_str());
-            return kTaskFailed;
-        }
-    }
+    fs->Mkdirs(shuffle_dir);
+    fs->Mkdirs(map_work_dir);
     delete fs;
 
     Emitter emitter(GetMapWorkDir(task), task);
