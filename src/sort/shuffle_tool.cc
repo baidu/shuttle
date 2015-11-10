@@ -29,7 +29,7 @@ DEFINE_string(dfs_user, "", "user name of dfs master");
 DEFINE_string(dfs_password, "", "password of dfs master");
 DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
 DEFINE_bool(skip_merge, false, "whether skip merge phase");
-DEFINE_int32(parallel_level, 32, "parallevel level of mergeing");
+DEFINE_int32(parallel_level, 12, "parallevel level of mergeing");
 
 using baidu::common::Log;
 using baidu::common::FATAL;

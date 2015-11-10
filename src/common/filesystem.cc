@@ -110,11 +110,15 @@ public:
     bool Glob(const std::string&, std::vector<FileInfo>* ) {return false;}
     bool Mkdirs(const std::string& dir);
     bool Exist(const std::string& path);
+    static void NfsDestroy();
 private:
     nfs::NFS* fs_;
     nfs::NFSFILE* fd_;
     std::string path_;
+    static nfs::NFS* s_fs;
 };
+
+nfs::NFS* Nfs::s_fs = NULL;
 
 FileSystem* FileSystem::CreateInfHdfs() {
     return new InfHdfs();
@@ -521,9 +525,15 @@ Nfs::~Nfs() {
     }
 }
 
+void Nfs::NfsDestroy() {
+    if (s_fs) {
+        LOG(INFO, "nfs destroy");
+        s_fs->Destroy();
+    }
+}
+
 void Nfs::Connect(Param& param) {
     static Mutex s_mu;
-    static nfs::NFS* s_fs = NULL;
     MutexLock lock(&s_mu);
     if (s_fs != NULL) {
         fs_ = s_fs;
@@ -542,6 +552,7 @@ void Nfs::Connect(Param& param) {
         fs_->Init(sNfsMountPoint.c_str(), options);
     }
     s_fs = fs_;
+    ::atexit(Nfs::NfsDestroy);
 }
 
 bool Nfs::Open(const std::string& path, OpenMode mode) {
@@ -654,7 +665,7 @@ bool Nfs::Exist(const std::string& path) {
     if (!fs_) {
         return false;
     }
-    return fs_->Access(path.c_str(), R_OK) == 0;
+    return fs_->Access(path.c_str(), F_OK) == 0;
 }
 
 } //namespace shuttle
