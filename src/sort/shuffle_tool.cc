@@ -21,7 +21,7 @@
 DEFINE_int32(total, 0, "total numbers of map tasks");
 DEFINE_int32(reduce_no, 0, "the reduce number of this reduce task");
 DEFINE_string(work_dir, "/tmp", "the shuffle work dir");
-DEFINE_int32(batch, 300, "merge how many maps output at the same time");
+DEFINE_int32(batch, 1000, "merge how many maps output at the same time");
 DEFINE_int32(attempt_id, 0, "the attempt_id of this reduce task");
 DEFINE_string(dfs_host, "", "host name of dfs master");
 DEFINE_string(dfs_port, "", "port of dfs master");
