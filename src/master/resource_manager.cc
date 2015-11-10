@@ -3,7 +3,9 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/bind.hpp>
+#include <algorithm>
 #include <gflags/gflags.h>
+#include <assert.h>
 #include "logging.h"
 #include "thread_pool.h"
 #include "sort/input_reader.h"
@@ -16,6 +18,22 @@ namespace baidu {
 namespace shuttle {
 
 static const int parallel_level = 5;
+
+IdItem::IdItem(const IdItem& res) {
+    CopyFrom(res);
+}
+
+IdItem* IdItem::operator=(const IdItem& res) {
+    return CopyFrom(res);
+}
+
+IdItem* IdItem::CopyFrom(const IdItem& res) {
+    no = res.no;
+    attempt = res.attempt;
+    status = res.status;
+    allocated = res.allocated;
+    return this;
+}
 
 IdManager::IdManager(int n) : pending_(n), allocated_(0), done_(0) {
     for (int i = 0; i < n; ++i) {
@@ -150,6 +168,27 @@ bool IdManager::IsDone(int no) {
         return false;
     }
     return resource_pool_[n]->status == kResDone;
+}
+
+void IdManager::Load(const std::vector<IdItem>& data) {
+    assert(data.size() == resource_pool_.size());
+    std::vector<IdItem*>::iterator dst = resource_pool_.begin();
+    for (std::vector<IdItem>::const_iterator src = data.begin();
+            src != data.end(); ++src) {
+        (*dst)->CopyFrom(*src);
+    }
+    for (std::vector<IdItem*>::iterator it = resource_pool_.begin();
+            it != resource_pool_.end(); ++it) {
+        switch((*it)->status) {
+        case kResPending:
+            ++ pending_;
+            pending_res_.push_back(*it);
+            break;
+        case kResAllocated: ++ allocated_; break;
+        case kResDone: ++ done_; break;
+        default: break;
+        }
+    }
 }
 
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
@@ -310,6 +349,19 @@ bool ResourceManager::IsDone(int no) {
         return false;
     }
     return resource_pool_[n]->status == kResDone;
+}
+
+void ResourceManager::Load(const std::vector<ResourceItem>& data) {
+    assert(data.size() == resource_pool_.size());
+    std::vector<IdItem> id_data;
+    id_data.resize(data.size());
+    std::copy(data.begin(), data.end(), id_data.begin());
+    manager_->Load(id_data);
+    std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
+    for (std::vector<IdItem>::iterator src = id_data.begin();
+            src != id_data.end(); ++src) {
+        (*dst)->CopyFrom(*src);
+    }
 }
 
 NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input_files,

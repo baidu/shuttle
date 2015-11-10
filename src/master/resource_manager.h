@@ -19,18 +19,29 @@ enum ResourceStatus {
     kResDone = 2
 };
 
-struct IdItem {
+class ResourceItem;
+
+class IdItem {
+public:
     int no;
     int attempt;
     ResourceStatus status;
     int allocated;
+    IdItem() { }
+    IdItem(const IdItem& res);
+    IdItem* operator=(const IdItem& res);
+    IdItem* CopyFrom(const IdItem& res);
 };
 
-struct ResourceItem {
-    int no;
-    int attempt;
-    ResourceStatus status;
-    int allocated;
+class ResourceItem : public IdItem {
+public:
+    /* Public member inherited from ResourceManager
+     *
+     * int no;
+     * int attempt;
+     * ResourceStatus status;
+     * int allocated;
+    */
     std::string input_file;
     int64_t offset;
     int64_t size;
@@ -57,6 +68,7 @@ public:
     virtual int Pending() = 0;
     virtual int Allocated() = 0;
     virtual int Done() = 0;
+    virtual void Load(const std::vector<Resource>& data) = 0;
 };
 
 class IdManager : public BasicResourceManager<IdItem> {
@@ -89,6 +101,7 @@ public:
         MutexLock lock(&mu_);
         return done_;
     }
+    virtual void Load(const std::vector<IdItem>& data);
 
 protected:
     Mutex mu_;
@@ -130,6 +143,7 @@ public:
         MutexLock lock(&mu_);
         return manager_->Done();
     }
+    virtual void Load(const std::vector<ResourceItem>& data);
 
 protected:
     ResourceManager() : fs_(NULL), manager_(NULL) { }

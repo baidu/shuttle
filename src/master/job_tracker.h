@@ -114,6 +114,8 @@ private:
     int map_end_game_begin_;
     int map_dismiss_minion_num_;
     int map_dismissed_;
+    int map_killed_;
+    int map_failed_;
     // Reduce resource
     int reduce_begin_;
     Gru* reduce_;
@@ -121,6 +123,8 @@ private:
     int reduce_end_game_begin_;
     int reduce_dismiss_minion_num_;
     int reduce_dismissed_;
+    int reduce_killed_;
+    int reduce_failed_;
     // For monitoring
     ThreadPool* monitor_;
     bool map_monitoring_;
