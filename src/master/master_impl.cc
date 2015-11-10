@@ -136,17 +136,19 @@ void MasterImpl::ListJobs(::google::protobuf::RpcController* /*controller*/,
                           ::baidu::shuttle::ListJobsResponse* response,
                           ::google::protobuf::Closure* done) {
     std::map<std::string, JobTracker*>::iterator it;
-    MutexLock lock1(&(tracker_mu_));
-    MutexLock lock2(&(dead_mu_));
-    for (it = job_trackers_.begin(); it != job_trackers_.end(); ++it) {
-        JobOverview* job = response->add_jobs();
-        job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
-        job->set_jobid(it->first);
-        job->set_state(it->second->GetState());
-        job->mutable_map_stat()->CopyFrom(it->second->GetMapStatistics());
-        job->mutable_reduce_stat()->CopyFrom(it->second->GetReduceStatistics());
+    {
+        MutexLock lock1(&(tracker_mu_));
+        for (it = job_trackers_.begin(); it != job_trackers_.end(); ++it) {
+            JobOverview* job = response->add_jobs();
+            job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
+            job->set_jobid(it->first);
+            job->set_state(it->second->GetState());
+            job->mutable_map_stat()->CopyFrom(it->second->GetMapStatistics());
+            job->mutable_reduce_stat()->CopyFrom(it->second->GetReduceStatistics());
+        }
     }
     if (request->all()) {
+        MutexLock lock2(&(dead_mu_));
         for (it = dead_trackers_.begin(); it != dead_trackers_.end(); ++it) {
             JobOverview* job = response->add_jobs();
             job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());

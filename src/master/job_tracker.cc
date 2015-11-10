@@ -44,11 +44,15 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       map_manager_(NULL),
                       map_dismiss_minion_num_(0),
                       map_dismissed_(0),
+                      map_killed_(0),
+                      map_failed_(0),
                       reduce_begin_(0),
                       reduce_(NULL),
                       reduce_manager_(NULL),
                       reduce_dismiss_minion_num_(0),
                       reduce_dismissed_(0),
+                      reduce_killed_(0),
+                      reduce_failed_(0),
                       monitor_(NULL),
                       map_monitoring_(false),
                       reduce_monitoring_(false),
@@ -536,7 +540,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             }
             break;
         case kTaskFailed:
-            failed_count_[cur->resource_no] = failed_count_[cur->resource_no] + 1;
+            map_manager_->ReturnBackItem(cur->resource_no);
+            ++ failed_count_[cur->resource_no];
+            ++ map_failed_;
             if (failed_count_[cur->resource_no] >= FLAGS_retry_bound) {
                 LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
                 mu_.Unlock(); 
@@ -544,8 +550,10 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 mu_.Lock();
                 state_ = kFailed;
             }
+            break;
         case kTaskKilled:
             map_manager_->ReturnBackItem(cur->resource_no);
+            ++ map_killed_;
             break;
         case kTaskCanceled: break;
         default:
@@ -650,7 +658,9 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             }
             break;
         case kTaskFailed:
-            failed_count_[cur->resource_no] = failed_count_[cur->resource_no] + 1;
+            reduce_manager_->ReturnBackItem(cur->resource_no);
+            ++ failed_count_[cur->resource_no];
+            ++ reduce_failed_;
             if (failed_count_[cur->resource_no] >= FLAGS_retry_bound) {
                 LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
                 mu_.Unlock();
@@ -658,8 +668,10 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 mu_.Lock();
                 state_ = kFailed;
             }
+            break;
         case kTaskKilled:
             reduce_manager_->ReturnBackItem(cur->resource_no);
+            ++ reduce_killed_;
             break;
         case kTaskCanceled: break;
         default:
@@ -703,58 +715,38 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
 }
 
 TaskStatistics JobTracker::GetMapStatistics() {
-    int failed = 0, killed = 0;
-    {
-        MutexLock lock(&alloc_mu_);
-        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
-                it != allocation_table_.end(); ++it) {
-            AllocateItem* cur = *it;
-            if (!cur->is_map) {
-                continue;
-            }
-            switch (cur->state) {
-            case kTaskFailed: ++ failed; break;
-            case kTaskKilled: ++ killed; break;
-            default: break;
-            }
-        }
+    int pending = 0, running = 0, completed = 0;
+    if (map_manager_ != NULL) {
+        pending = map_manager_->Pending();
+        running = map_manager_->Allocated();
+        completed = map_manager_->Done();
     }
     MutexLock lock(&mu_);
     TaskStatistics task;
     task.set_total(job_descriptor_.map_total());
-    task.set_pending(map_manager_->Pending());
-    task.set_running(map_manager_->Allocated());
-    task.set_failed(failed);
-    task.set_killed(killed);
-    task.set_completed(map_manager_->Done());
+    task.set_pending(pending);
+    task.set_running(running);
+    task.set_failed(map_failed_);
+    task.set_killed(map_killed_);
+    task.set_completed(completed);
     return task;
 }
 
 TaskStatistics JobTracker::GetReduceStatistics() {
-    int failed = 0, killed = 0;
-    {
-        MutexLock lock(&alloc_mu_);
-        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
-                it != allocation_table_.end(); ++it) {
-            AllocateItem* cur = *it;
-            if (cur->is_map) {
-                continue;
-            }
-            switch (cur->state) {
-            case kTaskFailed: ++ failed; break;
-            case kTaskKilled: ++ killed; break;
-            default: break;
-            }
-        }
+    int pending = 0, running = 0, completed = 0;
+    if (reduce_manager_ != NULL) {
+        pending = reduce_manager_->Pending();
+        running = reduce_manager_->Allocated();
+        completed = reduce_manager_->Done();
     }
     MutexLock lock(&mu_);
     TaskStatistics task;
     task.set_total(job_descriptor_.reduce_total());
-    task.set_pending(reduce_manager_->Pending());
-    task.set_running(reduce_manager_->Allocated());
-    task.set_failed(failed);
-    task.set_killed(killed);
-    task.set_completed(reduce_manager_->Done());
+    task.set_pending(pending);
+    task.set_running(running);
+    task.set_failed(reduce_failed_);
+    task.set_killed(reduce_killed_);
+    task.set_completed(completed);
     return task;
 }
 
