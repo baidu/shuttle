@@ -72,15 +72,18 @@ public:
         MutexLock lock(&alloc_mu_);
         for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
                 it != allocation_table_.end(); ++it) {
+            AllocateItem* cur = *it;
             TaskOverview* task = response->add_tasks();
             TaskInfo* info = task->mutable_info();
-            info->set_task_id((*it)->resource_no);
-            info->set_attempt_id((*it)->attempt);
+            info->set_task_id(cur->resource_no);
+            info->set_attempt_id(cur->attempt);
             info->set_task_type((job_descriptor_.job_type() == kMapOnlyJob) ? kMapOnly :
-                    ((*it)->is_map ? kMap : kReduce));
+                    (cur->is_map ? kMap : kReduce));
             // XXX Warning: input will NOT return
-            task->set_state((*it)->state);
-            task->set_minion_addr((*it)->endpoint);
+            task->set_state(cur->state);
+            task->set_minion_addr(cur->endpoint);
+            task->set_start_time(cur->alloc_time);
+            task->set_end_time(cur->alloc_time + cur->period);
         }
         return kOk;
     }
