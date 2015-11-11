@@ -33,7 +33,7 @@ Status Gru::Start() {
     galaxy_job.job_name = minion_name_ + "@minion";
     galaxy_job.type = "kLongRun";
     galaxy_job.priority = "kOnline";
-    galaxy_job.replica = job_->map_capacity();
+    galaxy_job.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
     galaxy_job.pod.version = "1.0.0";
     galaxy_job.pod.requirement.millicores = job_->millicores() + additional_millicores;

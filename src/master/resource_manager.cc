@@ -351,17 +351,21 @@ bool ResourceManager::IsDone(int no) {
     return resource_pool_[n]->status == kResDone;
 }
 
-void ResourceManager::Load(const std::vector<ResourceItem>& data) {
+void ResourceManager::Load(const std::vector<IdItem>& data) {
     assert(data.size() == resource_pool_.size());
+    manager_->Load(data);
+    std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
+    for (std::vector<IdItem>::const_iterator src = data.begin();
+            src != data.end(); ++src) {
+        (*dst)->CopyFrom(*src);
+    }
+}
+
+void ResourceManager::Load(const std::vector<ResourceItem>& data) {
     std::vector<IdItem> id_data;
     id_data.resize(data.size());
     std::copy(data.begin(), data.end(), id_data.begin());
-    manager_->Load(id_data);
-    std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
-    for (std::vector<IdItem>::iterator src = id_data.begin();
-            src != id_data.end(); ++src) {
-        (*dst)->CopyFrom(*src);
-    }
+    Load(id_data);
 }
 
 NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input_files,

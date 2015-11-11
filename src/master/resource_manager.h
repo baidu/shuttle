@@ -41,7 +41,7 @@ public:
      * int attempt;
      * ResourceStatus status;
      * int allocated;
-    */
+     */
     std::string input_file;
     int64_t offset;
     int64_t size;
@@ -144,6 +144,7 @@ public:
         return manager_->Done();
     }
     virtual void Load(const std::vector<ResourceItem>& data);
+    virtual void Load(const std::vector<IdItem>& data);
 
 protected:
     ResourceManager() : fs_(NULL), manager_(NULL) { }

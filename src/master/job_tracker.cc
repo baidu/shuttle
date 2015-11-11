@@ -165,7 +165,7 @@ JobTracker::~JobTracker() {
     delete rpc_client_;
     {
         MutexLock lock(&alloc_mu_);
-        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+        for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
                 it != allocation_table_.end(); ++it) {
             delete *it;
         }
@@ -257,7 +257,7 @@ Status JobTracker::Kill() {
     }
 
     MutexLock lock(&alloc_mu_);
-    for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+    for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
         if ((*it)->state == kTaskRunning) {
             (*it)->state = kTaskKilled;
@@ -447,7 +447,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     AllocateItem* cur = NULL;
     {
         MutexLock lock(&alloc_mu_);
-        std::list<AllocateItem*>::iterator it;
+        std::vector<AllocateItem*>::iterator it;
         for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
             if ((*it)->is_map && (*it)->resource_no == no && (*it)->attempt == attempt) {
                 if ((*it)->state == kTaskRunning) {
@@ -577,7 +577,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     CancelTaskResponse response;
     request.set_job_id(job_id_);
     MutexLock lock(&alloc_mu_);
-    for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+    for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
         if ((*it)->is_map && (*it)->resource_no == no && (*it)->attempt != attempt) {
             rpc_client_->GetStub((*it)->endpoint, &stub);
@@ -605,7 +605,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     AllocateItem* cur = NULL;
     {
         MutexLock lock(&alloc_mu_);
-        std::list<AllocateItem*>::iterator it;
+        std::vector<AllocateItem*>::iterator it;
         for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
             if (!((*it)->is_map) && (*it)->resource_no == no && (*it)->attempt == attempt) {
                 if ((*it)->state == kTaskRunning) {
@@ -695,7 +695,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     CancelTaskResponse response;
     request.set_job_id(job_id_);
     MutexLock lock(&alloc_mu_);
-    for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+    for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
         if (!((*it)->is_map) && (*it)->resource_no == no && (*it)->attempt != attempt) {
             rpc_client_->GetStub((*it)->endpoint, &stub);
@@ -750,6 +750,87 @@ TaskStatistics JobTracker::GetReduceStatistics() {
     return task;
 }
 
+void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<IdItem>& table) {
+    for (size_t i = 0; i < table.size(); ++i) {
+        table[i].no = i;
+        table[i].attempt = 0;
+        table[i].status = kResPending;
+        table[i].allocated = 0;
+    }
+    for (std::vector<AllocateItem>::const_iterator it = history.begin();
+            it != history.end(); ++it) {
+        if (static_cast<size_t>(it->resource_no) > table.size()) {
+            continue;
+        }
+        IdItem& cur = table[it->resource_no];
+        cur.attempt = it->attempt;
+        switch(it->state) {
+        case kTaskRunning:
+            if (cur.status != kResDone) {
+                cur.status = kResAllocated;
+                ++ cur.allocated;
+            }
+            break;
+        case kTaskCompleted:
+            cur.status = kResDone;
+            cur.allocated = 0;
+            break;
+        default: break;
+        }
+    }
+}
+
+void JobTracker::Load(const std::vector<AllocateItem>& data) {
+    if (map_manager_ != NULL) {
+        std::vector<IdItem> id_data;
+        id_data.resize(map_manager_->SumOfItem());
+        Replay(data, id_data);
+        map_manager_->Load(id_data);
+    }
+    if (reduce_manager_ != NULL) {
+        std::vector<IdItem> id_data;
+        id_data.resize(reduce_manager_->SumOfItem());
+        Replay(data, id_data);
+        reduce_manager_->Load(id_data);
+    }
+    if (!data.empty()) {
+        state_ = kRunning;
+    }
+    bool is_map = true;
+    if (map_manager_->Done() == job_descriptor_.map_total()) {
+        if (reduce_manager_->Done() == job_descriptor_.reduce_total()) {
+            state_ = kCompleted;
+        }
+        is_map = false;
+        failed_count_.resize(0);
+        failed_count_.resize(job_descriptor_.reduce_total());
+    }
+    int& cur_killed = is_map ? map_killed_ : reduce_killed_;
+    int& cur_failed = is_map ? map_failed_ : reduce_failed_;
+    for (std::vector<AllocateItem>::const_iterator it = data.begin();
+            it != data.end(); ++it) {
+        AllocateItem* alloc = new AllocateItem(*it);
+        allocation_table_.push_back(alloc);
+        switch(alloc->state) {
+        case kTaskRunning: time_heap_.push(alloc); break;
+        case kTaskFailed: ++ cur_failed; break;
+        case kTaskKilled: ++ cur_killed; break;
+        default: break;
+        }
+    }
+    // TODO Pull up some minions
+}
+
+const std::vector<AllocateItem> JobTracker::DataForDump() {
+    MutexLock lock(&alloc_mu_);
+    std::vector<AllocateItem> copy;
+    for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
+            it != allocation_table_.end(); ++it) {
+        copy.push_back(*(*it));
+    }
+    return copy;
+}
+
 std::string JobTracker::GenerateJobId() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -769,7 +850,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
     std::vector<int> time_used;
     {
         MutexLock lock(&alloc_mu_);
-        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+        for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
                 it != allocation_table_.end(); ++it) {
             if ((*it)->is_map == map_now && (*it)->state == kTaskCompleted) {
                 time_used.push_back((*it)->period);

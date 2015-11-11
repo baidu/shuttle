@@ -2,6 +2,7 @@
 #define _BAIDU_SHUTTLE_SDK_SHUTTLE_H_
 
 #include <stdint.h>
+#include <time.h>
 #include <vector>
 #include <string>
 
@@ -110,7 +111,7 @@ struct JobDescription {
     bool reduce_allow_duplicates;
 };
 
-struct  TaskInstance {
+struct TaskInstance {
     std::string job_id;
     int32_t task_id;
     int32_t attempt_id;
@@ -119,6 +120,8 @@ struct  TaskInstance {
     TaskType type;
     std::string minion_addr;
     float progress;    
+    time_t start_time;
+    time_t end_time;
 };
 
 struct JobInstance {

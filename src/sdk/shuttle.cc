@@ -237,6 +237,8 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
         task.type = (sdk::TaskType)info.task_type();
         task.minion_addr = it->minion_addr();
         task.progress = it->progress();
+        task.start_time = it->start_time();
+        task.end_time = it->end_time();
         tasks.push_back(task);
     }
     return true;
