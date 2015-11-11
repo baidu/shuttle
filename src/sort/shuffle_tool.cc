@@ -41,6 +41,8 @@ int32_t g_file_no(0);
 FileSystem* g_fs(NULL);
 Mutex g_mu;
 
+const static int32_t sMaxSortFiles = 100;
+
 void FillParam(FileSystem::Param& param) {
     if (!FLAGS_dfs_user.empty()) {
         param["user"] = FLAGS_dfs_user;
@@ -84,17 +86,16 @@ void CollectFilesToMerge(std::vector<std::string>* maps_to_merge) {
 void AddSortFiles(const std::string map_dir, std::vector<std::string>* file_names) {
     assert(file_names);
     std::vector<FileInfo> sort_files;
-    if (g_fs->List(map_dir, &sort_files)) {
-        std::vector<FileInfo>::iterator jt;
-        for (jt = sort_files.begin(); jt != sort_files.end(); jt++) {
-            const std::string& file_name = jt->name;
-            if (boost::ends_with(file_name, ".sort")) {
-                MutexLock lock(&g_mu);
-                file_names->push_back(file_name);
-            }
+    for (int i = 0; i < sMaxSortFiles; i++) {
+        std::stringstream ss;
+        ss << map_dir << "/" << i << ".sort";
+        const std::string f_name = ss.str();
+        if (g_fs->Exist(f_name)) {
+            MutexLock lock(&g_mu);
+            file_names->push_back(f_name);
+        } else {
+            break;
         }
-    } else {
-        LOG(FATAL, "fail to list %s", map_dir.c_str());
     }
 }
 
