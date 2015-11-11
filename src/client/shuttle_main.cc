@@ -423,6 +423,12 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
     printf("%s\n", tp.ToString().c_str());
 }
 
+static inline std::string ParseTimeToReadable(const time_t& time) {
+    char time_buf[32] = { 0 };
+    ::strftime(time_buf, 32, "%T", ::localtime(&time));
+    return time_buf;
+}
+
 static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
     ::baidu::common::TPrinter tp(5);
     tp.AddRow(6, "tid", "aid", "state", "minion address", "start time", "end time");
@@ -434,8 +440,8 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
                   (it->state == ::baidu::shuttle::sdk::kTaskUnknown) ?
                       "Unknown" : state_string[it->state],
                   it->minion_addr.c_str(),
-                  boost::lexical_cast<std::string>(it->start_time).c_str(),
-                  boost::lexical_cast<std::string>(it->end_time).c_str());
+                  ParseTimeToReadable(it->start_time).c_str(),
+                  ParseTimeToReadable(it->end_time).c_str());
     }
     printf("%s\n", tp.ToString().c_str());
 }
