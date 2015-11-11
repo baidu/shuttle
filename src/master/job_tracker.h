@@ -1,7 +1,6 @@
 #ifndef _BAIDU_SHUTTLE_JOB_TRACKER_H_
 #define _BAIDU_SHUTTLE_JOB_TRACKER_H_
 #include <string>
-#include <list>
 #include <queue>
 #include <vector>
 #include <utility>
@@ -71,7 +70,7 @@ public:
 
     Status Check(ShowJobResponse* response) {
         MutexLock lock(&alloc_mu_);
-        for (std::list<AllocateItem*>::iterator it = allocation_table_.begin();
+        for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
                 it != allocation_table_.end(); ++it) {
             TaskOverview* task = response->add_tasks();
             TaskInfo* info = task->mutable_info();
@@ -85,10 +84,13 @@ public:
         }
         return kOk;
     }
+    void Load(const std::vector<AllocateItem>& data);
+    const std::vector<AllocateItem> DataForDump();
 
 private:
     void KeepMonitoring(bool map_now);
     std::string GenerateJobId();
+    void Replay(const std::vector<AllocateItem>& history, std::vector<IdItem>& table);
 
 private:
     MasterImpl* master_;
@@ -102,7 +104,7 @@ private:
     bool reduce_allow_duplicates_;
     // Resource allocation
     Mutex alloc_mu_;
-    std::list<AllocateItem*> allocation_table_;
+    std::vector<AllocateItem*> allocation_table_;
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;
     std::vector<int> failed_count_;
