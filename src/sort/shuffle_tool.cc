@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include <string>
 #include <unistd.h>
 #include <algorithm>
@@ -28,8 +29,7 @@ DEFINE_string(dfs_port, "", "port of dfs master");
 DEFINE_string(dfs_user, "", "user name of dfs master");
 DEFINE_string(dfs_password, "", "password of dfs master");
 DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
-DEFINE_bool(skip_merge, false, "whether skip merge phase");
-DEFINE_int32(parallel_level, 32, "parallevel level of mergeing");
+DEFINE_int32(tuo_size, 10, "one tuo contains how many maps'output");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -38,10 +38,8 @@ using baidu::common::WARNING;
 using namespace baidu;
 using namespace baidu::shuttle;
 
-std::set<std::string> g_merged;
 int32_t g_file_no(0);
 FileSystem* g_fs(NULL);
-Mutex g_mu;
 
 bool AddSortFiles(const std::string map_dir, std::vector<std::string>* file_names) {
     assert(file_names);
@@ -60,68 +58,62 @@ bool AddSortFiles(const std::string map_dir, std::vector<std::string>* file_name
 		return false;
     }
 }
-void IsMapReady(const std::string& map_dir, std::map<std::string, std::vector<std::string> >* ready_map) {
-	std::vector<std::string> file_names;
-    if (AddSortFiles(map_dir, &file_names)) {
-        MutexLock lock(&g_mu);
-        (*ready_map)[map_dir] = file_names;
+
+bool MergeManyFilesToOne(const std::vector<std::string>& file_names,
+                         const std::string& output_file) {
+    MergeFileReader reader;
+    FileSystem::Param param;
+    //FillParam(param);
+    Status status = reader.Open(file_names, param, kNfsFile);
+    if (status != kOk) {
+        LOG(WARNING, "fail to open: %s", reader.GetErrorFile().c_str());
+        return false;
     }
+
+    SortFileReader::Iterator* scan_it = reader.Scan("", "");
+    if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
+        LOG(WARNING, "fail to scan: %s", reader.GetErrorFile().c_str());
+        return false;
+    }
+    SortFileWriter* writer = SortFileWriter::Create(kNfsFile, &status);
+    if (status != kOk) {
+        LOG(WARNING, "fail to create writer");
+        return false;
+    }
+    FileSystem::Param param_write;
+    status = writer->Open(output_file, param_write);
+    if (status != kOk) {
+        LOG(WARNING, "fail to open %s for write", output_file.c_str());
+        return false;
+    }
+    while (!scan_it->Done()) {
+        status = writer->Put(scan_it->Key(), scan_it->Value());
+        if (status != kOk) {
+            LOG(WARNING, "fail to put: %s", output_file.c_str());
+            return false;
+        }
+        scan_it->Next();
+    }
+    if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
+        LOG(WARNING, "fail to scan: %s", reader.GetErrorFile().c_str());
+        return false;
+    }
+    status = writer->Close();
+    if (status != kOk) {
+        LOG(WARNING, "fail to close writer: %s", output_file.c_str());
+        return false;
+    }
+    delete scan_it;
+    status = reader.Close();
+    if (status != kOk) {
+        LOG(WARNING, "fail to close reader: %s", reader.GetErrorFile().c_str());
+        return false;
+    }
+    delete writer;
+    return true;
 }
 
-void CollectFilesToMerge(std::map<std::string, std::vector<std::string> >* maps_to_merge) {
-    assert(maps_to_merge);
-    std::vector<std::string> candidates;
-    for (int i = 0; i < FLAGS_total; i++) {
-        std::stringstream ss;
-        ss << FLAGS_work_dir << "/map_" << i;
-        std::string map_dir = ss.str();
-        if (g_merged.find(map_dir) != g_merged.end()) {
-            continue;
-        }
-        candidates.push_back(map_dir);
-    }
-    std::vector<std::string>::const_iterator it;
-    std::map<std::string, std::vector<std::string> >* ready_map = new std::map<std::string, std::vector<std::string> >();
-    ThreadPool pool(FLAGS_parallel_level);
-    LOG(INFO, "checking ready map ...");
-    int ct = 0;
-    for (it = candidates.begin(); it != candidates.end(); it++) {
-        const std::string& map_dir = *it;
-        pool.AddTask(boost::bind(&IsMapReady, map_dir, ready_map));
-        ct++;
-        if (ct >= FLAGS_batch) {
-            break;
-        }
-    }
-    pool.Stop(true);
-    LOG(INFO, "check ready map done.");
-    for (it = candidates.begin(); it != candidates.end(); it++) {
-        const std::string& map_dir = *it;
-        if (ready_map->find(map_dir) != ready_map->end()) {
-            LOG(INFO, "maps_to_merge: %s", map_dir.c_str());
-            (*maps_to_merge)[map_dir] = (*ready_map)[map_dir];
-        }
-        if (maps_to_merge->size() >= (size_t)FLAGS_batch) {
-            break;
-        }
-    }
-    delete ready_map;
-}
-
-void MergeMapOutput(const std::map<std::string, std::vector<std::string> >& maps_to_merge) {
-    std::vector<std::string> file_names;
-	std::map<std::string, std::vector<std::string> >::const_iterator it;
-	for (it = maps_to_merge.begin(); it != maps_to_merge.end(); it++) {
-		const std::vector<std::string>& vec = it->second;
-		for (size_t i = 0; i < vec.size(); i++) {
-			file_names.push_back(vec[i]);
-		}
-	}
-    if (file_names.empty()) {
-        LOG(WARNING, "not map output found");
-        return;
-    }
-    LOG(INFO, "list #%d *.sort files", file_names.size());
+void MergeAndPrint(const std::vector<std::string>& file_names) {
     MergeFileReader reader;
     FileSystem::Param param;
     //FillParam(param);
@@ -132,87 +124,8 @@ void MergeMapOutput(const std::map<std::string, std::vector<std::string> >& maps
     char s_reduce_no[256];
     snprintf(s_reduce_no, sizeof(s_reduce_no), "%05d", FLAGS_reduce_no);
     std::string s_reduce_key(s_reduce_no);
-
-    SortFileReader::Iterator* scan_it = reader.Scan(s_reduce_key, 
+    SortFileReader::Iterator* scan_it = reader.Scan(s_reduce_key,
                                                     s_reduce_key + "\xff");
-    if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
-        LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
-    }
-    char reduce_dir[4096];
-    snprintf(reduce_dir, sizeof(reduce_dir), "%s/reduce_%d_%d",
-             FLAGS_work_dir.c_str(), FLAGS_reduce_no, FLAGS_attempt_id);
-    g_fs->Mkdirs(reduce_dir);
-    char output_file[4096];
-    snprintf(output_file, sizeof(output_file), "%s/reduce_%d_%d/%d.sort",
-             FLAGS_work_dir.c_str(), FLAGS_reduce_no, FLAGS_attempt_id,
-             g_file_no++);
-    SortFileWriter * writer = SortFileWriter::Create(kNfsFile, &status);
-    if (status != kOk) {
-        LOG(FATAL, "fail to create writer");
-    }
-    FileSystem::Param param_write;
-    //FillParam(param_write);
-    //param_write["replica"] = "2";
-    status = writer->Open(output_file, param_write);
-    if (status != kOk) {
-        LOG(FATAL, "fail to open %s for write", output_file);
-    }
-    while (!scan_it->Done()) {
-        status = writer->Put(scan_it->Key(), scan_it->Value());
-        if (status != kOk) {
-            LOG(FATAL, "fail to put: %s", output_file);                
-        }
-        scan_it->Next();
-    }
-    if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
-        LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
-    } 
-    status = writer->Close();
-    if (status != kOk) {
-        LOG(FATAL, "fail to close writer: %s", output_file);
-    }
-    delete scan_it;
-    status = reader.Close();
-    if (status != kOk) {
-        LOG(FATAL, "fail to close reader: %s", reader.GetErrorFile().c_str());
-    }
-    delete writer;
-    for (it = maps_to_merge.begin(); it != maps_to_merge.end(); it++) {
-        const std::string& map_dir = it->first;
-        LOG(INFO, "g_merged insert: %s", map_dir.c_str());
-        g_merged.insert(map_dir);
-    }
-}
-
-void MergeAndPrint() {
-    char reduce_merge_dir[4096];
-    snprintf(reduce_merge_dir, sizeof(reduce_merge_dir), 
-             "%s/reduce_%d_%d",
-             FLAGS_work_dir.c_str(), FLAGS_reduce_no, FLAGS_attempt_id);
-    std::vector<FileInfo> children;
-    if (!g_fs->List(reduce_merge_dir, &children)) {
-        LOG(FATAL, "fail to list: %s", reduce_merge_dir);
-    }
-    std::vector<std::string> file_names;
-    std::vector<FileInfo>::iterator it;
-    for (it = children.begin(); it != children.end(); it++) {
-        const std::string& file_name = it->name;
-        if (boost::ends_with(file_name, ".sort")) {
-            file_names.push_back(std::string(reduce_merge_dir) + "/" + file_name);
-        }
-    }
-    if (file_names.empty()) {
-        LOG(WARNING, "no data for this reduce task");
-        return;
-    }
-    MergeFileReader reader;
-    FileSystem::Param param;
-    //FillParam(param);
-    Status status = reader.Open(file_names, param, kNfsFile);
-    if (status != kOk) {
-        LOG(FATAL, "fail to open: %s", reader.GetErrorFile().c_str());
-    }
-    SortFileReader::Iterator* scan_it = reader.Scan("", "");
     if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
         LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
     }
@@ -228,6 +141,71 @@ void MergeAndPrint() {
         LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
     }
     reader.Close();
+    delete scan_it;
+}
+
+bool MergeOneTuo(int map_from, int map_to, int tuo_now) {
+    std::vector<std::string> file_names;
+    for (int i = map_from; i <= map_to; i++) {
+        std::stringstream ss;
+        ss << FLAGS_work_dir << "/map_" << i;
+        const std::string& map_dir = ss.str();
+        if (!AddSortFiles(map_dir, &file_names)) {
+            return false;
+        }
+    }
+    char tuo_dir[4096];
+    snprintf(tuo_dir, sizeof(tuo_dir), "%s/tuo_%d_%d",
+             FLAGS_work_dir.c_str(), FLAGS_reduce_no, FLAGS_attempt_id);
+    g_fs->Mkdirs(tuo_dir);
+    char output_file[4096];
+    snprintf(output_file, sizeof(output_file), "%s/tuo_%d_%d/%d.tuo",
+            FLAGS_work_dir.c_str(), FLAGS_reduce_no, FLAGS_attempt_id, tuo_now);
+    if (!MergeManyFilesToOne(file_names, output_file)) {
+        return false;
+    }
+    std::stringstream ss;
+    ss << FLAGS_work_dir << "/" << tuo_now << ".tuo";
+    const std::string real_tuo_name = ss.str();
+    if (!g_fs->Rename(output_file, real_tuo_name)) {
+        return false;
+    }
+    return true;
+}
+
+int MergeTuo() {
+    srand(time(0));
+    int n_tuo = (int)ceil((float)FLAGS_total / FLAGS_tuo_size) ;
+    LOG(INFO, "will merge %d tuo", n_tuo);
+    std::vector<int> tuo_list;
+    for (int i = 0; i < n_tuo; i++) {
+        tuo_list.push_back(i);
+    }
+    std::random_shuffle(tuo_list.begin(), tuo_list.end());
+    int n_tuo_ready = 0;
+    while (n_tuo_ready < n_tuo) {
+        std::vector<int>::iterator it;
+        for (it = tuo_list.begin(); it != tuo_list.end(); it++) {
+            int tuo_now = *it;
+            std::stringstream ss;
+            ss << FLAGS_work_dir << "/" << tuo_now << ".tuo";
+            const std::string& tuo_file_name = ss.str();
+            if (g_fs->Exist(tuo_file_name)) {
+                n_tuo_ready ++;
+                LOG(INFO, "lucky, total #%d/%d tuo ready", n_tuo_ready, n_tuo);
+                continue;
+            }
+            int map_from = tuo_now * FLAGS_tuo_size;
+            int map_to = std::min( (tuo_now + 1) * FLAGS_tuo_size - 1, FLAGS_total - 1);
+            LOG(INFO, "merge tuo from %d to %d", map_from, map_to);
+            if (MergeOneTuo(map_from, map_to, tuo_now)) {
+                n_tuo_ready++ ;
+                LOG(INFO, "total #%d/%d tuo ready", n_tuo_ready, n_tuo);
+            }
+        }
+        sleep(1);
+    }
+    return n_tuo;
 }
 
 int main(int argc, char* argv[]) {
@@ -235,31 +213,17 @@ int main(int argc, char* argv[]) {
     baidu::common::SetWarningFile(GetLogName("./shuffle_tool.log.wf").c_str());
     google::ParseCommandLineFlags(&argc, &argv, true);
     FileSystem::Param param;
-    //FillParam(param);
     g_fs = FileSystem::CreateNfs(param);
     if (FLAGS_total == 0 ) {
         LOG(FATAL, "invalid map task total");
     }
-    while (!FLAGS_skip_merge && (int32_t)g_merged.size() < FLAGS_total) {
-        std::map<std::string, std::vector<std::string> > maps_to_merge;
-        CollectFilesToMerge(&maps_to_merge);
-        if (maps_to_merge.empty()) {
-            LOG(INFO, "map output is empty, wait 10 seconds and try...");
-            sleep(10);
-            continue;
-        }
-        if (maps_to_merge.size() >= (size_t)FLAGS_batch || 
-            maps_to_merge.size() + g_merged.size() >= (size_t)FLAGS_total) {
-            LOG(INFO, "try merge %d maps", maps_to_merge.size());
-            MergeMapOutput(maps_to_merge);
-        } else {
-            LOG(INFO, "merged: %d, wait-for merge: %d", g_merged.size(), maps_to_merge.size());
-            LOG(INFO, "wait for enough map-output to merge, sleep 5 second");
-            sleep(5);
-        }
-        LOG(INFO, "merge progress: < %d/%d > ", g_merged.size(), FLAGS_total);
+    int n_tuo = MergeTuo();
+    std::vector<std::string>  tuo_file_names;
+    for (int i = 0;  i< n_tuo; i++) {
+        std::stringstream ss;
+        ss << FLAGS_work_dir + "/" << i << ".tuo";
+        tuo_file_names.push_back(ss.str());
     }
-    LOG(INFO, "merge and print out");
-    MergeAndPrint();
+    MergeAndPrint(tuo_file_names);
     return 0;
 }
