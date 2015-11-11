@@ -430,7 +430,7 @@ static inline std::string ParseTimeToReadable(const time_t& time) {
 }
 
 static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
-    ::baidu::common::TPrinter tp(5);
+    ::baidu::common::TPrinter tp(6);
     tp.AddRow(6, "tid", "aid", "state", "minion address", "start time", "end time");
     for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
             it != tasks.end(); ++it) {
