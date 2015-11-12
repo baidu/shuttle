@@ -25,12 +25,16 @@ if [[ $1 == *streaming ]]; then
     unset file_detected
 
     timestamp=`date +%F`
-    packname=$packname-`date +%s`.tar.gz
-    tar -czvf "$packname" ${files[@]} >& /dev/null
+    pack_dirname=$packname-`date +%s`
+    mkdir $pack_dirname
+    packname=${pack_dirname}".tar.gz"
+    cp -rf ${files[@]} ${pack_dirname} 
     if [ "$?" -ne "0" ]; then
         echo 'file options contains inexist file'
         exit -1
     fi
+    tar -czvf "$packname" -C $pack_dirname . >& /dev/null
+
     $nfs_path/NfsShell mkdir $nfs_dir/$timestamp
     $nfs_path/NfsShell put --override $packname $nfs_dir/$timestamp
 
@@ -45,7 +49,7 @@ if [[ $1 == *streaming ]]; then
     set -- "${params[@]}"
     file_param=-file\ $timestamp/$packname
 
-    rm -rf $packname
+    rm -rf $packname $pack_dirname
 fi
 
 source $the_dir/shuttle.conf 2> /dev/null

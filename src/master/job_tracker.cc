@@ -135,6 +135,8 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
 
     monitor_ = new ThreadPool(1);
 
+    map_allow_duplicates_ = job_descriptor_.map_allow_duplicates();
+    reduce_allow_duplicates_ = job_descriptor_.reduce_allow_duplicates();
     // For end game counter
     map_end_game_begin_ = sum_of_map - FLAGS_replica_begin;
     int temp = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
@@ -150,8 +152,6 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     if (reduce_end_game_begin_ < temp) {
         reduce_end_game_begin_ = temp;
     }
-    map_allow_duplicates_ = job_descriptor_.map_allow_duplicates();
-    reduce_allow_duplicates_ = job_descriptor_.reduce_allow_duplicates();
 }
 
 JobTracker::~JobTracker() {
