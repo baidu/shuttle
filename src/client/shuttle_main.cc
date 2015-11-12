@@ -441,7 +441,7 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
                       "Unknown" : state_string[it->state],
                   it->minion_addr.c_str(),
                   ParseTimeToReadable(it->start_time).c_str(),
-                  ParseTimeToReadable(it->end_time).c_str());
+                  (it->end_time > it->start_time) ? ParseTimeToReadable(it->end_time).c_str() : "-");
     }
     printf("%s\n", tp.ToString().c_str());
 }
