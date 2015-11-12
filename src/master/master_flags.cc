@@ -16,6 +16,9 @@ DEFINE_string(nexus_root_path, "/shuttle/", "root of nexus path, compatible with
 DEFINE_string(master_lock_path, "master_lock", "the key used for master to lock");
 DEFINE_string(master_path, "master", "the key used for minion to find master");
 DEFINE_string(nexus_server_list, "", "server list for nexus to store meta data");
-DEFINE_int32(gc_interval, 600, "time interval for master recycle outdated job");
+DEFINE_string(history_header, "his_", "header of history item in nexus key data");
+DEFINE_int32(gc_interval, 600, "time interval for master recycling outdated job");
+DEFINE_int32(backup_interval, 500, "millisecond time interval for master backup jobs information");
 DEFINE_int32(retry_bound, 3, "retry times when a certain task failed before the job is considered failed");
+DEFINE_bool(recovery, true, "whether fallen into recovery process at the beginning");
 

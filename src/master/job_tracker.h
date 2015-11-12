@@ -87,7 +87,7 @@ public:
         }
         return kOk;
     }
-    void Load(const std::vector<AllocateItem>& data);
+    void Load(const std::string& jobid, const std::vector<AllocateItem>& data);
     const std::vector<AllocateItem> DataForDump();
 
 private:

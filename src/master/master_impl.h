@@ -54,7 +54,6 @@ public:
 
 private:
     void AcquireMasterLock();
-    void Reload();
     static void OnMasterSessionTimeout(void* ctx);
     void OnSessionTimeout();
     static void OnMasterLockChange(const ::galaxy::ins::sdk::WatchParam& param,
@@ -62,6 +61,12 @@ private:
     void OnLockChange(const std::string& lock_session_id);
     std::string SelfEndpoint();
     void KeepGarbageCollecting();
+    void KeepDataPersistence();
+    void Reload();
+    bool GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
+                             std::vector<AllocateItem>& history);
+    void ParseHistory(const std::string& history_str, std::vector<AllocateItem>& history);
+    std::string SerialHistory(const std::vector<AllocateItem>& history);
 
 private:
     ::baidu::galaxy::Galaxy* galaxy_sdk_;

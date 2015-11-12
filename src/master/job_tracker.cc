@@ -780,7 +780,8 @@ void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<Id
     }
 }
 
-void JobTracker::Load(const std::vector<AllocateItem>& data) {
+void JobTracker::Load(const std::string& jobid, const std::vector<AllocateItem>& data) {
+    job_id_ = jobid;
     if (map_manager_ != NULL) {
         std::vector<IdItem> id_data;
         id_data.resize(map_manager_->SumOfItem());

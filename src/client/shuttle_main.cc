@@ -430,11 +430,12 @@ static inline std::string ParseTimeToReadable(const time_t& time) {
 }
 
 static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
-    ::baidu::common::TPrinter tp(6);
-    tp.AddRow(6, "tid", "aid", "state", "minion address", "start time", "end time");
+    const int column = 6;
+    ::baidu::common::TPrinter tp(column);
+    tp.AddRow(column, "tid", "aid", "state", "minion address", "start time", "end time");
     for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
             it != tasks.end(); ++it) {
-        tp.AddRow(6, (task_type_string[it->type] + "-" +
+        tp.AddRow(column, (task_type_string[it->type] + "-" +
                       boost::lexical_cast<std::string>(it->task_id)).c_str(),
                   boost::lexical_cast<std::string>(it->attempt_id).c_str(),
                   (it->state == ::baidu::shuttle::sdk::kTaskUnknown) ?
@@ -447,8 +448,9 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
 }
 
 static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
-    ::baidu::common::TPrinter tp(5);
-    tp.AddRow(5, "job id", "job name", "state", "map(r/p/c)", "reduce(r/p/c)");
+    const int column = 5;
+    ::baidu::common::TPrinter tp(column);
+    tp.AddRow(column, "job id", "job name", "state", "map(r/p/c)", "reduce(r/p/c)");
     for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_iterator it = jobs.begin();
             it != jobs.end(); ++it) {
         std::string map_running = boost::lexical_cast<std::string>(it->map_stat.running)
@@ -457,7 +459,7 @@ static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance 
         std::string reduce_running = boost::lexical_cast<std::string>(it->reduce_stat.running)
             + "/" + boost::lexical_cast<std::string>(it->reduce_stat.pending)
             + "/" + boost::lexical_cast<std::string>(it->reduce_stat.completed);
-        tp.AddRow(5, it->jobid.c_str(), it->desc.name.c_str(), state_string[it->state],
+        tp.AddRow(column, it->jobid.c_str(), it->desc.name.c_str(), state_string[it->state],
                   map_running.c_str(), reduce_running.c_str());
     }
     printf("%s\n", tp.ToString().c_str());

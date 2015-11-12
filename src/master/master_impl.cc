@@ -1,6 +1,7 @@
 #include "master_impl.h"
 
 #include <string>
+#include <sstream>
 #include <stdlib.h>
 #include <time.h>
 #include <assert.h>
@@ -16,7 +17,10 @@ DECLARE_string(master_port);
 DECLARE_string(master_lock_path);
 DECLARE_string(master_path);
 DECLARE_string(nexus_server_list);
+DECLARE_string(history_header);
 DECLARE_int32(gc_interval);
+DECLARE_int32(backup_interval);
+DECLARE_bool(recovery);
 
 namespace baidu {
 namespace shuttle {
@@ -26,6 +30,7 @@ MasterImpl::MasterImpl() {
     galaxy_sdk_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
     nexus_ = new ::galaxy::ins::sdk::InsSDK(FLAGS_nexus_server_list);
     gc_.AddTask(boost::bind(&MasterImpl::KeepGarbageCollecting, this));
+    gc_.AddTask(boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
 
 MasterImpl::~MasterImpl() {
@@ -44,8 +49,11 @@ MasterImpl::~MasterImpl() {
 void MasterImpl::Init() {
     AcquireMasterLock();
     LOG(INFO, "master alive, recovering");
-    Reload();
-    LOG(INFO, "master recovered");
+    if (FLAGS_recovery) {
+        // TODO Uncomment this function until it's fully implemented
+        // Reload();
+        LOG(INFO, "master recovered");
+    }
 }
 
 void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
@@ -336,10 +344,6 @@ void MasterImpl::AcquireMasterLock() {
     LOG(INFO, "master lock acquired. %s -> %s", master_key.c_str(), master_endpoint.c_str());
 }
 
-void MasterImpl::Reload() {
-    // TODO Reload saved meta data
-}
-
 void MasterImpl::OnMasterSessionTimeout(void* ctx) {
     MasterImpl* master = static_cast<MasterImpl*>(ctx);
     master->OnSessionTimeout();
@@ -384,6 +388,106 @@ void MasterImpl::KeepGarbageCollecting() {
     dead_trackers_.clear();
     gc_.DelayTask(FLAGS_gc_interval * 1000,
                   boost::bind(&MasterImpl::KeepGarbageCollecting, this));
+}
+
+void MasterImpl::KeepDataPersistence() {
+    // TODO Maybe do diff here to reduce pressure
+    {
+        MutexLock lock(&tracker_mu_);
+        for (std::map<std::string, JobTracker*>::iterator it = job_trackers_.begin();
+                it != job_trackers_.end(); ++it) {
+            std::stringstream ss;
+            it->second->GetJobDescriptor().SerializeToOstream(&ss);
+            const std::string& jobid = it->second->GetJobId();
+            const std::string& descriptor = ss.str();
+            const std::string& history = SerialHistory(it->second->DataForDump());
+            nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
+            nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, history, NULL);
+        }
+    }
+    MutexLock lock(&dead_mu_);
+    for (std::map<std::string, JobTracker*>::iterator it = dead_trackers_.begin();
+            it != dead_trackers_.end(); ++it) {
+        std::stringstream ss;
+        it->second->GetJobDescriptor().SerializeToOstream(&ss);
+        const std::string& jobid = it->second->GetJobId();
+        const std::string& descriptor = ss.str();
+        const std::string& history = SerialHistory(it->second->DataForDump());
+        nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
+        nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, history, NULL);
+    }
+    gc_.DelayTask(FLAGS_backup_interval, boost::bind(&MasterImpl::KeepDataPersistence, this));
+}
+
+void MasterImpl::Reload() {
+    JobDescriptor job;
+    std::vector<AllocateItem> history;
+    std::string jobid;
+    while (GetJobInfoFromNexus(jobid, job, history)) {
+        JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
+        jobtracker->Load(jobid, history);
+        if (jobtracker->GetState() != kRunning && jobtracker->GetState() != kPending) {
+            job_trackers_[jobid] = jobtracker;
+        } else {
+            dead_trackers_[jobid] = jobtracker;
+        }
+        history.clear();
+    }
+}
+
+bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
+                                     std::vector<AllocateItem>& history) {
+    static ::galaxy::ins::sdk::ScanResult* result = nexus_->Scan(
+            FLAGS_nexus_root_path + "job_", FLAGS_nexus_root_path + "job`");
+    if (result->Done()) {
+        return false;
+    }
+    jobid = result->Key();
+    std::stringstream job_ss(result->Value());
+    job.ParseFromIstream(&job_ss);
+    std::string history_str;
+    if (nexus_->Get(FLAGS_history_header + jobid, &history_str, NULL)) {
+        ParseHistory(history_str, history);
+    }
+    result->Next();
+    return false;
+}
+
+void MasterImpl::ParseHistory(const std::string& history_str,
+                              std::vector<AllocateItem>& history) {
+    JobCollection jc;
+    std::stringstream ss(history_str);
+    jc.ParseFromIstream(&ss);
+    ::google::protobuf::RepeatedPtrField< JobAllocation >::const_iterator it;
+    for (it = jc.jobs().begin(); it != jc.jobs().end(); ++it) {
+        AllocateItem item;
+        item.resource_no = it->resource_no();
+        item.attempt = it->attempt();
+        item.endpoint = it->endpoint();
+        item.state = it->state();
+        item.alloc_time = it->alloc_time();
+        item.period = it->period();
+        item.is_map = it->is_map();
+        history.push_back(item);
+    }
+}
+
+std::string MasterImpl::SerialHistory(const std::vector<AllocateItem>& history) {
+    JobCollection jc;
+    for (std::vector<AllocateItem>::const_iterator it = history.begin();
+            it != history.end(); ++it) {
+        JobAllocation* job = jc.add_jobs();
+        job->set_resource_no(it->resource_no);
+        job->set_attempt(it->attempt);
+        job->set_endpoint(it->endpoint);
+        job->set_state(it->state);
+        job->set_alloc_time(it->alloc_time);
+        job->set_period(it->period);
+        job->set_is_map(it->is_map);
+    }
+	std::stringstream ss;
+	jc.SerializeToOstream(&ss);
+    return ss.str();
 }
 
 }

@@ -20,6 +20,20 @@ message TaskStatistics {
     optional int32 completed = 6;
 }
 
+message JobAllocation {
+    optional int32 resource_no = 1;
+    optional int32 attempt = 2;
+    optional string endpoint = 3;
+    optional TaskState state = 4;
+    optional int64 alloc_time = 5;
+    optional int64 period = 6 [default = -1];
+    optional bool is_map = 7;
+}
+
+message JobCollection {
+    repeated JobAllocation jobs = 1;
+}
+
 message SubmitJobRequest {
     required JobDescriptor job = 1;
 }
