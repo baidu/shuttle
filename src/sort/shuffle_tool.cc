@@ -182,25 +182,30 @@ int MergeTuo() {
         tuo_list.push_back(i);
     }
     std::random_shuffle(tuo_list.begin(), tuo_list.end());
-    int n_tuo_ready = 0;
-    while (n_tuo_ready < n_tuo) {
+    std::set<int> ready_tuo_set;
+    while (ready_tuo_set.size() < (size_t)n_tuo) {
         std::vector<int>::iterator it;
         for (it = tuo_list.begin(); it != tuo_list.end(); it++) {
             int tuo_now = *it;
+            if (ready_tuo_set.find(tuo_now) != ready_tuo_set.end()) {
+                continue;
+            }
             std::stringstream ss;
             ss << FLAGS_work_dir << "/" << tuo_now << ".tuo";
             const std::string& tuo_file_name = ss.str();
             if (g_fs->Exist(tuo_file_name)) {
-                n_tuo_ready ++;
-                LOG(INFO, "lucky, total #%d/%d tuo ready", n_tuo_ready, n_tuo);
+                ready_tuo_set.insert(tuo_now);
+                LOG(INFO, "lucky, total #%d/%d tuo ready", ready_tuo_set.size(), n_tuo);
                 continue;
             }
-            int map_from = tuo_now * FLAGS_tuo_size;
-            int map_to = std::min( (tuo_now + 1) * FLAGS_tuo_size - 1, FLAGS_total - 1);
-            LOG(INFO, "merge tuo from %d to %d", map_from, map_to);
-            if (MergeOneTuo(map_from, map_to, tuo_now)) {
-                n_tuo_ready++ ;
-                LOG(INFO, "total #%d/%d tuo ready", n_tuo_ready, n_tuo);
+            if (FLAGS_reduce_no < n_tuo) {
+                int map_from = tuo_now * FLAGS_tuo_size;
+                int map_to = std::min( (tuo_now + 1) * FLAGS_tuo_size - 1, FLAGS_total - 1);
+                LOG(INFO, "merge tuo from %d to %d", map_from, map_to);
+                if (MergeOneTuo(map_from, map_to, tuo_now)) {
+                    ready_tuo_set.insert(tuo_now);
+                    LOG(INFO, "total #%d/%d tuo ready", ready_tuo_set.size(), n_tuo);
+                }
             }
         }
         sleep(1);
