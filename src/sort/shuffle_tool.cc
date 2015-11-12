@@ -208,7 +208,7 @@ int MergeTuo() {
                 }
             }
         }
-        sleep(1);
+        sleep(5);
     }
     return n_tuo;
 }
