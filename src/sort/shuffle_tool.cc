@@ -203,6 +203,9 @@ int MergeTuo() {
         std::vector<int>::iterator it;
         for (it = tuo_list.begin(); it != tuo_list.end(); it++) {
             int tuo_now = *it;
+            if (ready_tuo_set.find(tuo_now) != ready_tuo_set.end()) {
+                continue;
+            }
             std::stringstream ss;
             ss << FLAGS_work_dir << "/" << tuo_now << ".tuo";
             const std::string& tuo_file_name = ss.str();
@@ -221,7 +224,7 @@ int MergeTuo() {
                 }
             }
         }
-        sleep(1);
+        sleep(5);
     }
     return n_tuo;
 }
