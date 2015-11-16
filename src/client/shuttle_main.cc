@@ -308,6 +308,26 @@ static inline ::baidu::shuttle::sdk::JobPriority ParsePriority(const std::string
     return ::baidu::shuttle::sdk::kUndefined;
 }
 
+static inline int64_t ParseMemory(const std::string& memory) {
+    int dimension = memory.find_first_not_of("0123456789");
+    int64_t base = boost::lexical_cast<int64_t>(memory.substr(0, dimension));
+    for (size_t i = dimension; i < memory.size(); ++i) {
+        switch (memory[i]) {
+        case 'G':
+        case 'g':
+            base *= 1l << 30; break;
+        case 'M':
+        case 'm':
+            base *= 1l << 20; break;
+        case 'K':
+        case 'k':
+            base *= 1l << 10; break;
+        default: return base;
+        }
+    }
+    return base;
+}
+
 static void ParseJobConfig() {
     std::vector<std::string> opts;
     boost::split(opts, config::jobconf, boost::is_any_of(","));
@@ -322,8 +342,7 @@ static void ParseJobConfig() {
             config::job_cpu = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.job.cpu.millicores=")));
         } else if (boost::starts_with(*it, "mapred.job.memory.limit=")) {
-            config::job_memory = boost::lexical_cast<int64_t>(
-                    it->substr(strlen("mapred.job.memory.limit=")));
+            config::job_memory = ParseMemory(it->substr(strlen("mapred.job.memory.limit=")));
         } else if (boost::starts_with(*it, "mapred.job.map.capacity=")) {
             config::map_capacity = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.job.map.capacity=")));
