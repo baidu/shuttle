@@ -167,7 +167,7 @@ Status Emitter::FlushMemTable() {
         }
         FileSystem::Param param;
         Executor::FillParam(param, task_);
-        param["replica"] = "3";
+        param["replica"] = "2";
         snprintf(file_name, sizeof(file_name), "%s/%d.sort",
                  work_dir_.c_str(), file_no_);
         status = writer->Open(file_name, param);

@@ -134,6 +134,9 @@ bool ShuttleImpl::UpdateJob(const std::string& job_id, const sdk::JobPriority& p
         LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());
         return false;
     }
+    if (response.status() != kOk) {
+        LOG(WARNING, "update status: %s", Status_Name(response.status()).c_str());
+    }
     return response.status() == kOk;
 }
 
