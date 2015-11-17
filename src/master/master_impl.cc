@@ -30,7 +30,8 @@ MasterImpl::MasterImpl() {
     galaxy_sdk_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
     nexus_ = new ::galaxy::ins::sdk::InsSDK(FLAGS_nexus_server_list);
     gc_.AddTask(boost::bind(&MasterImpl::KeepGarbageCollecting, this));
-    gc_.AddTask(boost::bind(&MasterImpl::KeepDataPersistence, this));
+    // TODO Uncomment this operation until it's fully implemented
+    // gc_.AddTask(boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
 
 MasterImpl::~MasterImpl() {
@@ -488,8 +489,8 @@ std::string MasterImpl::SerialHistory(const std::vector<AllocateItem>& history) 
         job->set_period(it->period);
         job->set_is_map(it->is_map);
     }
-	std::stringstream ss;
-	jc.SerializeToOstream(&ss);
+    std::stringstream ss;
+    jc.SerializeToOstream(&ss);
     return ss.str();
 }
 

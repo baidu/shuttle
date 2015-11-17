@@ -503,12 +503,16 @@ static int MonitorJob() {
     char erase[85] = { 0 };
     memset(erase, ' ', 84);
     bool is_tty = ::isatty(fileno(stdout));
+    int error_tolerance = 5;
     while (true) {
         ::baidu::shuttle::sdk::JobInstance job;
         std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
         bool ok = shuttle->ShowJob(config::param, job, tasks);
         if (!ok) {
             fprintf(stderr, "lost connection with master\n");
+            if (error_tolerance --> 0) {
+                break;
+            }
             sleep(5);
             continue;
         }
