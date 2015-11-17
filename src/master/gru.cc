@@ -97,8 +97,12 @@ Status Gru::Update(const std::string& priority,
         job_desc.replica = capacity;
     }
     if (galaxy_->UpdateJob(minion_id_, job_desc)) {
-        galaxy_job_.priority = priority;
-        galaxy_job_.replica = capacity;
+        if (!priority.empty()) {
+            galaxy_job_.priority = priority;
+        }
+        if (capacity != -1) {
+            galaxy_job_.replica = capacity;
+        }
         return kOk;
     }
     return kGalaxyError;
