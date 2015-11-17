@@ -160,7 +160,15 @@ bool Executor::MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_ma
     snprintf(new_name, sizeof(new_name), "%s/part-%05d", 
              task.job().output().c_str(), task.task_id());
     LOG(INFO, "rename %s -> %s", old_name.c_str(), new_name);
-    return fs->Rename(old_name, new_name);
+    if (fs->Rename(old_name, new_name)) {
+        return true;
+    } else {
+        if (fs->Exist(new_name)) {
+            LOG(WARNING, "an early attempt has done the task.");
+            return true;
+        }
+        return false;
+    }
 }
 
 bool Executor::MoveTempToShuffle(const TaskInfo& task) {
