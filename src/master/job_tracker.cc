@@ -580,12 +580,13 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
         if ((*it)->is_map && (*it)->resource_no == no && (*it)->attempt != attempt) {
+            (*it)->state = kTaskCanceled;
+            (*it)->period = std::time(NULL) - cur->alloc_time;
             rpc_client_->GetStub((*it)->endpoint, &stub);
             boost::scoped_ptr<Minion_Stub> stub_guard(stub);
             request.set_task_id((*it)->resource_no);
             request.set_attempt_id((*it)->attempt);
             // TODO Maybe check returned state here?
-            (*it)->state = kTaskCanceled;
             alloc_mu_.Unlock();
             LOG(INFO, "cancel task: job:%s, task:%d, attempt:%d",
                 job_id_.c_str(), (*it)->resource_no, (*it)->attempt);
@@ -594,7 +595,6 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             if (!ok) {
                 LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
             }
-            (*it)->period = std::time(NULL) - cur->alloc_time;
             alloc_mu_.Lock();
         }
     }
@@ -698,17 +698,20 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
         if (!((*it)->is_map) && (*it)->resource_no == no && (*it)->attempt != attempt) {
+            (*it)->state = kTaskCanceled;
+            (*it)->period = std::time(NULL) - cur->alloc_time;
             rpc_client_->GetStub((*it)->endpoint, &stub);
             boost::scoped_ptr<Minion_Stub> stub_guard(stub);
             request.set_task_id((*it)->resource_no);
             request.set_attempt_id((*it)->attempt);
+            alloc_mu_.Unlock();
             bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::CancelTask,
                                                &request, &response, 2, 1);
             if (!ok) {
                 LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
             }
             // TODO Maybe check returned state here?
-            (*it)->state = kTaskCanceled;
+            alloc_mu_.Lock();
         }
     }
     return kOk;
