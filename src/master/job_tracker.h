@@ -134,7 +134,6 @@ private:
     ThreadPool* monitor_;
     bool map_monitoring_;
     bool reduce_monitoring_;
-    int blind_predict_;
     // To communicate with minion
     RpcClient* rpc_client_;
     // To check if output path is exists

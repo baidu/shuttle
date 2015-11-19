@@ -22,11 +22,11 @@
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
 DECLARE_int32(timeout_bound);
+DECLARE_int32(time_tolerance);
 DECLARE_int32(replica_num);
 DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
 DECLARE_int32(retry_bound);
-DECLARE_int32(blind_predict_num);
 DECLARE_int32(left_percent);
 DECLARE_string(nexus_server_list);
 
@@ -55,8 +55,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       reduce_failed_(0),
                       monitor_(NULL),
                       map_monitoring_(false),
-                      reduce_monitoring_(false),
-                      blind_predict_(0) {
+                      reduce_monitoring_(false) {
     job_descriptor_.CopyFrom(job);
     job_id_ = GenerateJobId();
     rpc_client_ = new RpcClient();
@@ -866,19 +865,14 @@ void JobTracker::KeepMonitoring(bool map_now) {
         std::sort(time_used.begin(), time_used.end());
         timeout = time_used[time_used.size() / 2];
         timeout += timeout / 5;
-        blind_predict_ = 0;
     }
-    if (blind_predict_ >= FLAGS_blind_predict_num) {
-        monitor_->DelayTask(timeout * 1000,
-                boost::bind(&JobTracker::KeepMonitoring, this, map_now));
-        return;
-    }
+    bool query_mode = time_used.empty() || timeout >= FLAGS_time_tolerance;
+    timeout = timeout > FLAGS_time_tolerance ? FLAGS_time_tolerance : timeout;
+    unsigned int counter = query_mode ? -1 : 10;
+    std::vector<AllocateItem*> returned_item;
     time_t now = std::time(NULL);
-    int counter = 10;
-    bool detect_timeout = false;
-    std::vector<AllocateItem*> other_phase_item;
     alloc_mu_.Lock();
-    while (-- counter >= 0 && !time_heap_.empty()) {
+    while (counter-- != 0 && !time_heap_.empty()) {
         AllocateItem* top = time_heap_.top();
         if (now - top->alloc_time < timeout) {
             break;
@@ -890,28 +884,41 @@ void JobTracker::KeepMonitoring(bool map_now) {
         }
         if (top->is_map != map_now) {
             ++ counter;
-            other_phase_item.push_back(top);
+            returned_item.push_back(top);
             continue;
+        }
+        if (query_mode) {
+            QueryRequest request;
+            QueryResponse response;
+            Minion_Stub* stub = NULL;
+            rpc_client_->GetStub(top->endpoint, &stub);
+            boost::scoped_ptr<Minion_Stub> stub_guard(stub);
+            alloc_mu_.Unlock();
+            bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::Query,
+                                               &request, &response, 2, 1);
+            if (ok && response.job_id() == job_id_ &&
+                    response.task_id() == top->resource_no &&
+                    response.attempt_id() == top->attempt) {
+                ++ counter;
+                returned_item.push_back(top);
+                continue;
+            }
+            top->state = kTaskKilled;
+            alloc_mu_.Lock();
         }
         if (map_now) {
             map_slug_.push(top->resource_no);
         } else {
             reduce_slug_.push(top->resource_no);
         }
-        detect_timeout = true;
         LOG(INFO, "Reallocate a long no-response tasks: < no - %d, attempt - %d>: %s",
                 top->resource_no, top->attempt, job_id_.c_str());
     }
-    for (std::vector<AllocateItem*>::iterator it = other_phase_item.begin();
-            it != other_phase_item.end(); ++it) {
+    for (std::vector<AllocateItem*>::iterator it = returned_item.begin();
+            it != returned_item.end(); ++it) {
         time_heap_.push(*it);
     }
     alloc_mu_.Unlock();
-    if (time_used.empty() && detect_timeout) {
-        ++ blind_predict_;
-        LOG(INFO, "[monitor] blind prediction: %d times left",
-                FLAGS_blind_predict_num - blind_predict_);
-    }
     monitor_->DelayTask(timeout * 1000,
             boost::bind(&JobTracker::KeepMonitoring, this, map_now));
     LOG(INFO, "[monitor] will now rest for %ds: %s", timeout, job_id_.c_str());
