@@ -22,6 +22,8 @@ public:
                    const int map_capacity = -1,
                    const int reduce_capacity = -1);
     bool KillJob(const std::string& job_id);
+    bool KillTask(const std::string& job_id, sdk::TaskType mode,
+                  int task_id, int attempt_id);
     bool ShowJob(const std::string& job_id, 
                  sdk::JobInstance& job,
                  std::vector<sdk::TaskInstance>& tasks,
@@ -146,6 +148,24 @@ bool ShuttleImpl::KillJob(const std::string& job_id) {
     request.set_jobid(job_id);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::KillJob,
+                                      &request, &response, rpc_timeout_, 1);
+    if (!ok) {
+        LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());
+        return false;
+    }
+    return response.status() == kOk;
+}
+bool ShuttleImpl::KillTask(const std::string& job_id, sdk::TaskType mode,
+                           int task_id, int attempt_id) {
+    ::baidu::shuttle::FinishTaskRequest request;
+    ::baidu::shuttle::FinishTaskResponse response;
+    request.set_jobid(job_id);
+    request.set_task_id(task_id);
+    request.set_attempt_id(attempt_id);
+    request.set_task_state(kTaskKilled);
+    request.set_endpoint("0.0.0.0");
+    request.set_work_mode((WorkMode)mode);
+    bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::FinishTask,
                                       &request, &response, rpc_timeout_, 1);
     if (!ok) {
         LOG(WARNING, "failed to rpc: %s", master_addr_.c_str());

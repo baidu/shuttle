@@ -145,6 +145,8 @@ public:
                            const int map_capacity,
                            const int reduce_capacity) = 0;
     virtual bool KillJob(const std::string& job_id) = 0;
+    virtual bool KillTask(const std::string& job_id, sdk::TaskType mode,
+                          int task_id, int attempt_id) = 0;
     virtual bool ShowJob(const std::string& job_id, 
                          sdk::JobInstance& job,
                          std::vector<sdk::TaskInstance>& tasks,

@@ -17,7 +17,7 @@
 
 namespace config {
 
-std::string param;
+std::vector<std::string> params;
 
 std::string input;
 std::string output;
@@ -70,7 +70,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "Usage:\n"
         "\tshuttle streaming/bistreaming [flags]\n"
         "\tshuttle update <jobid> [new flags]\n"
-        "\tshuttle kill <jobid>\n"
+        "\tshuttle kill <jobid> [<map/reduce/m/r>-<task id>-<attempt id>]\n"
         "\tshuttle list\n"
         "\tshuttle status <jobid>\n"
         "\tshuttle monitor <jobid>\n"
@@ -308,6 +308,18 @@ static inline ::baidu::shuttle::sdk::JobPriority ParsePriority(const std::string
     return ::baidu::shuttle::sdk::kUndefined;
 }
 
+static inline ::baidu::shuttle::sdk::TaskType ParseTaskType(const std::string& type) {
+    if (boost::iequals(type, "map") || boost::iequals(type, "m")) {
+        return ::baidu::shuttle::sdk::kMap;
+    } else if (boost::iequals(type, "reduce") || boost::iequals(type, "r")) {
+        return ::baidu::shuttle::sdk::kReduce;
+    } else if (boost::iequals(type, "maponly") || boost::iequals(type, "map-only") ||
+            boost::iequals(type, "mo")) {
+        return ::baidu::shuttle::sdk::kMapOnly;
+    }
+    return ::baidu::shuttle::sdk::kMap;
+}
+
 static inline int64_t ParseMemory(const std::string& memory) {
     int dimension = memory.find_first_not_of("0123456789");
     int64_t base = boost::lexical_cast<int64_t>(memory.substr(0, dimension));
@@ -490,12 +502,8 @@ static int MonitorJob() {
         fprintf(stderr, "fail to get master endpoint\n");
         return -1;
     }
-    if (config::param.empty()) {
+    if (config::params.empty()) {
         fprintf(stderr, "job id is required\n");
-        return -1;
-    }
-    if (config::param[0] == '-') {
-        fprintf(stderr, "invalid flag detected\n");
         return -1;
     }
     ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
@@ -507,7 +515,7 @@ static int MonitorJob() {
     while (true) {
         ::baidu::shuttle::sdk::JobInstance job;
         std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
-        bool ok = shuttle->ShowJob(config::param, job, tasks);
+        bool ok = shuttle->ShowJob(config::params[0], job, tasks);
         if (!ok) {
             fprintf(stderr, "lost connection with master\n");
             if (error_tolerance --> 0) {
@@ -657,7 +665,8 @@ static int SubmitJob() {
     if (config::immediate_return) {
         return 0;
     }
-    config::param = jobid;
+    config::params.clear();
+    config::params.push_back(jobid);
     return MonitorJob();
 }
 
@@ -667,17 +676,13 @@ static int UpdateJob() {
         fprintf(stderr, "fail to get master endpoint\n");
         return -1;
     }
-    if (config::param.empty()) {
+    if (config::params.empty()) {
         fprintf(stderr, "job id is required\n");
-        return -1;
-    }
-    if (config::param[0] == '-') {
-        fprintf(stderr, "invalid flag detected\n");
         return -1;
     }
     ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
 
-    bool ok = shuttle->UpdateJob(config::param, config::job_priority,
+    bool ok = shuttle->UpdateJob(config::params[0], config::job_priority,
                                  config::map_capacity, config::reduce_capacity);
     delete shuttle;
     done = true;
@@ -688,27 +693,44 @@ static int UpdateJob() {
     return 0;
 }
 
-static int KillJob() {
+static inline void ParseTaskNumber(const std::string& description,
+                                   ::baidu::shuttle::sdk::TaskType& mode,
+                                   int& task_id, int& attempt_id) {
+    std::vector<std::string> parts;
+    boost::split(parts, description, boost::is_any_of("-"));
+    if (parts.size() != 3) {
+        return;
+    }
+    mode = ParseTaskType(parts[0]);
+    task_id = boost::lexical_cast<int>(parts[1]);
+    attempt_id = boost::lexical_cast<int>(parts[2]);
+}
+
+static int Kill() {
     std::string master_endpoint = GetMasterAddr();
     if (master_endpoint.empty()) {
         fprintf(stderr, "fail to get master endpoint\n");
         return -1;
     }
-    if (config::param.empty()) {
+    if (config::params.empty()) {
         fprintf(stderr, "job id is required\n");
-        return -1;
-    }
-    if (config::param[0] == '-') {
-        fprintf(stderr, "invalid flag detected\n");
         return -1;
     }
     ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
 
-    bool ok = shuttle->KillJob(config::param);
+    bool ok = true;
+    if (config::params.size() == 1) {
+        ok = shuttle->KillJob(config::params[0]);
+    } else {
+        ::baidu::shuttle::sdk::TaskType mode = ::baidu::shuttle::sdk::kMap;
+        int task_id = -1, attempt = 0;
+        ParseTaskNumber(config::params[1], mode, task_id, attempt);
+        ok = shuttle->KillTask(config::params[0], mode, task_id, attempt);
+    }
     delete shuttle;
     done = true;
     if (!ok) {
-        fprintf(stderr, "kill job failed\n");
+        fprintf(stderr, "kill failed\n");
         return 1;
     }
     return 0;
@@ -740,19 +762,15 @@ static int ShowJob() {
         fprintf(stderr, "fail to get master endpoint\n");
         return -1;
     }
-    if (config::param.empty()) {
+    if (config::params.empty()) {
         fprintf(stderr, "job id is required\n");
-        return -1;
-    }
-    if (config::param[0] == '-') {
-        fprintf(stderr, "invalid flag detected\n");
         return -1;
     }
     ::baidu::shuttle::Shuttle *shuttle = ::baidu::shuttle::Shuttle::Connect(master_endpoint);
 
     ::baidu::shuttle::sdk::JobInstance job;
     std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
-    bool ok = shuttle->ShowJob(config::param, job, tasks, config::display_all);
+    bool ok = shuttle->ShowJob(config::params[0], job, tasks, config::display_all);
     delete shuttle;
     done = true;
     if (!ok) {
@@ -791,7 +809,12 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     if (argc > 2) {
-        config::param = argv[2];
+        for (int i = 2; i < argc; ++i) {
+            if (argv[i][0] == '-') {
+                continue;
+            }
+            config::params.push_back(argv[i]);
+        }
     }
 
     pthread_t tid;
@@ -807,7 +830,7 @@ int main(int argc, char* argv[]) {
     } else if (!strcmp(argv[1], "update")) {
         return UpdateJob();
     } else if (!strcmp(argv[1], "kill")) {
-        return KillJob();
+        return Kill();
     } else if (!strcmp(argv[1], "list")) {
         return ListJobs();
     } else if (!strcmp(argv[1], "status")) {
