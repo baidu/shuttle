@@ -22,7 +22,7 @@
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
-DECLARE_int32(timeout_bound);
+DECLARE_int32(first_sleeptime);
 DECLARE_int32(time_tolerance);
 DECLARE_int32(replica_num);
 DECLARE_int32(replica_begin);
@@ -867,10 +867,11 @@ void JobTracker::KeepMonitoring(bool map_now) {
         std::sort(time_used.begin(), time_used.end());
         timeout = time_used[time_used.size() / 2];
         timeout += timeout / 5;
+        LOG(INFO, "[monitor] calc timeout bound, %ld: %s", timeout, job_id_.c_str());
     } else {
-        monitor_->DelayTask(FLAGS_timeout_bound * 1000,
+        monitor_->DelayTask(FLAGS_first_sleeptime * 1000,
                 boost::bind(&JobTracker::KeepMonitoring, this, map_now));
-        LOG(INFO, "[monitor] will now rest for %ds: %s", FLAGS_timeout_bound, job_id_.c_str());
+        LOG(INFO, "[monitor] will now rest for %ds: %s", FLAGS_first_sleeptime, job_id_.c_str());
         return;
     }
     bool query_mode = timeout >= FLAGS_time_tolerance;
@@ -896,7 +897,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
             returned_item.push_back(top);
             continue;
         }
-        if (top->alloc_time < timeout && query_mode) {
+        if (now - top->alloc_time < timeout && query_mode) {
             QueryRequest request;
             QueryResponse response;
             Minion_Stub* stub = NULL;

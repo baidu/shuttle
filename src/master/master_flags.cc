@@ -5,7 +5,7 @@ DEFINE_string(galaxy_address, "0.0.0.0:", "galaxy address for sdk");
 DEFINE_int32(galaxy_deploy_step, 30, "galaxy option to determine the step of deploy");
 DEFINE_string(minion_path, "ftp://", "minion ftp path for galaxy to fetch");
 DEFINE_int32(input_block_size, 500 * 1024 * 1024, "max size of input that a single map can get");
-DEFINE_int32(timeout_bound, 10, "timeout bound in seconds for a minion response");
+DEFINE_int32(first_sleeptime, 10, "timeout bound in seconds for a minion response");
 DEFINE_int32(time_tolerance, 120, "longest time interval of the monitor sleep");
 DEFINE_int32(replica_num, 3, "max replicas of a single task");
 DEFINE_int32(replica_begin, 100, "the last tasks that are suitable for end game strategy");
