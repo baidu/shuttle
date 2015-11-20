@@ -154,7 +154,7 @@ bool IdManager::IsAllocated(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        LOG(WARNING, "this resource is not valid for checking allocated: %d", no);
         return false;
     }
     return resource_pool_[n]->status == kResAllocated;
@@ -164,7 +164,7 @@ bool IdManager::IsDone(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        LOG(WARNING, "this resource is not valid for checking done: %d", no);
         return false;
     }
     return resource_pool_[n]->status == kResDone;
@@ -335,7 +335,7 @@ bool ResourceManager::IsAllocated(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        LOG(WARNING, "this resource is not valid for checking allocated: %d", no);
         return false;
     }
     return resource_pool_[n]->status == kResAllocated;
@@ -345,7 +345,7 @@ bool ResourceManager::IsDone(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for finishing: %d", no);
+        LOG(WARNING, "this resource is not valid for checking done: %d", no);
         return false;
     }
     return resource_pool_[n]->status == kResDone;

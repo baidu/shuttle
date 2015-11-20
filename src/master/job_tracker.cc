@@ -272,13 +272,6 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
     }
     ResourceItem* cur = map_manager_->GetItem();
     if (cur == NULL) {
-        if (!map_allow_duplicates_) {
-            LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
-            if (status != NULL) {
-                *status = kNoMore;
-            }
-            return NULL;
-        }
         MutexLock lock(&alloc_mu_);
         while (!map_slug_.empty() &&
                !map_manager_->IsAllocated(map_slug_.front())) {
@@ -360,14 +353,6 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
     }
     IdItem* cur = reduce_manager_->GetItem();
     if (cur == NULL) {
-        if (!reduce_allow_duplicates_) {
-            ++ reduce_dismissed_;
-            LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
-            if (status != NULL) {
-                *status = kNoMore;
-            }
-            return NULL;
-        }
         MutexLock lock(&alloc_mu_);
         while (!reduce_slug_.empty() &&
                !reduce_manager_->IsAllocated(reduce_slug_.front())) {
@@ -506,19 +491,17 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     failed_count_.resize(0);
                     failed_count_.resize(reduce_manager_->SumOfItem(), 0);
                     mu_.Unlock();
-                    if (map_allow_duplicates_) {
-                        MutexLock lock(&alloc_mu_);
-                        std::vector<AllocateItem*> rest;
-                        while (!time_heap_.empty()) {
-                            if (!time_heap_.top()->is_map) {
-                                rest.push_back(time_heap_.top());
-                            }
-                            time_heap_.pop();
+                    MutexLock lock(&alloc_mu_);
+                    std::vector<AllocateItem*> rest;
+                    while (!time_heap_.empty()) {
+                        if (!time_heap_.top()->is_map) {
+                            rest.push_back(time_heap_.top());
                         }
-                        for (std::vector<AllocateItem*>::iterator it = rest.begin();
-                                it != rest.end(); ++it) {
-                            time_heap_.push(*it);
-                        }
+                        time_heap_.pop();
+                    }
+                    for (std::vector<AllocateItem*>::iterator it = rest.begin();
+                            it != rest.end(); ++it) {
+                        time_heap_.push(*it);
                     }
                     mu_.Lock();
                     if (monitor_ != NULL) {
@@ -917,12 +900,12 @@ void JobTracker::KeepMonitoring(bool map_now) {
                 continue;
             }
             if (ok && (map_now && !map_manager_->IsAllocated(response.task_id()) ||
-                    reduce_manager_ != NULL &&!reduce_manager_->IsAllocated(response.task_id()))) {
+                    reduce_manager_ != NULL && !reduce_manager_->IsAllocated(response.task_id()))) {
                 if (top->state == kTaskRunning) {
                     top->state = kTaskKilled;
+                    top->period = std::time(NULL) - top->alloc_time;
                 }
                 ++ counter;
-                returned_item.push_back(top);
                 continue;
             }
             LOG(INFO, "[monitor] query error, returned %s, <%d, %d>: %s",
@@ -930,10 +913,6 @@ void JobTracker::KeepMonitoring(bool map_now) {
                     job_id_.c_str());
             top->state = kTaskKilled;
             top->period = std::time(NULL) - top->alloc_time;
-        } else if (not_allow_duplicates) {
-            ++ counter;
-            returned_item.push_back(top);
-            continue;
         }
         if (map_now) {
             map_slug_.push(top->resource_no);
