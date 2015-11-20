@@ -915,8 +915,8 @@ void JobTracker::KeepMonitoring(bool map_now) {
                 alloc_mu_.Lock();
                 continue;
             }
-            if (map_now && !map_manager_->IsAllocated(response.task_id()) ||
-                    reduce_manager_ != NULL &&!reduce_manager_->IsAllocated(response.task_id())) {
+            if (ok && (map_now && !map_manager_->IsAllocated(response.task_id()) ||
+                    reduce_manager_ != NULL &&!reduce_manager_->IsAllocated(response.task_id()))) {
                 if (top->state == kTaskRunning) {
                     top->state = kTaskKilled;
                 }
