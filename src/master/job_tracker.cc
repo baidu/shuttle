@@ -10,6 +10,7 @@
 #include <string>
 #include <sstream>
 #include <set>
+#include <cmath>
 #include <sys/time.h>
 
 #include "google/protobuf/repeated_field.h"
@@ -481,8 +482,8 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 break;
             }
             int completed = map_manager_->Done();
-            map_dismiss_minion_num_ = job_descriptor_.map_capacity() -
-                (job_descriptor_.map_total() - completed) * FLAGS_left_percent / 100;
+            map_dismiss_minion_num_ = job_descriptor_.map_capacity() - (int)
+                ::ceil((job_descriptor_.map_total() - completed) * FLAGS_left_percent / 100.0);
             LOG(INFO, "complete a map task(%d/%d): %s",
                     completed, map_manager_->SumOfItem(), job_id_.c_str());
             if (completed == reduce_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
@@ -639,8 +640,8 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
                 break;
             }
             int completed = reduce_manager_->Done();
-            reduce_dismiss_minion_num_ = job_descriptor_.reduce_capacity() -
-                (job_descriptor_.reduce_total() - completed) * FLAGS_left_percent / 100;
+            reduce_dismiss_minion_num_ = job_descriptor_.reduce_capacity() - (int)
+                ::ceil((job_descriptor_.reduce_total() - completed) * FLAGS_left_percent / 100.0);
             LOG(INFO, "complete a reduce task(%d/%d): %s",
                     completed, reduce_manager_->SumOfItem(), job_id_.c_str());
             if (completed == reduce_manager_->SumOfItem()) {
@@ -849,7 +850,8 @@ std::string JobTracker::GenerateJobId() {
 
 void JobTracker::KeepMonitoring(bool map_now) {
     // Dynamic determination of delay check
-    LOG(INFO, "[monitor] monitor starts to check timeout: %s", job_id_.c_str());
+    LOG(INFO, "[monitor] %s monitor starts to check timeout: %s",
+            map_now ? "map" : "reduce", job_id_.c_str());
     std::vector<int> time_used;
     {
         MutexLock lock(&alloc_mu_);
@@ -860,21 +862,28 @@ void JobTracker::KeepMonitoring(bool map_now) {
             }
         }
     }
-    time_t timeout = FLAGS_timeout_bound;
+    time_t timeout = 0;
     if (!time_used.empty()) {
         std::sort(time_used.begin(), time_used.end());
         timeout = time_used[time_used.size() / 2];
         timeout += timeout / 5;
+    } else {
+        monitor_->DelayTask(FLAGS_timeout_bound * 1000,
+                boost::bind(&JobTracker::KeepMonitoring, this, map_now));
+        LOG(INFO, "[monitor] will now rest for %ds: %s", FLAGS_timeout_bound, job_id_.c_str());
+        return;
     }
-    bool query_mode = time_used.empty() || timeout >= FLAGS_time_tolerance;
-    timeout = timeout > FLAGS_time_tolerance ? FLAGS_time_tolerance : timeout;
+    bool query_mode = timeout >= FLAGS_time_tolerance;
+    // timeout will NOT be 0 since monitor will be terminated if no tasks is finished
+    // sleep_time is always no greater than timeout
+    time_t sleep_time = query_mode ? FLAGS_time_tolerance : timeout;
     unsigned int counter = query_mode ? -1 : 10;
     std::vector<AllocateItem*> returned_item;
-    time_t now = std::time(NULL);
     alloc_mu_.Lock();
+    time_t now = std::time(NULL);
     while (counter-- != 0 && !time_heap_.empty()) {
         AllocateItem* top = time_heap_.top();
-        if (now - top->alloc_time < timeout) {
+        if (now - top->alloc_time < sleep_time) {
             break;
         }
         time_heap_.pop();
@@ -887,13 +896,15 @@ void JobTracker::KeepMonitoring(bool map_now) {
             returned_item.push_back(top);
             continue;
         }
-        if (query_mode) {
+        if (top->alloc_time < timeout && query_mode) {
             QueryRequest request;
             QueryResponse response;
             Minion_Stub* stub = NULL;
             rpc_client_->GetStub(top->endpoint, &stub);
             boost::scoped_ptr<Minion_Stub> stub_guard(stub);
             alloc_mu_.Unlock();
+            LOG(INFO, "[monitor] query %s with <%d, %d>: %s", top->endpoint.c_str(),
+                    top->resource_no, top->attempt, job_id_.c_str());
             bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::Query,
                                                &request, &response, 2, 1);
             if (ok && response.job_id() == job_id_ &&
@@ -901,10 +912,25 @@ void JobTracker::KeepMonitoring(bool map_now) {
                     response.attempt_id() == top->attempt) {
                 ++ counter;
                 returned_item.push_back(top);
+                alloc_mu_.Lock();
                 continue;
             }
-            top->state = kTaskKilled;
+            if (map_now && !map_manager_->IsAllocated(response.task_id()) ||
+                    reduce_manager_ != NULL &&!reduce_manager_->IsAllocated(response.task_id())) {
+                if (top->state == kTaskRunning) {
+                    top->state = kTaskKilled;
+                }
+                ++ counter;
+                returned_item.push_back(top);
+                alloc_mu_.Lock();
+                continue;
+            }
+            LOG(INFO, "[monitor] query error, returned %s, <%d, %d>: %s",
+                    ok ? "ok" : "error", response.task_id(), response.attempt_id(),
+                    job_id_.c_str());
             alloc_mu_.Lock();
+            top->state = kTaskKilled;
+            top->period = std::time(NULL) - top->alloc_time;
         }
         if (map_now) {
             map_slug_.push(top->resource_no);
@@ -919,9 +945,9 @@ void JobTracker::KeepMonitoring(bool map_now) {
         time_heap_.push(*it);
     }
     alloc_mu_.Unlock();
-    monitor_->DelayTask(timeout * 1000,
+    monitor_->DelayTask(sleep_time * 1000,
             boost::bind(&JobTracker::KeepMonitoring, this, map_now));
-    LOG(INFO, "[monitor] will now rest for %ds: %s", timeout, job_id_.c_str());
+    LOG(INFO, "[monitor] will now rest for %ds: %s", sleep_time, job_id_.c_str());
 }
 
 }
