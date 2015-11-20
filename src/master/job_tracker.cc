@@ -899,8 +899,8 @@ void JobTracker::KeepMonitoring(bool map_now) {
                 returned_item.push_back(top);
                 continue;
             }
-            if (ok && (map_now && !map_manager_->IsAllocated(response.task_id()) ||
-                    reduce_manager_ != NULL && !reduce_manager_->IsAllocated(response.task_id()))) {
+            if (ok && (map_now && !map_manager_->IsAllocated(top->resource_no) ||
+                    !map_now && reduce_manager_ != NULL && !reduce_manager_->IsAllocated(top->resource_no))) {
                 if (top->state == kTaskRunning) {
                     top->state = kTaskKilled;
                     top->period = std::time(NULL) - top->alloc_time;
