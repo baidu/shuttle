@@ -875,6 +875,8 @@ void JobTracker::KeepMonitoring(bool map_now) {
         return;
     }
     bool query_mode = timeout >= FLAGS_time_tolerance;
+    bool not_allow_duplicates = (map_now && !map_allow_duplicates_ || !reduce_allow_duplicates_);
+
     // timeout will NOT be 0 since monitor will be terminated if no tasks is finished
     // sleep_time is always no greater than timeout
     time_t sleep_time = query_mode ? FLAGS_time_tolerance : timeout;
@@ -897,7 +899,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
             returned_item.push_back(top);
             continue;
         }
-        if (now - top->alloc_time < timeout && query_mode) {
+        if ((now - top->alloc_time < timeout || not_allow_duplicates) && query_mode) {
             QueryRequest request;
             QueryResponse response;
             Minion_Stub* stub = NULL;
@@ -930,7 +932,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
                     job_id_.c_str());
             top->state = kTaskKilled;
             top->period = std::time(NULL) - top->alloc_time;
-        } else if (map_now && !map_allow_duplicates_ || !reduce_allow_duplicates_) {
+        } else if (not_allow_duplicates) {
             ++ counter;
             returned_item.push_back(top);
             continue;
