@@ -872,13 +872,13 @@ void JobTracker::KeepMonitoring(bool map_now) {
         LOG(INFO, "[monitor] will now rest for %ds: %s", FLAGS_first_sleeptime, job_id_.c_str());
         return;
     }
-    bool query_mode = timeout >= FLAGS_time_tolerance;
+    bool is_long_task = timeout >= FLAGS_time_tolerance;
     bool not_allow_duplicates = (map_now && !map_allow_duplicates_ || !reduce_allow_duplicates_);
 
     // timeout will NOT be 0 since monitor will be terminated if no tasks is finished
     // sleep_time is always no greater than timeout
-    time_t sleep_time = query_mode ? FLAGS_time_tolerance : timeout;
-    unsigned int counter = query_mode ? -1 : 10;
+    time_t sleep_time = std::min((time_t)FLAGS_time_tolerance, timeout);
+    unsigned int counter = is_long_task ? -1 : 10;
     std::vector<AllocateItem*> returned_item;
     alloc_mu_.Lock();
     time_t now = std::time(NULL);
@@ -897,7 +897,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
             returned_item.push_back(top);
             continue;
         }
-        if ((now - top->alloc_time < timeout || not_allow_duplicates) && query_mode) {
+        if (not_allow_duplicates || ((now - top->alloc_time < timeout) && is_long_task)) {
             QueryRequest request;
             QueryResponse response;
             Minion_Stub* stub = NULL;
