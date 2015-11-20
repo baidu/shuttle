@@ -330,7 +330,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
             map_slug_.push(cur->no);
         }
     }
-    if (map_allow_duplicates_ && cur->no == map_end_game_begin_ && !map_monitoring_) {
+    if (cur->no == map_end_game_begin_ && !map_monitoring_) {
         monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, true));
         map_monitoring_ = true;
     }
@@ -419,7 +419,7 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
             reduce_slug_.push(cur->no);
         }
     }
-    if (reduce_allow_duplicates_ && cur->no == reduce_end_game_begin_ && !reduce_monitoring_) {
+    if (cur->no == reduce_end_game_begin_ && !reduce_monitoring_) {
         monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, false));
         reduce_monitoring_ = true;
     }
@@ -931,6 +931,8 @@ void JobTracker::KeepMonitoring(bool map_now) {
             alloc_mu_.Lock();
             top->state = kTaskKilled;
             top->period = std::time(NULL) - top->alloc_time;
+        } else if (map_now && !map_allow_duplicates_ || !reduce_allow_duplicates_) {
+            continue;
         }
         if (map_now) {
             map_slug_.push(top->resource_no);
