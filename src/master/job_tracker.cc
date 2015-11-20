@@ -521,15 +521,13 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                         }
                     }
                     mu_.Lock();
-                    if (map_allow_duplicates_) {
-                        if (monitor_ != NULL) {
-                            delete monitor_;
-                        }
-                        monitor_ = new ThreadPool(1);
-                        if (reduce_monitoring_) {
-                            monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring,
-                                        this, false));
-                        }
+                    if (monitor_ != NULL) {
+                        delete monitor_;
+                    }
+                    monitor_ = new ThreadPool(1);
+                    if (reduce_monitoring_) {
+                        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring,
+                                    this, false));
                     }
                     if (map_ != NULL) {
                         LOG(INFO, "map minion finished, kill: %s", job_id_.c_str());
