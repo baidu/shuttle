@@ -907,12 +907,12 @@ void JobTracker::KeepMonitoring(bool map_now) {
                     top->resource_no, top->attempt, job_id_.c_str());
             bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::Query,
                                                &request, &response, 2, 1);
+            alloc_mu_.Lock();
             if (ok && response.job_id() == job_id_ &&
                     response.task_id() == top->resource_no &&
                     response.attempt_id() == top->attempt) {
                 ++ counter;
                 returned_item.push_back(top);
-                alloc_mu_.Lock();
                 continue;
             }
             if (ok && (map_now && !map_manager_->IsAllocated(response.task_id()) ||
@@ -922,16 +922,16 @@ void JobTracker::KeepMonitoring(bool map_now) {
                 }
                 ++ counter;
                 returned_item.push_back(top);
-                alloc_mu_.Lock();
                 continue;
             }
             LOG(INFO, "[monitor] query error, returned %s, <%d, %d>: %s",
                     ok ? "ok" : "error", response.task_id(), response.attempt_id(),
                     job_id_.c_str());
-            alloc_mu_.Lock();
             top->state = kTaskKilled;
             top->period = std::time(NULL) - top->alloc_time;
         } else if (map_now && !map_allow_duplicates_ || !reduce_allow_duplicates_) {
+            ++ counter;
+            returned_item.push_back(top);
             continue;
         }
         if (map_now) {
