@@ -28,7 +28,7 @@ DEFINE_string(dfs_port, "", "port of dfs master");
 DEFINE_string(dfs_user, "", "user name of dfs master");
 DEFINE_string(dfs_password, "", "password of dfs master");
 DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
-DEFINE_int32(tuo_size, 10, "one tuo contains how many maps'output");
+DEFINE_int32(tuo_size, 0, "one tuo contains how many maps'output");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -239,6 +239,10 @@ int main(int argc, char* argv[]) {
     if (FLAGS_total == 0 ) {
         LOG(FATAL, "invalid map task total");
     }
+    if (FLAGS_tuo_size == 0) {
+        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 100);
+    }
+    LOG(INFO, "tuo_size: %d", FLAGS_tuo_size);
     int n_tuo = MergeTuo();
     std::vector<std::string>  tuo_file_names;
     for (int i = 0;  i< n_tuo; i++) {

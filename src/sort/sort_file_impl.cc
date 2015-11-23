@@ -414,6 +414,16 @@ Status SortFileWriterImpl::FlushIdxBlock() {
     return kOk;
 }
 
+void SortFileWriterImpl::MakeIndexSparse() {
+    IndexBlock tmp_index;
+    tmp_index.Swap(&idx_block_);
+    assert(idx_block_.items_size() == 0);
+    for (int i = 0; i < tmp_index.items_size(); i+=2) {
+        KeyOffset* item = idx_block_.add_items();
+        item->CopyFrom(tmp_index.items(i));
+    }
+}
+
 Status SortFileWriterImpl::FlushCurBlock() {
     if (cur_block_.items_size() == 0) {
         return kOk;
@@ -445,6 +455,8 @@ Status SortFileWriterImpl::FlushCurBlock() {
         KeyOffset* item = idx_block_.add_items();
         item->set_key(cur_block_.items(0).key());
         item->set_offset(offset);
+    } else {
+        MakeIndexSparse();
     }
     cur_block_.Clear();
     cur_block_size_ = 0;

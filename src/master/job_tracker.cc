@@ -890,7 +890,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
             LOG(INFO, "[monitor] query %s with <%d, %d>: %s", top->endpoint.c_str(),
                     top->resource_no, top->attempt, job_id_.c_str());
             bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::Query,
-                                               &request, &response, 2, 1);
+                                               &request, &response, 5, 1);
             alloc_mu_.Lock();
             if (ok && response.job_id() == job_id_ &&
                     response.task_id() == top->resource_no &&

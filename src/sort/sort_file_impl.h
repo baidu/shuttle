@@ -62,6 +62,7 @@ public:
 private:
     Status FlushCurBlock();
     Status FlushIdxBlock();
+    void MakeIndexSparse();
     DataBlock cur_block_;
     IndexBlock idx_block_;
     int32_t cur_block_size_;
