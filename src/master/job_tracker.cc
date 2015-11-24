@@ -29,13 +29,12 @@ DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
 DECLARE_int32(retry_bound);
 DECLARE_int32(left_percent);
-DECLARE_string(nexus_server_list);
 
 namespace baidu {
 namespace shuttle {
 
 JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
-                       const JobDescriptor& job) :
+                       const JobDescriptor& job, bool reload_mode) :
                       master_(master),
                       galaxy_(galaxy_sdk),
                       state_(kPending),
@@ -85,7 +84,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     }
 
     fs_ = FileSystem::CreateInfHdfs(output_param);
-    if (fs_->Exist(job_descriptor_.output())) {
+    if (!reload_mode && fs_->Exist(job_descriptor_.output())) {
         LOG(INFO, "output exists, failed: %s", job_id_.c_str());
         job_descriptor_.set_map_total(0);
         job_descriptor_.set_reduce_total(0);
@@ -275,6 +274,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
         MutexLock lock(&alloc_mu_);
         while (!map_slug_.empty() &&
                !map_manager_->IsAllocated(map_slug_.front())) {
+            LOG(INFO, "map_slug_.pop(): map_%d", map_slug_.front());
             map_slug_.pop();
         }
         if (map_slug_.empty()) {
@@ -296,6 +296,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
             alloc_mu_.Lock();
             return NULL;
         }
+        LOG(INFO, "get certain item for: map_%d", map_slug_.front());
         cur = map_manager_->GetCertainItem(map_slug_.front());
         map_slug_.pop();
         if (cur == NULL) {
@@ -583,6 +584,10 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
 }
 
 Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
+    if (map_manager_ && map_manager_->Done() < job_descriptor_.map_total()) {
+        LOG(WARNING, "reduce finish too early, wait a moment");
+        return kSuspend;
+    }
     AllocateItem* cur = NULL;
     {
         MutexLock lock(&alloc_mu_);
@@ -734,7 +739,7 @@ TaskStatistics JobTracker::GetReduceStatistics() {
     return task;
 }
 
-void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<IdItem>& table) {
+void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<IdItem>& table, bool is_map) {
     for (size_t i = 0; i < table.size(); ++i) {
         table[i].no = i;
         table[i].attempt = 0;
@@ -743,11 +748,12 @@ void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<Id
     }
     for (std::vector<AllocateItem>::const_iterator it = history.begin();
             it != history.end(); ++it) {
-        if (static_cast<size_t>(it->resource_no) > table.size()) {
+        if (static_cast<size_t>(it->resource_no) >= table.size() || it->is_map != is_map) {
             continue;
         }
         IdItem& cur = table[it->resource_no];
         cur.attempt = it->attempt;
+        LOG(INFO, "replay: %s_%d: %s", it->is_map? "map": "reduce", it->resource_no, TaskState_Name(it->state).c_str());
         switch(it->state) {
         case kTaskRunning:
             if (cur.status != kResDone) {
@@ -765,25 +771,28 @@ void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<Id
 }
 
 void JobTracker::Load(const std::string& jobid, const std::vector<AllocateItem>& data) {
+    LOG(INFO, "reload job: %s, map_manager_:%p , reduce_manager_:%p", jobid.c_str(),
+        map_manager_, reduce_manager_);
+    LOG(INFO, "reloading..., data.size(): %d", data.size());
     job_id_ = jobid;
     if (map_manager_ != NULL) {
         std::vector<IdItem> id_data;
         id_data.resize(map_manager_->SumOfItem());
-        Replay(data, id_data);
+        Replay(data, id_data, true);
         map_manager_->Load(id_data);
     }
     if (reduce_manager_ != NULL) {
         std::vector<IdItem> id_data;
         id_data.resize(reduce_manager_->SumOfItem());
-        Replay(data, id_data);
+        Replay(data, id_data, false);
         reduce_manager_->Load(id_data);
     }
     if (!data.empty()) {
         state_ = kRunning;
     }
     bool is_map = true;
-    if (map_manager_->Done() == job_descriptor_.map_total()) {
-        if (reduce_manager_->Done() == job_descriptor_.reduce_total()) {
+    if (map_manager_ && map_manager_->Done() == job_descriptor_.map_total()) {
+        if (reduce_manager_ && reduce_manager_->Done() == job_descriptor_.reduce_total()) {
             state_ = kCompleted;
         }
         is_map = false;
@@ -921,6 +930,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
         }
         LOG(INFO, "Reallocate a long no-response tasks: < no - %d, attempt - %d>: %s",
                 top->resource_no, top->attempt, job_id_.c_str());
+        LOG(INFO, "map_slug size: %d, reduce_slug size: %d", map_slug_.size(), reduce_slug_.size());
     }
     for (std::vector<AllocateItem*>::iterator it = returned_item.begin();
             it != returned_item.end(); ++it) {

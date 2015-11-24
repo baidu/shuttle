@@ -30,8 +30,6 @@ MasterImpl::MasterImpl() {
     galaxy_sdk_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
     nexus_ = new ::galaxy::ins::sdk::InsSDK(FLAGS_nexus_server_list);
     gc_.AddTask(boost::bind(&MasterImpl::KeepGarbageCollecting, this));
-    // TODO Uncomment this operation until it's fully implemented
-    // gc_.AddTask(boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
 
 MasterImpl::~MasterImpl() {
@@ -52,7 +50,7 @@ void MasterImpl::Init() {
     LOG(INFO, "master alive, recovering");
     if (FLAGS_recovery) {
         // TODO Uncomment this function until it's fully implemented
-        // Reload();
+        Reload();
         LOG(INFO, "master recovered");
     }
 }
@@ -68,7 +66,7 @@ void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
     LOG(INFO, "=== job details ===");
     LOG(INFO, "%s", job.DebugString().c_str());
     LOG(INFO, "==== end of job details ==");
-    JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
+    JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job, false);
     Status status = jobtracker->Start();
     const std::string& job_id = jobtracker->GetJobId();
     if (status == kOk) {
@@ -407,6 +405,8 @@ void MasterImpl::KeepDataPersistence() {
             const std::string& history = SerialHistory(it->second->DataForDump());
             nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
             nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, history, NULL);
+            LOG(DEBUG, "running job persistence: %s, desc:%d bytes, history: %d bytes",
+                       jobid.c_str(), descriptor.size(), history.size());
         }
     }
     MutexLock lock(&dead_mu_);
@@ -419,6 +419,8 @@ void MasterImpl::KeepDataPersistence() {
         const std::string& history = SerialHistory(it->second->DataForDump());
         nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
         nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, history, NULL);
+        LOG(DEBUG, "finished job persistence: %s, desc:%d bytes, history: %d bytes",
+            jobid.c_str(), descriptor.size(), history.size());
     }
     gc_.DelayTask(FLAGS_backup_interval, boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
@@ -428,15 +430,16 @@ void MasterImpl::Reload() {
     std::vector<AllocateItem> history;
     std::string jobid;
     while (GetJobInfoFromNexus(jobid, job, history)) {
-        JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
+        JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job, true);
         jobtracker->Load(jobid, history);
-        if (jobtracker->GetState() != kRunning && jobtracker->GetState() != kPending) {
+        if (jobtracker->GetState() == kRunning) {
             job_trackers_[jobid] = jobtracker;
         } else {
             dead_trackers_[jobid] = jobtracker;
         }
         history.clear();
     }
+    gc_.AddTask(boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
 
 bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
@@ -447,14 +450,17 @@ bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
         return false;
     }
     jobid = result->Key();
+    if (jobid.size() > FLAGS_nexus_root_path.size()) {
+        jobid = jobid.substr(FLAGS_nexus_root_path.size());
+    }
     std::stringstream job_ss(result->Value());
     job.ParseFromIstream(&job_ss);
     std::string history_str;
-    if (nexus_->Get(FLAGS_history_header + jobid, &history_str, NULL)) {
+    if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_history_header + jobid, &history_str, NULL)) {
         ParseHistory(history_str, history);
     }
     result->Next();
-    return false;
+    return true;
 }
 
 void MasterImpl::ParseHistory(const std::string& history_str,
@@ -489,6 +495,7 @@ std::string MasterImpl::SerialHistory(const std::vector<AllocateItem>& history) 
         job->set_period(it->period);
         job->set_is_map(it->is_map);
     }
+    LOG(DEBUG, "jc.job_size(): %d", jc.jobs_size());
     std::stringstream ss;
     jc.SerializeToOstream(&ss);
     return ss.str();

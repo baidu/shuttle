@@ -174,9 +174,13 @@ void IdManager::Load(const std::vector<IdItem>& data) {
     assert(data.size() == resource_pool_.size());
     std::vector<IdItem*>::iterator dst = resource_pool_.begin();
     for (std::vector<IdItem>::const_iterator src = data.begin();
-            src != data.end(); ++src) {
+            src != data.end(); ++src,++dst) {
         (*dst)->CopyFrom(*src);
     }
+    pending_ = 0;
+    allocated_ = 0;
+    done_ = 0;
+    pending_res_.clear();
     for (std::vector<IdItem*>::iterator it = resource_pool_.begin();
             it != resource_pool_.end(); ++it) {
         switch((*it)->status) {
@@ -356,7 +360,7 @@ void ResourceManager::Load(const std::vector<IdItem>& data) {
     manager_->Load(data);
     std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
     for (std::vector<IdItem>::const_iterator src = data.begin();
-            src != data.end(); ++src) {
+            src != data.end(); ++src, ++dst) {
         (*dst)->CopyFrom(*src);
     }
 }

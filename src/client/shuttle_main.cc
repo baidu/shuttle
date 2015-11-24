@@ -518,7 +518,7 @@ static int MonitorJob() {
         bool ok = shuttle->ShowJob(config::params[0], job, tasks);
         if (!ok) {
             fprintf(stderr, "lost connection with master\n");
-            if (error_tolerance --> 0) {
+            if (error_tolerance-- <= 0) {
                 break;
             }
             sleep(5);
@@ -574,6 +574,9 @@ static int MonitorJob() {
         sleep(2);
     }
     delete shuttle;
+    if (error_tolerance <= 0) {
+        return 1;
+    }
     return 0;
 }
 

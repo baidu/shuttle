@@ -123,11 +123,16 @@ void MinionImpl::Loop() {
         request.set_work_mode(work_mode_);
         LOG(INFO, "endpoint: %s", endpoint_.c_str());
         LOG(INFO, "jobid_: %s", jobid_.c_str());
-        bool ok = rpc_client_.SendRequest(stub, &Master_Stub::AssignTask, 
-                                          &request, &response, 5, 1);
-        if (!ok) {
-            LOG(FATAL, "fail to fetch task from master[%s]", master_endpoint_.c_str());
-            abort();
+        while (!stop_) {
+            bool ok = rpc_client_.SendRequest(stub, &Master_Stub::AssignTask,
+                                              &request, &response, 5, 1);
+            if (!ok) {
+                LOG(WARNING, "fail to fetch task from master[%s]", master_endpoint_.c_str());
+                sleep(FLAGS_suspend_time);
+                continue;
+            } else {
+                break;
+            }
         }
         if (response.status() == kNoMore) {
             LOG(INFO, "master has no more task for minion, so exit.");
@@ -140,7 +145,7 @@ void MinionImpl::Loop() {
             sleep(FLAGS_suspend_time);
             continue;
         } else if (response.status() != kOk) {
-            LOG(FATAL, "invalid responst status: %s",
+            LOG(FATAL, "invalid response status: %s",
                 Status_Name(response.status()).c_str());
         }
         const TaskInfo& task = response.task();
@@ -167,11 +172,21 @@ void MinionImpl::Loop() {
         fn_request.set_task_state(task_state);
         fn_request.set_endpoint(endpoint_);
         fn_request.set_work_mode(work_mode_);
-        ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
-                                     &fn_request, &fn_response, 5, 1);
-        if (!ok) {
-            LOG(FATAL, "fail to send task state to master");
-            abort();            
+        while (!stop_) {
+            bool ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
+                                         &fn_request, &fn_response, 5, 1);
+            if (!ok) {
+                LOG(WARNING, "fail to send task state to master");
+                sleep(FLAGS_suspend_time);
+                continue;
+            } else {
+                if (fn_response.status() ==  kSuspend) {
+                    LOG(WARNING, "wait a moment and then report finish");
+                    sleep(FLAGS_suspend_time);
+                    continue;
+                }
+                break;
+            }
         }
         ClearBreakpoint();
         if (task_state == kTaskFailed) {

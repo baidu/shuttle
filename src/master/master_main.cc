@@ -24,6 +24,7 @@ static void SignalIntHandler(int /*sig*/){
 int main(int argc, char* argv[]) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     baidu::shuttle::MasterImpl * master = new baidu::shuttle::MasterImpl();
+    master->Init();
     sofa::pbrpc::RpcServerOptions options;
     sofa::pbrpc::RpcServer rpc_server(options);
     if (!rpc_server.RegisterService(static_cast<baidu::shuttle::Master*>(master))) {
@@ -38,7 +39,7 @@ int main(int argc, char* argv[]) {
     }
     signal(SIGINT, SignalIntHandler);
     signal(SIGTERM, SignalIntHandler);
-    master->Init();
+
     LOG(INFO, "master started.");
     while (!s_quit) {
         sleep(1);

@@ -42,7 +42,7 @@ class JobTracker {
 
 public:
     JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
-               const JobDescriptor& job);
+               const JobDescriptor& job, bool reload_mode);
     virtual ~JobTracker();
 
     Status Start();
@@ -93,7 +93,7 @@ public:
 private:
     void KeepMonitoring(bool map_now);
     std::string GenerateJobId();
-    void Replay(const std::vector<AllocateItem>& history, std::vector<IdItem>& table);
+    void Replay(const std::vector<AllocateItem>& history, std::vector<IdItem>& table, bool is_map);
 
 private:
     MasterImpl* master_;
