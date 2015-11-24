@@ -20,5 +20,5 @@ DEFINE_string(history_header, "his_", "header of history item in nexus key data"
 DEFINE_int32(gc_interval, 600, "time interval for master recycling outdated job");
 DEFINE_int32(backup_interval, 5000, "millisecond time interval for master backup jobs information");
 DEFINE_int32(retry_bound, 3, "retry times when a certain task failed before the job is considered failed");
-DEFINE_bool(recovery, true, "whether fallen into recovery process at the beginning");
+DEFINE_bool(recovery, false, "whether fallen into recovery process at the beginning");
 
