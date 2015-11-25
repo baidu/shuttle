@@ -15,7 +15,7 @@ namespace shuttle {
 
 static const int64_t default_additional_map_memory = 1024l * 1024 * 1024;
 static const int64_t default_additional_reduce_memory = 2048l * 1024 * 1024;
-static const int default_additional_millicores = 1000;
+static const int default_additional_millicores = 0;
 
 int Gru::additional_millicores = default_additional_millicores;
 int64_t Gru::additional_map_memory = default_additional_map_memory;
@@ -67,6 +67,7 @@ Status Gru::Start() {
     minion.stop_cmd = ss_stop.str().c_str();
     minion.requirement = galaxy_job.pod.requirement;
     minion.mem_isolation_type = "kMemIsolationLimit";
+    minion.cpu_isolation_type = "kCpuIsolationSoft";
     galaxy_job.pod.tasks.push_back(minion);
     std::string minion_id;
     if (galaxy_->SubmitJob(galaxy_job, &minion_id)) {
