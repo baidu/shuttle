@@ -4,6 +4,23 @@ set -o pipefail
 
 CmdArgs=$*
 
+
+DownloadHadoop() {
+	if [ ! -d /tmp/hadoop-client ]; then
+		./NfsShell get /disk/shuttle/hadoop-client.tar.gz ./hadoop-client.tar.gz
+		if [ $? -ne 0 ]; then
+			return 1
+		fi
+		tar -xzf hadoop-client.tar.gz
+		if [ $? -ne 0 ]; then
+			return 2
+		fi
+		mv ./hadoop-client /tmp/
+		return $?
+	fi
+	return 0
+}
+
 DownloadMinionTar() {
 	./NfsShell get /disk/shuttle/minion.tar.gz minion.tar.gz
 	return $?
@@ -28,7 +45,7 @@ DownloadUserTar() {
 		fi
 		mkdir $cache_archive_dir
 		rm -f $cache_archive_dir/*.tar.gz
-		./hadoop-client/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
+		/tmp/hadoop-client/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
 		if [ $? -ne 0 ]; then
 			return -1
 		fi
@@ -58,6 +75,9 @@ CheckStatus() {
 		exit $ret
 	fi
 }
+
+DownloadHadoop
+CheckStatus $? "download hadoop fail"
 
 DownloadMinionTar
 CheckStatus $? "download minion package from DFS fail"
