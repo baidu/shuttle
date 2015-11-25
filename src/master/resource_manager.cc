@@ -17,7 +17,7 @@ DECLARE_int32(max_replica);
 namespace baidu {
 namespace shuttle {
 
-static const int parallel_level = 5;
+static const int parallel_level = 10;
 
 IdItem::IdItem(const IdItem& res) {
     CopyFrom(res);
@@ -209,10 +209,31 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
     ::baidu::common::ThreadPool tp(parallel_level);
     std::vector<FileInfo> sub_files[parallel_level];
     int i = 0;
-    for (std::vector<std::string>::const_iterator it = input_files.begin();
-            it != input_files.end(); ++it) {
+    std::vector<std::string> expand_input_files;
+    for (size_t i = 0; i < input_files.size(); i++) {
+        const std::string& file_name = input_files[i];
+        size_t prefix_pos ;
+        if ( (prefix_pos = file_name.find("/*/")) != std::string::npos) {
+            const std::string& prefix = file_name.substr(0, prefix_pos);
+            const std::string& suffix = file_name.substr(prefix_pos + 3);
+            std::vector<FileInfo> children;
+            bool ok = fs_->List(prefix, &children);
+            if (!ok) {
+                expand_input_files.push_back(file_name);
+            } else {
+                for (size_t j = 0; j < children.size(); j++) {
+                    expand_input_files.push_back(children[j].name + "/" + suffix);
+                }
+            }
+        } else {
+            expand_input_files.push_back(file_name);
+        }
+    }
+    for (std::vector<std::string>::const_iterator it = expand_input_files.begin();
+            it != expand_input_files.end(); ++it) {
         std::string path;
-        if (boost::starts_with(input_files[0], "hdfs://")) {
+        LOG(INFO, "input file: %s", it->c_str());
+        if (boost::starts_with(*it, "hdfs://")) {
             ParseHdfsAddress(*it, NULL, NULL, &path);
         } else {
             path = *it;
