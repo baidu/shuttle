@@ -5,7 +5,11 @@ user_cmd=$*
 
 if [ "${mapred_task_is_map}" == "true" ]
 then
-	echo ${mapred_job_id} > "map_${mapred_task_partition}_${mapred_attempt_id}.flag"
+	work_dir="map_${mapred_task_partition}_${mapred_attempt_id}"
+	mkdir $work_dir
+	cd $work_dir
+	ln -s ../* .
+
 	dfs_flags=""
 	if [ "${minion_input_dfs_host}" != "" ]; then
 		dfs_flags="-dfs_host=${minion_input_dfs_host} 
@@ -31,7 +35,11 @@ then
 	exit $?
 elif [ "${mapred_task_is_map}" == "false" ]
 then
-    echo ${mapred_job_id} > "reduce_${mapred_task_partition}_${mapred_attempt_id}.flag"
+	work_dir="reduce_${mapred_task_partition}_${mapred_attempt_id}"
+	mkdir $work_dir
+	cd $work_dir
+	ln -s ../* .
+
 	dfs_flags=""
 	if [ "${minion_output_dfs_host}" != "" ]; then
 		dfs_flags="-dfs_host=${minion_output_dfs_host} 
