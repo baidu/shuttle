@@ -276,6 +276,7 @@ Status JobTracker::Kill() {
             it != allocation_table_.end(); ++it) {
         if ((*it)->state == kTaskRunning) {
             (*it)->state = kTaskKilled;
+            (*it)->period = std::time(NULL) - (*it)->alloc_time;
         }
     }
     return kOk;
