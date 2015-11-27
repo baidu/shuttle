@@ -833,6 +833,7 @@ void JobTracker::Load(const std::string& jobid, const JobState state,
         failed_count_.resize(0);
         failed_count_.resize(job_descriptor_.reduce_total());
     }
+    MutexLock lock(&alloc_mu_);
     if (state_ == kRunning) {
         monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, is_map));
         if (is_map) {
