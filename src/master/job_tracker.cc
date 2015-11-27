@@ -277,6 +277,7 @@ Status JobTracker::Kill() {
         if ((*it)->state == kTaskRunning) {
             (*it)->state = kTaskKilled;
             (*it)->period = std::time(NULL) - (*it)->alloc_time;
+            (*it)->is_map ? ++map_killed_ : ++reduce_killed_;
         }
     }
     return kOk;
@@ -840,13 +841,12 @@ void JobTracker::Load(const std::string& jobid, const JobState state,
             reduce_monitoring_ = true;
         }
     }
-    // TODO only affected reduce counter when it is in reduce phase
-    int& cur_killed = is_map ? map_killed_ : reduce_killed_;
-    int& cur_failed = is_map ? map_failed_ : reduce_failed_;
     for (std::vector<AllocateItem>::const_iterator it = data.begin();
             it != data.end(); ++it) {
         AllocateItem* alloc = new AllocateItem(*it);
         allocation_table_.push_back(alloc);
+        int& cur_killed = alloc->is_map ? map_killed_ : reduce_killed_;
+        int& cur_failed = alloc->is_map ? map_failed_ : reduce_failed_;
         switch(alloc->state) {
         case kTaskRunning: time_heap_.push(alloc); break;
         case kTaskFailed: ++ cur_failed; break;
@@ -958,6 +958,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
                 if (top->state == kTaskRunning) {
                     top->state = kTaskKilled;
                     top->period = std::time(NULL) - top->alloc_time;
+                    map_now ? ++map_killed_ : ++reduce_killed_;
                 }
                 ++ counter;
                 continue;
@@ -967,6 +968,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
                     job_id_.c_str());
             top->state = kTaskKilled;
             top->period = std::time(NULL) - top->alloc_time;
+            map_now ? ++map_killed_ : ++reduce_killed_;
         }
         if (map_now) {
             map_slug_.push(top->resource_no);
