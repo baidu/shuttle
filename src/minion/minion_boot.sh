@@ -62,6 +62,7 @@ ExtractUserTar() {
 }
 
 StartMinon() {
+	mv ./hadoop-site.xml /tmp/hadoop-client/hadoop/conf/
 	source hdfs_env.sh > /dev/null 2>&1
 	ls . | grep -v '^log$' > common.list
 	if [ $? -ne 0 ]; then
