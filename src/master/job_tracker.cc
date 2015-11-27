@@ -75,7 +75,8 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
 }
 
 JobTracker::~JobTracker() {
-    Kill();
+    // TODO SIGINT will call destruction function and kill jobs on Galaxy
+    // Kill();
     if (map_manager_ != NULL) {
         delete map_manager_;
     }

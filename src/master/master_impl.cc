@@ -8,6 +8,7 @@
 #include <sys/utsname.h>
 #include <gflags/gflags.h>
 #include <boost/bind.hpp>
+#include <snappy.h>
 
 #include "logging.h"
 
@@ -399,8 +400,10 @@ void MasterImpl::KeepDataPersistence() {
                 it != job_trackers_.end(); ++it) {
             std::stringstream ss;
             it->second->GetJobDescriptor().SerializeToOstream(&ss);
+            std::string compressed_str;
+            snappy::Compress(ss.str().data(), ss.str().size(), &compressed_str);
             const std::string& jobid = it->second->GetJobId();
-            const std::string& descriptor = ss.str();
+            const std::string& descriptor = compressed_str;
             const std::string& jobdata = SerialJobData(it->second->GetState(),
                                                        it->second->HistoryForDump(),
                                                        it->second->InputDataForDump());
@@ -415,8 +418,10 @@ void MasterImpl::KeepDataPersistence() {
             it != dead_trackers_.end(); ++it) {
         std::stringstream ss;
         it->second->GetJobDescriptor().SerializeToOstream(&ss);
+        std::string compressed_str;
+        snappy::Compress(ss.str().data(), ss.str().size(), &compressed_str);
         const std::string& jobid = it->second->GetJobId();
-        const std::string& descriptor = ss.str();
+        const std::string& descriptor = compressed_str;
         const std::string& jobdata = SerialJobData(it->second->GetState(),
                                                    it->second->HistoryForDump(),
                                                    it->second->InputDataForDump());
@@ -460,7 +465,9 @@ bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, Job
     if (jobid.size() > FLAGS_nexus_root_path.size()) {
         jobid = jobid.substr(FLAGS_nexus_root_path.size());
     }
-    std::stringstream job_ss(result->Value());
+    std::string uncompressed_str;
+    snappy::Uncompress(result->Value().data(), result->Value().size(), &uncompressed_str);
+    std::stringstream job_ss(uncompressed_str);
     job.ParseFromIstream(&job_ss);
     std::string data_str;
     if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, &data_str, NULL)) {
@@ -474,7 +481,9 @@ void MasterImpl::ParseJobData(const std::string& history_str, JobState& state,
                               std::vector<AllocateItem>& history,
                               std::vector<ResourceItem>& resources) {
     JobCollection jc;
-    std::stringstream ss(history_str);
+    std::string uncompressed_str;
+    snappy::Uncompress(history_str.data(), history_str.size(), &uncompressed_str);
+    std::stringstream ss(uncompressed_str);
     jc.ParseFromIstream(&ss);
     state = jc.state();
     ::google::protobuf::RepeatedPtrField< JobAllocation >::const_iterator it;
@@ -530,7 +539,9 @@ std::string MasterImpl::SerialJobData(const JobState state,
     LOG(DEBUG, "jc.job_size(): %d", jc.jobs_size());
     std::stringstream ss;
     jc.SerializeToOstream(&ss);
-    return ss.str();
+    std::string compressed_str;
+    snappy::Compress(ss.str().data(), ss.str().size(), &compressed_str);
+    return compressed_str;
 }
 
 }
