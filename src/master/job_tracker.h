@@ -87,7 +87,8 @@ public:
         }
         return kOk;
     }
-    void Load(const std::string& jobid, const std::vector<AllocateItem>& data,
+    void Load(const std::string& jobid, const JobState state,
+              const std::vector<AllocateItem>& data,
               const std::vector<ResourceItem>& resource);
     const std::vector<AllocateItem> HistoryForDump();
     const std::vector<ResourceItem> InputDataForDump();

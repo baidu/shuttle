@@ -39,6 +39,7 @@ message InputInfo {
 message JobCollection {
     repeated JobAllocation jobs = 1;
     repeated InputInfo inputs = 2;
+    optional JobState state = 3;
 }
 
 message SubmitJobRequest {

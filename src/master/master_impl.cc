@@ -401,7 +401,8 @@ void MasterImpl::KeepDataPersistence() {
             it->second->GetJobDescriptor().SerializeToOstream(&ss);
             const std::string& jobid = it->second->GetJobId();
             const std::string& descriptor = ss.str();
-            const std::string& jobdata = SerialJobData(it->second->HistoryForDump(),
+            const std::string& jobdata = SerialJobData(it->second->GetState(),
+                                                       it->second->HistoryForDump(),
                                                        it->second->InputDataForDump());
             nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
             nexus_->Put(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, jobdata, NULL);
@@ -416,7 +417,8 @@ void MasterImpl::KeepDataPersistence() {
         it->second->GetJobDescriptor().SerializeToOstream(&ss);
         const std::string& jobid = it->second->GetJobId();
         const std::string& descriptor = ss.str();
-        const std::string& jobdata = SerialJobData(it->second->HistoryForDump(),
+        const std::string& jobdata = SerialJobData(it->second->GetState(),
+                                                   it->second->HistoryForDump(),
                                                    it->second->InputDataForDump());
         nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
         nexus_->Put(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, jobdata, NULL);
@@ -428,12 +430,13 @@ void MasterImpl::KeepDataPersistence() {
 
 void MasterImpl::Reload() {
     JobDescriptor job;
+    JobState state;
     std::vector<AllocateItem> history;
     std::vector<ResourceItem> resources;
     std::string jobid;
-    while (GetJobInfoFromNexus(jobid, job, history, resources)) {
+    while (GetJobInfoFromNexus(jobid, job, state, history, resources)) {
         JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
-        jobtracker->Load(jobid, history, resources);
+        jobtracker->Load(jobid, state, history, resources);
         if (jobtracker->GetState() == kRunning) {
             job_trackers_[jobid] = jobtracker;
         } else {
@@ -445,7 +448,7 @@ void MasterImpl::Reload() {
     gc_.AddTask(boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
 
-bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
+bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, JobState& state,
                                      std::vector<AllocateItem>& history,
                                      std::vector<ResourceItem>& resources) {
     static ::galaxy::ins::sdk::ScanResult* result = nexus_->Scan(
@@ -461,18 +464,19 @@ bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
     job.ParseFromIstream(&job_ss);
     std::string data_str;
     if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, &data_str, NULL)) {
-        ParseJobData(data_str, history, resources);
+        ParseJobData(data_str, state, history, resources);
     }
     result->Next();
     return true;
 }
 
-void MasterImpl::ParseJobData(const std::string& history_str,
+void MasterImpl::ParseJobData(const std::string& history_str, JobState& state,
                               std::vector<AllocateItem>& history,
                               std::vector<ResourceItem>& resources) {
     JobCollection jc;
     std::stringstream ss(history_str);
     jc.ParseFromIstream(&ss);
+    state = jc.state();
     ::google::protobuf::RepeatedPtrField< JobAllocation >::const_iterator it;
     for (it = jc.jobs().begin(); it != jc.jobs().end(); ++it) {
         AllocateItem item;
@@ -500,9 +504,11 @@ void MasterImpl::ParseJobData(const std::string& history_str,
     }
 }
 
-std::string MasterImpl::SerialJobData(const std::vector<AllocateItem>& history,
+std::string MasterImpl::SerialJobData(const JobState state,
+                                      const std::vector<AllocateItem>& history,
                                       const std::vector<ResourceItem>& resources) {
     JobCollection jc;
+    jc.set_state(state);
     for (std::vector<AllocateItem>::const_iterator it = history.begin();
             it != history.end(); ++it) {
         JobAllocation* job = jc.add_jobs();

@@ -793,12 +793,14 @@ void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<Id
     }
 }
 
-void JobTracker::Load(const std::string& jobid, const std::vector<AllocateItem>& data,
+void JobTracker::Load(const std::string& jobid, const JobState state,
+                      const std::vector<AllocateItem>& data,
                       const std::vector<ResourceItem>& resource) {
     LOG(INFO, "reload job: %s, map_manager_:%p , reduce_manager_:%p", jobid.c_str(),
         map_manager_, reduce_manager_);
     LOG(INFO, "reloading..., data.size(): %d", data.size());
     job_id_ = jobid;
+    state_ = state;
     BuildOutputFsPointer();
     if (job_descriptor_.map_total() != 0) {
         std::vector<std::string> input;
@@ -824,15 +826,8 @@ void JobTracker::Load(const std::string& jobid, const std::vector<AllocateItem>&
         reduce_manager_->Load(id_data);
     }
     BuildEndGameCounters();
-    if (!data.empty()) {
-        state_ = kRunning;
-    }
     bool is_map = true;
     if (map_manager_ && map_manager_->Done() == job_descriptor_.map_total()) {
-        // TODO Consider more possibility of job state
-        if (reduce_manager_ && reduce_manager_->Done() == job_descriptor_.reduce_total()) {
-            state_ = kCompleted;
-        }
         is_map = false;
         failed_count_.resize(0);
         failed_count_.resize(job_descriptor_.reduce_total());

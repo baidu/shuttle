@@ -63,13 +63,14 @@ private:
     void KeepGarbageCollecting();
     void KeepDataPersistence();
     void Reload();
-    bool GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
+    bool GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, JobState& state,
                              std::vector<AllocateItem>& history,
                              std::vector<ResourceItem>& resources);
-    void ParseJobData(const std::string& history_str,
+    void ParseJobData(const std::string& history_str, JobState& state,
                       std::vector<AllocateItem>& history,
                       std::vector<ResourceItem>& resources);
-    std::string SerialJobData(const std::vector<AllocateItem>& history,
+    std::string SerialJobData(const JobState state,
+                              const std::vector<AllocateItem>& history,
                               const std::vector<ResourceItem>& resources);
 
 private:
