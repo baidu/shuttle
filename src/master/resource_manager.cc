@@ -195,8 +195,21 @@ void IdManager::Load(const std::vector<IdItem>& data) {
     }
 }
 
+std::vector<IdItem> IdManager::Dump() {
+    std::vector<IdItem> copy;
+    MutexLock lock(&mu_);
+    for (std::vector<IdItem*>::iterator it = resource_pool_.begin();
+            it != resource_pool_.end(); ++it) {
+        copy.push_back(*(*it));
+    }
+    return copy;
+}
+
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
-                                 FileSystem::Param& param) {
+                                 FileSystem::Param& param) : fs_(NULL), manager_(NULL) {
+    if (input_files.size() == 0) {
+        return;
+    }
     if (boost::starts_with(input_files[0], "hdfs://")) {
         std::string host;
         int port;
@@ -387,10 +400,38 @@ void ResourceManager::Load(const std::vector<IdItem>& data) {
 }
 
 void ResourceManager::Load(const std::vector<ResourceItem>& data) {
+    assert(data.size() != 0);
+    if (manager_ == NULL) {
+        manager_ = new IdManager(data.size());
+    }
     std::vector<IdItem> id_data;
     id_data.resize(data.size());
     std::copy(data.begin(), data.end(), id_data.begin());
-    Load(id_data);
+    manager_->Load(id_data);
+    if (resource_pool_.size() == 0) {
+        for (std::vector<ResourceItem>::const_iterator it = data.begin();
+                it != data.end(); ++it) {
+            ResourceItem* cur = new ResourceItem();
+            *cur = *it;
+            resource_pool_.push_back(cur);
+        }
+    } else {
+        std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
+        for (std::vector<ResourceItem>::const_iterator src = data.begin();
+                src != data.end(); ++src, ++dst) {
+            *(*dst) = *src;
+        }
+    }
+}
+
+std::vector<ResourceItem> ResourceManager::Dump() {
+    std::vector<ResourceItem> copy;
+    MutexLock lock(&mu_);
+    for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
+            it != resource_pool_.end(); ++it) {
+        copy.push_back(*(*it));
+    }
+    return copy;
 }
 
 NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input_files,

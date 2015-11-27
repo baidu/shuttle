@@ -45,6 +45,19 @@ public:
     std::string input_file;
     int64_t offset;
     int64_t size;
+    ResourceItem* operator=(const ResourceItem& res) {
+        no = res.no;
+        attempt = res.attempt;
+        status = res.status;
+        allocated = res.allocated;
+        input_file = res.input_file;
+        offset = res.offset;
+        size = res.size;
+        return this;
+    }
+    ResourceItem* operator=(const IdItem& id) {
+        return CopyFrom(id);
+    }
     ResourceItem* CopyFrom(const IdItem& id) {
         no = id.no;
         attempt = id.attempt;
@@ -69,6 +82,7 @@ public:
     virtual int Allocated() = 0;
     virtual int Done() = 0;
     virtual void Load(const std::vector<Resource>& data) = 0;
+    virtual std::vector<Resource> Dump() = 0;
 };
 
 class IdManager : public BasicResourceManager<IdItem> {
@@ -102,6 +116,7 @@ public:
         return done_;
     }
     virtual void Load(const std::vector<IdItem>& data);
+    virtual std::vector<IdItem> Dump();
 
 protected:
     Mutex mu_;
@@ -145,6 +160,7 @@ public:
     }
     virtual void Load(const std::vector<ResourceItem>& data);
     virtual void Load(const std::vector<IdItem>& data);
+    virtual std::vector<ResourceItem> Dump();
 
 protected:
     ResourceManager() : fs_(NULL), manager_(NULL) { }

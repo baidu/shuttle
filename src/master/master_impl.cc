@@ -49,7 +49,6 @@ void MasterImpl::Init() {
     AcquireMasterLock();
     LOG(INFO, "master alive, recovering");
     if (FLAGS_recovery) {
-        // TODO Uncomment this function until it's fully implemented
         Reload();
         LOG(INFO, "master recovered");
     }
@@ -66,7 +65,7 @@ void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
     LOG(INFO, "=== job details ===");
     LOG(INFO, "%s", job.DebugString().c_str());
     LOG(INFO, "==== end of job details ==");
-    JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job, false);
+    JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
     Status status = jobtracker->Start();
     const std::string& job_id = jobtracker->GetJobId();
     if (status == kOk) {
@@ -402,11 +401,12 @@ void MasterImpl::KeepDataPersistence() {
             it->second->GetJobDescriptor().SerializeToOstream(&ss);
             const std::string& jobid = it->second->GetJobId();
             const std::string& descriptor = ss.str();
-            const std::string& history = SerialHistory(it->second->DataForDump());
+            const std::string& jobdata = SerialJobData(it->second->HistoryForDump(),
+                                                       it->second->InputDataForDump());
             nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
-            nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, history, NULL);
-            LOG(DEBUG, "running job persistence: %s, desc:%d bytes, history: %d bytes",
-                       jobid.c_str(), descriptor.size(), history.size());
+            nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, jobdata, NULL);
+            LOG(DEBUG, "running job persistence: %s, desc:%d bytes, data: %d bytes",
+                       jobid.c_str(), descriptor.size(), jobdata.size());
         }
     }
     MutexLock lock(&dead_mu_);
@@ -416,11 +416,12 @@ void MasterImpl::KeepDataPersistence() {
         it->second->GetJobDescriptor().SerializeToOstream(&ss);
         const std::string& jobid = it->second->GetJobId();
         const std::string& descriptor = ss.str();
-        const std::string& history = SerialHistory(it->second->DataForDump());
+        const std::string& jobdata = SerialJobData(it->second->HistoryForDump(),
+                                                   it->second->InputDataForDump());
         nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
-        nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, history, NULL);
-        LOG(DEBUG, "finished job persistence: %s, desc:%d bytes, history: %d bytes",
-            jobid.c_str(), descriptor.size(), history.size());
+        nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, jobdata, NULL);
+        LOG(DEBUG, "finished job persistence: %s, desc:%d bytes, data: %d bytes",
+            jobid.c_str(), descriptor.size(), jobdata.size());
     }
     gc_.DelayTask(FLAGS_backup_interval, boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
@@ -428,22 +429,25 @@ void MasterImpl::KeepDataPersistence() {
 void MasterImpl::Reload() {
     JobDescriptor job;
     std::vector<AllocateItem> history;
+    std::vector<ResourceItem> resources;
     std::string jobid;
-    while (GetJobInfoFromNexus(jobid, job, history)) {
-        JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job, true);
-        jobtracker->Load(jobid, history);
+    while (GetJobInfoFromNexus(jobid, job, history, resources)) {
+        JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
+        jobtracker->Load(jobid, history, resources);
         if (jobtracker->GetState() == kRunning) {
             job_trackers_[jobid] = jobtracker;
         } else {
             dead_trackers_[jobid] = jobtracker;
         }
         history.clear();
+        resources.clear();
     }
     gc_.AddTask(boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
 
 bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
-                                     std::vector<AllocateItem>& history) {
+                                     std::vector<AllocateItem>& history,
+                                     std::vector<ResourceItem>& resources) {
     static ::galaxy::ins::sdk::ScanResult* result = nexus_->Scan(
             FLAGS_nexus_root_path + "job_", FLAGS_nexus_root_path + "job`");
     if (result->Done()) {
@@ -455,16 +459,17 @@ bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
     }
     std::stringstream job_ss(result->Value());
     job.ParseFromIstream(&job_ss);
-    std::string history_str;
-    if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_history_header + jobid, &history_str, NULL)) {
-        ParseHistory(history_str, history);
+    std::string data_str;
+    if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_history_header + jobid, &data_str, NULL)) {
+        ParseJobData(data_str, history, resources);
     }
     result->Next();
     return true;
 }
 
-void MasterImpl::ParseHistory(const std::string& history_str,
-                              std::vector<AllocateItem>& history) {
+void MasterImpl::ParseJobData(const std::string& history_str,
+                              std::vector<AllocateItem>& history,
+                              std::vector<ResourceItem>& resources) {
     JobCollection jc;
     std::stringstream ss(history_str);
     jc.ParseFromIstream(&ss);
@@ -480,9 +485,23 @@ void MasterImpl::ParseHistory(const std::string& history_str,
         item.is_map = it->is_map();
         history.push_back(item);
     }
+    int i = 0;
+    ::google::protobuf::RepeatedPtrField< InputInfo >::const_iterator it2;
+    for (it2 = jc.inputs().begin(); it2 != jc.inputs().end(); ++it2) {
+        ResourceItem item;
+        item.no = i++;
+        item.attempt = 0;
+        item.status = kResPending;
+        item.allocated = 0;
+        item.input_file = it2->input_file();
+        item.offset = it2->offset();
+        item.size = it2->size();
+        resources.push_back(item);
+    }
 }
 
-std::string MasterImpl::SerialHistory(const std::vector<AllocateItem>& history) {
+std::string MasterImpl::SerialJobData(const std::vector<AllocateItem>& history,
+                                      const std::vector<ResourceItem>& resources) {
     JobCollection jc;
     for (std::vector<AllocateItem>::const_iterator it = history.begin();
             it != history.end(); ++it) {
@@ -494,6 +513,13 @@ std::string MasterImpl::SerialHistory(const std::vector<AllocateItem>& history) 
         job->set_alloc_time(it->alloc_time);
         job->set_period(it->period);
         job->set_is_map(it->is_map);
+    }
+    for (std::vector<ResourceItem>::const_iterator it = resources.begin();
+            it != resources.end(); ++it) {
+        InputInfo* input = jc.add_inputs();
+        input->set_input_file(it->input_file);
+        input->set_offset(it->offset);
+        input->set_size(it->size);
     }
     LOG(DEBUG, "jc.job_size(): %d", jc.jobs_size());
     std::stringstream ss;

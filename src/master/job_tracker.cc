@@ -34,7 +34,7 @@ namespace baidu {
 namespace shuttle {
 
 JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
-                       const JobDescriptor& job, bool reload_mode) :
+                       const JobDescriptor& job) :
                       master_(master),
                       galaxy_(galaxy_sdk),
                       state_(kPending),
@@ -55,102 +55,16 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       reduce_failed_(0),
                       monitor_(NULL),
                       map_monitoring_(false),
-                      reduce_monitoring_(false) {
+                      reduce_monitoring_(false),
+                      fs_(NULL) {
     job_descriptor_.CopyFrom(job);
     job_id_ = GenerateJobId();
     rpc_client_ = new RpcClient();
-    std::vector<std::string> inputs;
-    const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames = job.inputs();
-    std::copy(input_filenames.begin(), input_filenames.end(), std::back_inserter(inputs));
-
-    // Prepare fs for output checking and temporary files recycling
-    FileSystem::Param output_param;
-    const DfsInfo& output_dfs = job_descriptor_.output_dfs();
-    if (!output_dfs.user().empty() && !output_dfs.password().empty()) {
-        output_param["user"] = output_dfs.user();
-        output_param["password"] = output_dfs.password();
-    }
-    if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
-        std::string host;
-        int port;
-        ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
-        output_param["host"] = host;
-        output_param["port"] = boost::lexical_cast<std::string>(port);
-        job_descriptor_.mutable_output_dfs()->set_host(host);
-        job_descriptor_.mutable_output_dfs()->set_port(boost::lexical_cast<std::string>(port));
-    } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
-        output_param["host"] = output_dfs.host();
-        output_param["port"] = output_dfs.port();
-    }
-
-    fs_ = FileSystem::CreateInfHdfs(output_param);
-    if (!reload_mode && fs_->Exist(job_descriptor_.output())) {
-        LOG(INFO, "output exists, failed: %s", job_id_.c_str());
-        job_descriptor_.set_map_total(0);
-        job_descriptor_.set_reduce_total(0);
-        state_ = kFailed;
-        return;
-    }
-
-    // Build resource manager
-    FileSystem::Param input_param;
-    const DfsInfo& input_dfs = job_descriptor_.input_dfs();
-    if(!input_dfs.user().empty() && !input_dfs.password().empty()) {
-        input_param["user"] = input_dfs.user();
-        input_param["password"] = input_dfs.password();
-    }
-    if (boost::starts_with(inputs[0], "hdfs://")) {
-        std::string host;
-        int port;
-        ParseHdfsAddress(inputs[0], &host, &port, NULL);
-        input_param["host"] = host;
-        input_param["port"] = boost::lexical_cast<std::string>(port);
-        job_descriptor_.mutable_input_dfs()->set_host(host);
-        job_descriptor_.mutable_input_dfs()->set_port(boost::lexical_cast<std::string>(port));
-    } else if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
-        input_param["host"] = input_dfs.host();
-        input_param["port"] = input_dfs.port();
-    }
-    if (job_descriptor_.input_format() == kNLineInput) {
-        map_manager_ = new NLineResourceManager(inputs, input_param);
-    } else {
-        map_manager_ = new ResourceManager(inputs, input_param);
-    }
-    int sum_of_map = map_manager_->SumOfItem();
-
-    job_descriptor_.set_map_total(sum_of_map);
-    if (job_descriptor_.map_total() < 1) {
-        LOG(INFO, "map input may not inexist, failed: %s", job_id_.c_str());
-        job_descriptor_.set_reduce_total(0);
-        state_ = kFailed;
-        return;
-    }
-    if (job.job_type() == kMapReduceJob) {
-        reduce_manager_ = new IdManager(job_descriptor_.reduce_total());
-    } else {
-        reduce_manager_ = NULL;
-    }
-    failed_count_.resize(sum_of_map, 0);
 
     monitor_ = new ThreadPool(1);
 
     map_allow_duplicates_ = job_descriptor_.map_allow_duplicates();
     reduce_allow_duplicates_ = job_descriptor_.reduce_allow_duplicates();
-    // For end game counter
-    map_end_game_begin_ = sum_of_map - FLAGS_replica_begin;
-    int temp = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
-    if (map_end_game_begin_ > temp) {
-        map_end_game_begin_ = temp;
-    }
-    if (reduce_manager_ == NULL) {
-        return;
-    }
-    reduce_begin_ = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
-    reduce_end_game_begin_ = reduce_manager_->SumOfItem() - FLAGS_replica_begin;
-    temp = reduce_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
-    if (reduce_end_game_begin_ < temp) {
-        reduce_end_game_begin_ = temp;
-    }
 }
 
 JobTracker::~JobTracker() {
@@ -172,14 +86,109 @@ JobTracker::~JobTracker() {
     delete fs_;
 }
 
+void JobTracker::BuildOutputFsPointer() {
+    FileSystem::Param output_param;
+    const DfsInfo& output_dfs = job_descriptor_.output_dfs();
+    if (!output_dfs.user().empty() && !output_dfs.password().empty()) {
+        output_param["user"] = output_dfs.user();
+        output_param["password"] = output_dfs.password();
+    }
+    if (boost::starts_with(job_descriptor_.output(), "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(job_descriptor_.output(), &host, &port, NULL);
+        output_param["host"] = host;
+        output_param["port"] = boost::lexical_cast<std::string>(port);
+        job_descriptor_.mutable_output_dfs()->set_host(host);
+        job_descriptor_.mutable_output_dfs()->set_port(boost::lexical_cast<std::string>(port));
+    } else if (!output_dfs.host().empty() && !output_dfs.port().empty()) {
+        output_param["host"] = output_dfs.host();
+        output_param["port"] = output_dfs.port();
+    }
+
+    fs_ = FileSystem::CreateInfHdfs(output_param);
+}
+
+Status JobTracker::BuildResourceManagers() {
+    std::vector<std::string> inputs;
+    const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames = job_descriptor_.inputs();
+    std::copy(input_filenames.begin(), input_filenames.end(), std::back_inserter(inputs));
+
+    FileSystem::Param input_param;
+    const DfsInfo& input_dfs = job_descriptor_.input_dfs();
+    if(!input_dfs.user().empty() && !input_dfs.password().empty()) {
+        input_param["user"] = input_dfs.user();
+        input_param["password"] = input_dfs.password();
+    }
+    if (boost::starts_with(inputs[0], "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(inputs[0], &host, &port, NULL);
+        input_param["host"] = host;
+        input_param["port"] = boost::lexical_cast<std::string>(port);
+        job_descriptor_.mutable_input_dfs()->set_host(host);
+        job_descriptor_.mutable_input_dfs()->set_port(boost::lexical_cast<std::string>(port));
+    } else if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
+        input_param["host"] = input_dfs.host();
+        input_param["port"] = input_dfs.port();
+    }
+
+    if (job_descriptor_.input_format() == kNLineInput) {
+        map_manager_ = new NLineResourceManager(inputs, input_param);
+    } else {
+        map_manager_ = new ResourceManager(inputs, input_param);
+    }
+    int sum_of_map = map_manager_->SumOfItem();
+    job_descriptor_.set_map_total(sum_of_map);
+    if (job_descriptor_.map_total() < 1) {
+        LOG(INFO, "map input may not inexist, failed: %s", job_id_.c_str());
+        job_descriptor_.set_reduce_total(0);
+        state_ = kFailed;
+        return kOpenFileFail;
+    }
+
+    if (job_descriptor_.job_type() == kMapReduceJob) {
+        reduce_manager_ = new IdManager(job_descriptor_.reduce_total());
+    }
+
+    failed_count_.resize(sum_of_map, 0);
+    return kOk;
+}
+
+void JobTracker::BuildEndGameCounters() {
+    if (map_manager_ == NULL) {
+        return;
+    }
+    int sum_of_map = map_manager_->SumOfItem();
+    map_end_game_begin_ = sum_of_map - FLAGS_replica_begin;
+    int temp = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
+    if (map_end_game_begin_ > temp) {
+        map_end_game_begin_ = temp;
+    }
+    if (reduce_manager_ == NULL) {
+        return;
+    }
+    reduce_begin_ = sum_of_map - sum_of_map * FLAGS_replica_begin_percent / 100;
+    reduce_end_game_begin_ = reduce_manager_->SumOfItem() - FLAGS_replica_begin;
+    temp = reduce_manager_->SumOfItem() * FLAGS_replica_begin_percent / 100;
+    if (reduce_end_game_begin_ < temp) {
+        reduce_end_game_begin_ = temp;
+    }
+}
+
 Status JobTracker::Start() {
+    BuildOutputFsPointer();
     if (fs_->Exist(job_descriptor_.output())) {
+        LOG(INFO, "output exists, failed: %s", job_id_.c_str());
+        job_descriptor_.set_map_total(0);
+        job_descriptor_.set_reduce_total(0);
+        state_ = kFailed;
         return kWriteFileFail;
     }
-    if (state_ == kFailed) {
-        // For now the failed status means invalid input
+    if (BuildResourceManagers() != kOk) {
         return kNoMore;
     }
+    BuildEndGameCounters();
     map_ = new Gru(galaxy_, &job_descriptor_, job_id_,
             (job_descriptor_.job_type() == kMapOnlyJob) ? kMapOnly : kMap);
     if (map_->Start() == kOk) {
@@ -324,9 +333,12 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
             map_slug_.push(cur->no);
         }
     }
-    if (cur->no == map_end_game_begin_ && !map_monitoring_) {
-        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, true));
-        map_monitoring_ = true;
+    {
+        MutexLock lock(&mu_);
+        if (cur->no >= map_end_game_begin_ && !map_monitoring_) {
+            monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, true));
+            map_monitoring_ = true;
+        }
     }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
@@ -405,9 +417,12 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
             reduce_slug_.push(cur->no);
         }
     }
-    if (cur->no == reduce_end_game_begin_ && !reduce_monitoring_) {
-        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, false));
-        reduce_monitoring_ = true;
+    {
+        MutexLock lock(&mu_);
+        if (cur->no >= reduce_end_game_begin_ && !reduce_monitoring_) {
+            monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, false));
+            reduce_monitoring_ = true;
+        }
     }
     AllocateItem* alloc = new AllocateItem();
     alloc->endpoint = endpoint;
@@ -770,28 +785,43 @@ void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<Id
     }
 }
 
-void JobTracker::Load(const std::string& jobid, const std::vector<AllocateItem>& data) {
+void JobTracker::Load(const std::string& jobid, const std::vector<AllocateItem>& data,
+                      const std::vector<ResourceItem>& resource) {
     LOG(INFO, "reload job: %s, map_manager_:%p , reduce_manager_:%p", jobid.c_str(),
         map_manager_, reduce_manager_);
     LOG(INFO, "reloading..., data.size(): %d", data.size());
     job_id_ = jobid;
-    if (map_manager_ != NULL) {
+    BuildOutputFsPointer();
+    if (job_descriptor_.map_total() != 0) {
+        std::vector<std::string> input;
+        FileSystem::Param param;
+        map_manager_ = new ResourceManager(input, param);
+
         std::vector<IdItem> id_data;
-        id_data.resize(map_manager_->SumOfItem());
+        id_data.resize(job_descriptor_.map_total());
+        assert(resource.size() == id_data.size());
         Replay(data, id_data, true);
-        map_manager_->Load(id_data);
+
+        std::vector<ResourceItem> res_data;
+        res_data.resize(resource.size());
+        std::copy(resource.begin(), resource.end(), res_data.begin());
+        std::copy(id_data.begin(), id_data.end(), res_data.begin());
+        map_manager_->Load(res_data);
     }
-    if (reduce_manager_ != NULL) {
+    if (job_descriptor_.reduce_total() != 0) {
+        reduce_manager_ = new IdManager(job_descriptor_.reduce_total());
         std::vector<IdItem> id_data;
         id_data.resize(reduce_manager_->SumOfItem());
         Replay(data, id_data, false);
         reduce_manager_->Load(id_data);
     }
+    BuildEndGameCounters();
     if (!data.empty()) {
         state_ = kRunning;
     }
     bool is_map = true;
     if (map_manager_ && map_manager_->Done() == job_descriptor_.map_total()) {
+        // TODO Consider more possibility of job state
         if (reduce_manager_ && reduce_manager_->Done() == job_descriptor_.reduce_total()) {
             state_ = kCompleted;
         }
@@ -799,6 +829,15 @@ void JobTracker::Load(const std::string& jobid, const std::vector<AllocateItem>&
         failed_count_.resize(0);
         failed_count_.resize(job_descriptor_.reduce_total());
     }
+    if (state_ == kRunning) {
+        monitor_->AddTask(boost::bind(&JobTracker::KeepMonitoring, this, is_map));
+        if (is_map) {
+            map_monitoring_ = true;
+        } else {
+            reduce_monitoring_ = true;
+        }
+    }
+    // TODO only affected reduce counter when it is in reduce phase
     int& cur_killed = is_map ? map_killed_ : reduce_killed_;
     int& cur_failed = is_map ? map_failed_ : reduce_failed_;
     for (std::vector<AllocateItem>::const_iterator it = data.begin();
@@ -812,10 +851,9 @@ void JobTracker::Load(const std::string& jobid, const std::vector<AllocateItem>&
         default: break;
         }
     }
-    // TODO Pull up some minions
 }
 
-const std::vector<AllocateItem> JobTracker::DataForDump() {
+const std::vector<AllocateItem> JobTracker::HistoryForDump() {
     MutexLock lock(&alloc_mu_);
     std::vector<AllocateItem> copy;
     for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
@@ -823,6 +861,10 @@ const std::vector<AllocateItem> JobTracker::DataForDump() {
         copy.push_back(*(*it));
     }
     return copy;
+}
+
+const std::vector<ResourceItem> JobTracker::InputDataForDump() {
+    return map_manager_ == NULL ? std::vector<ResourceItem>() : map_manager_->Dump();
 }
 
 std::string JobTracker::GenerateJobId() {

@@ -30,8 +30,15 @@ message JobAllocation {
     optional bool is_map = 7;
 }
 
+message InputInfo {
+    optional string input_file = 1;
+    optional int64 offset = 2;
+    optional int64 size = 3;
+}
+
 message JobCollection {
     repeated JobAllocation jobs = 1;
+    repeated InputInfo inputs = 2;
 }
 
 message SubmitJobRequest {

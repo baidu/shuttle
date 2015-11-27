@@ -64,9 +64,13 @@ private:
     void KeepDataPersistence();
     void Reload();
     bool GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
-                             std::vector<AllocateItem>& history);
-    void ParseHistory(const std::string& history_str, std::vector<AllocateItem>& history);
-    std::string SerialHistory(const std::vector<AllocateItem>& history);
+                             std::vector<AllocateItem>& history,
+                             std::vector<ResourceItem>& resources);
+    void ParseJobData(const std::string& history_str,
+                      std::vector<AllocateItem>& history,
+                      std::vector<ResourceItem>& resources);
+    std::string SerialJobData(const std::vector<AllocateItem>& history,
+                              const std::vector<ResourceItem>& resources);
 
 private:
     ::baidu::galaxy::Galaxy* galaxy_sdk_;
