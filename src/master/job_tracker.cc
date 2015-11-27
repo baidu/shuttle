@@ -829,6 +829,7 @@ void JobTracker::Load(const std::string& jobid, const JobState state,
     }
     BuildEndGameCounters();
     bool is_map = true;
+    failed_count_.resize(job_descriptor_.map_total());
     if (map_manager_ && map_manager_->Done() == job_descriptor_.map_total()) {
         is_map = false;
         failed_count_.resize(0);
