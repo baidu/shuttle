@@ -12,7 +12,7 @@
 #include "common/tools_util.h"
 
 DECLARE_int32(input_block_size);
-DECLARE_int32(max_replica);
+DECLARE_int32(parallel_attempts);
 
 namespace baidu {
 namespace shuttle {
@@ -57,9 +57,7 @@ IdManager::~IdManager() {
 
 IdItem* IdManager::GetItem() {
     MutexLock lock(&mu_);
-    while (!pending_res_.empty() &&
-           (pending_res_.front()->attempt > FLAGS_max_replica ||
-           pending_res_.front()->status != kResPending)) {
+    while (!pending_res_.empty() && pending_res_.front()->status != kResPending) {
         pending_res_.pop_front();
     }
     if (pending_res_.empty()) {
@@ -82,7 +80,7 @@ IdItem* IdManager::GetCertainItem(int no) {
         return NULL;
     }
     IdItem* cur = resource_pool_[n];
-    if (cur->attempt > FLAGS_max_replica) {
+    if (cur->allocated > FLAGS_parallel_attempts) {
         LOG(INFO, "resource distribution has reached limitation: %d", cur->no);
         return NULL;
     }

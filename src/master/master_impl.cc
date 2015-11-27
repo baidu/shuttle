@@ -17,7 +17,7 @@ DECLARE_string(master_port);
 DECLARE_string(master_lock_path);
 DECLARE_string(master_path);
 DECLARE_string(nexus_server_list);
-DECLARE_string(history_header);
+DECLARE_string(jobdata_header);
 DECLARE_int32(gc_interval);
 DECLARE_int32(backup_interval);
 DECLARE_bool(recovery);
@@ -404,7 +404,7 @@ void MasterImpl::KeepDataPersistence() {
             const std::string& jobdata = SerialJobData(it->second->HistoryForDump(),
                                                        it->second->InputDataForDump());
             nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
-            nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, jobdata, NULL);
+            nexus_->Put(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, jobdata, NULL);
             LOG(DEBUG, "running job persistence: %s, desc:%d bytes, data: %d bytes",
                        jobid.c_str(), descriptor.size(), jobdata.size());
         }
@@ -419,7 +419,7 @@ void MasterImpl::KeepDataPersistence() {
         const std::string& jobdata = SerialJobData(it->second->HistoryForDump(),
                                                    it->second->InputDataForDump());
         nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
-        nexus_->Put(FLAGS_nexus_root_path + FLAGS_history_header + jobid, jobdata, NULL);
+        nexus_->Put(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, jobdata, NULL);
         LOG(DEBUG, "finished job persistence: %s, desc:%d bytes, data: %d bytes",
             jobid.c_str(), descriptor.size(), jobdata.size());
     }
@@ -460,7 +460,7 @@ bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job,
     std::stringstream job_ss(result->Value());
     job.ParseFromIstream(&job_ss);
     std::string data_str;
-    if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_history_header + jobid, &data_str, NULL)) {
+    if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, &data_str, NULL)) {
         ParseJobData(data_str, history, resources);
     }
     result->Next();
