@@ -63,6 +63,10 @@ ExtractUserTar() {
 
 StartMinon() {
 	source hdfs_env.sh > /dev/null 2>&1
+	ls . | grep -v '^log$' > common.list
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
 	./minion $CmdArgs
 	return $?
 }

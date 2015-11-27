@@ -8,7 +8,7 @@ then
 	work_dir="map_${mapred_task_partition}_${mapred_attempt_id}"
 	mkdir $work_dir
 	cd $work_dir
-	ln -s ../* .
+	cat ../common.list | while read f_name; do ln -s ../$f_name .; done
 
 	dfs_flags=""
 	if [ "${minion_input_dfs_host}" != "" ]; then
@@ -38,7 +38,7 @@ then
 	work_dir="reduce_${mapred_task_partition}_${mapred_attempt_id}"
 	mkdir $work_dir
 	cd $work_dir
-	ln -s ../* .
+	cat ../common.list | while read f_name; do ln -s ../$f_name .; done
 
 	dfs_flags=""
 	if [ "${minion_output_dfs_host}" != "" ]; then
