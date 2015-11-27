@@ -102,6 +102,8 @@ message JobDescriptor {
     optional PipeStyle pipe_style = 24;
     optional bool map_allow_duplicates = 25 [default = true];
     optional bool reduce_allow_duplicates = 26 [default = true];
+    optional int32 map_retry = 27;
+    optional int32 reduce_retry = 28;
 }
 
 message TaskInput {

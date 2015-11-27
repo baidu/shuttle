@@ -63,6 +63,8 @@ std::string output_user;
 std::string output_password;
 bool map_speculative_exec = true;
 bool reduce_speculative_exec = true;
+int map_retry = 3;
+int reduce_retry = 3;
 
 }
 
@@ -94,8 +96,6 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.memory.limit\tSpecify the memory resource occuptation\n"
         "\t  mapred.job.map.capacity\tSpecify the slot number that map tasks can use\n"
         "\t  mapred.job.reduce.capacity\tSpecify the slot number that reduce tasks can use\n"
-        "\t  mapred.map.tasks\t\tSpecify the number of map tasks\n"
-        "\t  mapred.reduce.tasks\t\tSpecify the number of reduce tasks\n"
         "\t  mapred.job.input.host\t\tSpecify the host of the dfs which stores inputs\n"
         "\t  mapred.job.input.port\t\tSpecify the port, ditto\n"
         "\t  mapred.job.input.user\t\tSpecify the user, ditto\n"
@@ -104,6 +104,10 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.output.port\tSpecify the port, ditto\n"
         "\t  mapred.job.output.user\tSpecify the user, ditto\n"
         "\t  mapred.job.output.password\tSpecify the password, ditto\n"
+        "\t  mapred.max.map.attempts\t\tSpecify the number of map tasks\n"
+        "\t  mapred.max.reduce.attempts\t\tSpecify the number of reduce tasks\n"
+        "\t  mapred.map.tasks\t\tSpecify the number of map tasks\n"
+        "\t  mapred.reduce.tasks\t\tSpecify the number of reduce tasks\n"
         "\t  mapred.map.tasks.speculative.execution\tAllow if shuttle can speculatively decide attempts of a map\n"
         "\t  mapred.reduce.tasks.speculative.execution\tDitto on reduce tasks\n"
         "\t  map.key.field.separator\tSpecify the separator for key field in shuffling\n"
@@ -367,6 +371,12 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.reduce.tasks=")) {
             config::reduce_tasks = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.reduce.tasks=")));
+        } else if (boost::starts_with(*it, "mapred.max.map.attempts=")) {
+            config::map_retry = boost::lexical_cast<int>(
+                    it->substr(strlen("mapred.max.map.attempts=")));
+        } else if (boost::starts_with(*it, "mapred.max.reduce.attempts=")) {
+            config::reduce_retry = boost::lexical_cast<int>(
+                    it->substr(strlen("mapred.max.reduce.attempts=")));
         } else if (boost::starts_with(*it, "mapred.job.input.host=")) {
             config::input_host = it->substr(strlen("mapred.job.input.host="));
         } else if (boost::starts_with(*it, "mapred.job.input.port=")) {
@@ -655,6 +665,8 @@ static int SubmitJob() {
     job_desc.pipe_style = config::pipe_style;
     job_desc.map_allow_duplicates = config::map_speculative_exec;
     job_desc.reduce_allow_duplicates = config::reduce_speculative_exec;
+    job_desc.map_retry = config::map_retry;
+    job_desc.reduce_retry = config::reduce_retry;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);

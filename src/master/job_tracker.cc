@@ -61,6 +61,13 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     job_id_ = GenerateJobId();
     rpc_client_ = new RpcClient();
 
+    if (!job_descriptor_.has_map_retry()) {
+        job_descriptor_.set_map_retry(FLAGS_retry_bound);
+    }
+    if (!job_descriptor_.has_reduce_retry()) {
+        job_descriptor_.set_reduce_retry(FLAGS_retry_bound);
+    }
+
     monitor_ = new ThreadPool(1);
 
     map_allow_duplicates_ = job_descriptor_.map_allow_duplicates();
@@ -540,7 +547,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             map_manager_->ReturnBackItem(cur->resource_no);
             ++ failed_count_[cur->resource_no];
             ++ map_failed_;
-            if (failed_count_[cur->resource_no] >= FLAGS_retry_bound) {
+            if (failed_count_[cur->resource_no] >= job_descriptor_.map_retry()) {
                 LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
                 mu_.Unlock(); 
                 master_->RetractJob(job_id_);
@@ -662,7 +669,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             reduce_manager_->ReturnBackItem(cur->resource_no);
             ++ failed_count_[cur->resource_no];
             ++ reduce_failed_;
-            if (failed_count_[cur->resource_no] >= FLAGS_retry_bound) {
+            if (failed_count_[cur->resource_no] >= job_descriptor_.reduce_retry()) {
                 LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
                 mu_.Unlock();
                 master_->RetractJob(job_id_);

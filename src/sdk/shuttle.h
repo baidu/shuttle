@@ -109,6 +109,8 @@ struct JobDescription {
     PipeStyle pipe_style;
     bool map_allow_duplicates;
     bool reduce_allow_duplicates;
+    int32_t map_retry;
+    int32_t reduce_retry;
 };
 
 struct TaskInstance {
