@@ -28,9 +28,10 @@ DownloadMinionTar() {
 
 ExtractMinionTar() {
 	tar -xzf minion.tar.gz
-	return $?
+	ret=$?
+	mv ./hadoop-site.xml /tmp/hadoop-client/hadoop/conf/
+	return $ret
 }
-
 
 DownloadUserTar() {
 	if [ "$app_package" == "" ]; then
@@ -62,7 +63,6 @@ ExtractUserTar() {
 }
 
 StartMinon() {
-	mv ./hadoop-site.xml /tmp/hadoop-client/hadoop/conf/
 	source hdfs_env.sh > /dev/null 2>&1
 	ls . | grep -v '^log$' > common.list
 	if [ $? -ne 0 ]; then
