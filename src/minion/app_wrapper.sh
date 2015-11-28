@@ -31,7 +31,7 @@ then
 	fi
 	./input_tool -file=${map_input_file} \
 	-offset=${map_input_start} \
-	-len=${map_input_length} ${dfs_flags} ${format} ${pipe_style} ${is_nline} | $user_cmd
+	-len=${map_input_length} ${dfs_flags} ${format} ${pipe_style} ${is_nline} | $user_cmd 2>./stderr
 	exit $?
 elif [ "${mapred_task_is_map}" == "false" ]
 then
@@ -54,7 +54,7 @@ then
 	./shuffle_tool -total=${mapred_map_tasks} \
 	-work_dir=${minion_shuffle_work_dir} \
 	-reduce_no=${mapred_task_partition} \
-	-attempt_id=${mapred_attempt_id} $dfs_flags $pipe_style | $user_cmd
+	-attempt_id=${mapred_attempt_id} $dfs_flags $pipe_style | $user_cmd 2>./stderr
 	exit $?
 else
 	echo "not in shuttle env"
