@@ -9,7 +9,7 @@
 #include <gflags/gflags.h>
 #include <boost/bind.hpp>
 #include <snappy.h>
-
+#include "timer.h"
 #include "logging.h"
 
 DECLARE_string(galaxy_address);
@@ -199,6 +199,8 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
         job->set_state(jobtracker->GetState());
         job->mutable_map_stat()->CopyFrom(jobtracker->GetMapStatistics());
         job->mutable_reduce_stat()->CopyFrom(jobtracker->GetReduceStatistics());
+        job->set_start_time(jobtracker->GetStartTime());
+        job->set_finish_time(jobtracker->GetFinishTime());
 
         jobtracker->Check(response);
         // TODO Query progress here
@@ -323,6 +325,7 @@ Status MasterImpl::RetractJob(const std::string& jobid) {
     std::map<std::string, JobTracker*>::iterator it = job_trackers_.find(jobid);
     if (it == job_trackers_.end()) {
         LOG(WARNING, "retract job failed: job inexist: %s", jobid.c_str());
+        return kNoSuchJob;
     }
 
     JobTracker* jobtracker = it->second;
@@ -382,14 +385,63 @@ std::string MasterImpl::SelfEndpoint() {
 
 void MasterImpl::KeepGarbageCollecting() {
     MutexLock lock(&(dead_mu_));
+    std::set<std::string> gc_jobs;
     for (std::map<std::string, JobTracker*>::iterator it = dead_trackers_.begin();
             it != dead_trackers_.end(); ++it) {
-        LOG(INFO, "[gc] remove dead job trackers: %s", it->second->GetJobId().c_str());
-        delete it->second;
+        JobTracker* jobtracker = it->second;
+        const std::string& jobid = it->first;
+        int32_t interval_seconds = jobtracker->GetFinishTime() - common::timer::now_time();
+        if (interval_seconds < 0 || interval_seconds > FLAGS_gc_interval) {
+            gc_jobs.insert(jobid);
+        }
     }
-    dead_trackers_.clear();
+    std::set<std::string>::iterator it;
+    for (it = gc_jobs.begin(); it != gc_jobs.end(); it++) {
+        const std::string& jobid = *it;
+        std::map<std::string, JobTracker*>::iterator jt = dead_trackers_.find(jobid);
+        if (jt != dead_trackers_.end()) {
+            JobTracker* jobtracker = jt->second;
+            dead_trackers_.erase(jobid);
+            delete jobtracker;
+            LOG(INFO, "[gc] remove dead jobtracker: %s", jobid.c_str());
+            RemoveJobFromNexus(jobid);
+        }
+    }
     gc_.DelayTask(FLAGS_gc_interval * 1000,
                   boost::bind(&MasterImpl::KeepGarbageCollecting, this));
+}
+
+bool MasterImpl::RemoveJobFromNexus(const std::string& jobid) {
+    bool ok = nexus_->Delete(FLAGS_nexus_root_path + jobid, NULL);
+    if (ok) {
+        ok = nexus_->Delete(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, NULL);
+    }
+    LOG(INFO, "[%s] remove job from nexus",
+            ok ? "OK": "FAIL",
+            jobid.c_str());
+    return ok;
+}
+
+bool MasterImpl::SaveJobToNexus(JobTracker* jobtracker) {
+    std::stringstream ss;
+    jobtracker->GetJobDescriptor().SerializeToOstream(&ss);
+    std::string compressed_str;
+    snappy::Compress(ss.str().data(), ss.str().size(), &compressed_str);
+    const std::string& jobid = jobtracker->GetJobId();
+    const std::string& descriptor = compressed_str;
+    const std::string& jobdata = SerialJobData(jobtracker->GetState(),
+                                               jobtracker->HistoryForDump(),
+                                               jobtracker->InputDataForDump(),
+                                               jobtracker->GetStartTime(),
+                                               jobtracker->GetFinishTime());
+    bool ok = nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
+    if (ok) {
+        ok = nexus_->Put(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, jobdata, NULL);
+    }
+    LOG(INFO, "[%s] job persistence: %s, desc:%d bytes, data: %d bytes",
+            ok ? "OK": "FAIL",
+            jobid.c_str(), descriptor.size(), jobdata.size());
+    return ok;
 }
 
 void MasterImpl::KeepDataPersistence() {
@@ -398,38 +450,22 @@ void MasterImpl::KeepDataPersistence() {
         MutexLock lock(&tracker_mu_);
         for (std::map<std::string, JobTracker*>::iterator it = job_trackers_.begin();
                 it != job_trackers_.end(); ++it) {
-            std::stringstream ss;
-            it->second->GetJobDescriptor().SerializeToOstream(&ss);
-            std::string compressed_str;
-            snappy::Compress(ss.str().data(), ss.str().size(), &compressed_str);
-            const std::string& jobid = it->second->GetJobId();
-            const std::string& descriptor = compressed_str;
-            const std::string& jobdata = SerialJobData(it->second->GetState(),
-                                                       it->second->HistoryForDump(),
-                                                       it->second->InputDataForDump());
-            nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
-            nexus_->Put(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, jobdata, NULL);
-            LOG(DEBUG, "running job persistence: %s, desc:%d bytes, data: %d bytes",
-                       jobid.c_str(), descriptor.size(), jobdata.size());
+            SaveJobToNexus(it->second);
         }
     }
-    MutexLock lock(&dead_mu_);
-    for (std::map<std::string, JobTracker*>::iterator it = dead_trackers_.begin();
-            it != dead_trackers_.end(); ++it) {
-        std::stringstream ss;
-        it->second->GetJobDescriptor().SerializeToOstream(&ss);
-        std::string compressed_str;
-        snappy::Compress(ss.str().data(), ss.str().size(), &compressed_str);
-        const std::string& jobid = it->second->GetJobId();
-        const std::string& descriptor = compressed_str;
-        const std::string& jobdata = SerialJobData(it->second->GetState(),
-                                                   it->second->HistoryForDump(),
-                                                   it->second->InputDataForDump());
-        nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
-        nexus_->Put(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, jobdata, NULL);
-        LOG(DEBUG, "finished job persistence: %s, desc:%d bytes, data: %d bytes",
-            jobid.c_str(), descriptor.size(), jobdata.size());
+
+    {
+        MutexLock lock(&dead_mu_);
+        for (std::map<std::string, JobTracker*>::iterator it = dead_trackers_.begin();
+             it != dead_trackers_.end(); ++it) {
+            if (saved_dead_jobs_.find(it->first) == saved_dead_jobs_.end()) {
+                if (SaveJobToNexus(it->second)) {
+                    saved_dead_jobs_.insert(it->first);
+                }
+            }
+        }
     }
+
     gc_.DelayTask(FLAGS_backup_interval, boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
 
@@ -439,9 +475,12 @@ void MasterImpl::Reload() {
     std::vector<AllocateItem> history;
     std::vector<ResourceItem> resources;
     std::string jobid;
-    while (GetJobInfoFromNexus(jobid, job, state, history, resources)) {
+    int32_t start_time;
+    int32_t finish_time;
+    while (GetJobInfoFromNexus(jobid, job, state, history, 
+                               resources, start_time, finish_time)) {
         JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
-        jobtracker->Load(jobid, state, history, resources);
+        jobtracker->Load(jobid, state, history, resources, start_time, finish_time);
         if (jobtracker->GetState() == kRunning) {
             job_trackers_[jobid] = jobtracker;
         } else {
@@ -455,7 +494,9 @@ void MasterImpl::Reload() {
 
 bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, JobState& state,
                                      std::vector<AllocateItem>& history,
-                                     std::vector<ResourceItem>& resources) {
+                                     std::vector<ResourceItem>& resources,
+                                     int32_t& start_time,
+                                     int32_t& finish_time) {
     static ::galaxy::ins::sdk::ScanResult* result = nexus_->Scan(
             FLAGS_nexus_root_path + "job_", FLAGS_nexus_root_path + "job`");
     if (result->Done()) {
@@ -471,7 +512,7 @@ bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, Job
     job.ParseFromIstream(&job_ss);
     std::string data_str;
     if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, &data_str, NULL)) {
-        ParseJobData(data_str, state, history, resources);
+        ParseJobData(data_str, state, history, resources, start_time, finish_time);
     }
     result->Next();
     return true;
@@ -479,13 +520,17 @@ bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, Job
 
 void MasterImpl::ParseJobData(const std::string& history_str, JobState& state,
                               std::vector<AllocateItem>& history,
-                              std::vector<ResourceItem>& resources) {
+                              std::vector<ResourceItem>& resources,
+                              int32_t& start_time,
+                              int32_t& finish_time) {
     JobCollection jc;
     std::string uncompressed_str;
     snappy::Uncompress(history_str.data(), history_str.size(), &uncompressed_str);
     std::stringstream ss(uncompressed_str);
     jc.ParseFromIstream(&ss);
     state = jc.state();
+    start_time = jc.start_time();
+    finish_time = jc.finish_time();
     ::google::protobuf::RepeatedPtrField< JobAllocation >::const_iterator it;
     for (it = jc.jobs().begin(); it != jc.jobs().end(); ++it) {
         AllocateItem item;
@@ -515,9 +560,13 @@ void MasterImpl::ParseJobData(const std::string& history_str, JobState& state,
 
 std::string MasterImpl::SerialJobData(const JobState state,
                                       const std::vector<AllocateItem>& history,
-                                      const std::vector<ResourceItem>& resources) {
+                                      const std::vector<ResourceItem>& resources,
+                                      const int32_t start_time,
+                                      const int32_t finish_time) {
     JobCollection jc;
     jc.set_state(state);
+    jc.set_start_time(start_time);
+    jc.set_finish_time(finish_time);
     for (std::vector<AllocateItem>::const_iterator it = history.begin();
             it != history.end(); ++it) {
         JobAllocation* job = jc.add_jobs();

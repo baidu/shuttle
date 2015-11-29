@@ -252,6 +252,9 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
     job.reduce_stat.killed = reduce_stat.killed();
     job.reduce_stat.completed = reduce_stat.completed();
 
+    job.start_time = joboverview.start_time();
+    job.finish_time = joboverview.finish_time();
+
     ::google::protobuf::RepeatedPtrField<TaskOverview>::const_iterator it;
     for (it = response.tasks().begin(); it != response.tasks().end(); ++it) {
         sdk::TaskInstance task;

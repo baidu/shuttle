@@ -65,6 +65,14 @@ public:
         MutexLock lock(&mu_);
         return state_;
     }
+    time_t GetStartTime() {
+        MutexLock lock(&mu_);
+        return start_time_;
+    }
+    time_t GetFinishTime() {
+        MutexLock lock(&mu_);
+        return finish_time_;
+    }
     TaskStatistics GetMapStatistics();
     TaskStatistics GetReduceStatistics();
 
@@ -89,7 +97,9 @@ public:
     }
     void Load(const std::string& jobid, const JobState state,
               const std::vector<AllocateItem>& data,
-              const std::vector<ResourceItem>& resource);
+              const std::vector<ResourceItem>& resource,
+              int32_t start_time,
+              int32_t finish_time);
     const std::vector<AllocateItem> HistoryForDump();
     const std::vector<ResourceItem> InputDataForDump();
 
@@ -144,6 +154,8 @@ private:
     RpcClient* rpc_client_;
     // To check if output path is exists
     FileSystem* fs_;
+    int32_t start_time_;
+    int32_t finish_time_;
 };
 
 }

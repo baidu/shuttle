@@ -19,6 +19,7 @@
 #include "resource_manager.h"
 #include "master_impl.h"
 #include "common/tools_util.h"
+#include "timer.h"
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -56,7 +57,9 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       monitor_(NULL),
                       map_monitoring_(false),
                       reduce_monitoring_(false),
-                      fs_(NULL) {
+                      fs_(NULL),
+                      start_time_(0),
+                      finish_time_(0) {
     job_descriptor_.CopyFrom(job);
     job_id_ = GenerateJobId();
     rpc_client_ = new RpcClient();
@@ -185,6 +188,7 @@ void JobTracker::BuildEndGameCounters() {
 }
 
 Status JobTracker::Start() {
+    start_time_ = common::timer::now_time();
     BuildOutputFsPointer();
     if (fs_->Exist(job_descriptor_.output())) {
         LOG(INFO, "output exists, failed: %s", job_id_.c_str());
@@ -281,6 +285,7 @@ Status JobTracker::Kill() {
             (*it)->is_map ? ++map_killed_ : ++reduce_killed_;
         }
     }
+    finish_time_ =  common::timer::now_time();
     return kOk;
 }
 
@@ -797,12 +802,16 @@ void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<Id
 
 void JobTracker::Load(const std::string& jobid, const JobState state,
                       const std::vector<AllocateItem>& data,
-                      const std::vector<ResourceItem>& resource) {
+                      const std::vector<ResourceItem>& resource,
+                      int32_t start_time,
+                      int32_t finish_time) {
     LOG(INFO, "reload job: %s, map_manager_:%p , reduce_manager_:%p", jobid.c_str(),
         map_manager_, reduce_manager_);
     LOG(INFO, "reloading..., data.size(): %d", data.size());
     job_id_ = jobid;
     state_ = state;
+    start_time_ = start_time;
+    finish_time_ = finish_time;
     BuildOutputFsPointer();
     if (job_descriptor_.map_total() != 0) {
         std::vector<std::string> input;

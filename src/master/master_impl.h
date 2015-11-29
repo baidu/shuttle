@@ -2,6 +2,7 @@
 #define _BAIDU_SHUTTLE_MASTER_IMPL_H_
 #include <string>
 #include <map>
+#include <set>
 
 #include "galaxy.h"
 #include "ins_sdk.h"
@@ -65,13 +66,21 @@ private:
     void Reload();
     bool GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, JobState& state,
                              std::vector<AllocateItem>& history,
-                             std::vector<ResourceItem>& resources);
+                             std::vector<ResourceItem>& resources,
+                             int32_t& start_time,
+                             int32_t& finish_time);
     void ParseJobData(const std::string& history_str, JobState& state,
                       std::vector<AllocateItem>& history,
-                      std::vector<ResourceItem>& resources);
+                      std::vector<ResourceItem>& resources,
+                      int32_t& start_time,
+                      int32_t& finish_time);
     std::string SerialJobData(const JobState state,
                               const std::vector<AllocateItem>& history,
-                              const std::vector<ResourceItem>& resources);
+                              const std::vector<ResourceItem>& resources,
+                              int32_t start_time,
+                              int32_t finish_time);
+    bool SaveJobToNexus(JobTracker* jobtracker);
+    bool RemoveJobFromNexus(const std::string& jobid);
 
 private:
     ::baidu::galaxy::Galaxy* galaxy_sdk_;
@@ -82,6 +91,7 @@ private:
     ThreadPool gc_;
     // For persistent of meta data and addressing of minion
     ::galaxy::ins::sdk::InsSDK* nexus_;
+    std::set<std::string> saved_dead_jobs_;
 };
 
 }

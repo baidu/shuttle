@@ -440,12 +440,26 @@ static std::string GetMasterAddr() {
     return master_addr;
 }
 
+static inline std::string ParseTimeToReadable(const time_t& time) {
+    char time_buf[32] = { 0 };
+    ::strftime(time_buf, 32, "%T", ::localtime(&time));
+    return time_buf;
+}
+
+static inline std::string FromatLongTime(const time_t& time) {
+    char time_buf[32] = { 0 };
+    ::strftime(time_buf, 32, "%Y-%m-%d %H:%M:%S", ::localtime(&time));
+    return time_buf;
+}
+
 static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
     printf("Job Name: %s\n", job.desc.name.c_str());
     printf("Job ID: %s\n", job.jobid.c_str());
     printf("User: %s\n", job.desc.user.c_str());
     printf("priority: %s\n", priority_string[job.desc.priority]);
     printf("State: %s\n", state_string[job.state]);
+    printf("Start Time: %s\n", FromatLongTime(job.start_time).c_str());
+    printf("Finish Time: %s\n", job.finish_time == 0 ? "-": FromatLongTime(job.finish_time).c_str());
     printf("====================\n");
     ::baidu::common::TPrinter tp(7);
     tp.AddRow(7, "", "total", "pending", "running", "failed", "killed", "completed");
@@ -462,12 +476,6 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
               boost::lexical_cast<std::string>(job.reduce_stat.killed).c_str(),
               boost::lexical_cast<std::string>(job.reduce_stat.completed).c_str());
     printf("%s\n", tp.ToString().c_str());
-}
-
-static inline std::string ParseTimeToReadable(const time_t& time) {
-    char time_buf[32] = { 0 };
-    ::strftime(time_buf, 32, "%T", ::localtime(&time));
-    return time_buf;
 }
 
 static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {

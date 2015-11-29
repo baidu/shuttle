@@ -132,6 +132,8 @@ struct JobInstance {
     JobState state;
     TaskStatistics map_stat;
     TaskStatistics reduce_stat;
+    int32_t start_time;
+    int32_t finish_time;
 };
 
 } //namspace sdk

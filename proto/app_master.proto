@@ -40,6 +40,8 @@ message JobCollection {
     repeated JobAllocation jobs = 1;
     repeated InputInfo inputs = 2;
     optional JobState state = 3;
+    optional int32 start_time = 4;
+    optional int32 finish_time = 5;
 }
 
 message SubmitJobRequest {
@@ -80,6 +82,8 @@ message JobOverview {
     optional JobState state = 3;
     optional TaskStatistics map_stat = 4;
     optional TaskStatistics reduce_stat = 5;
+    optional int32 start_time = 6;
+    optional int32 finish_time = 7;
 }
 
 message TaskOverview {
