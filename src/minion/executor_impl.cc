@@ -346,6 +346,100 @@ TaskState Executor::TransBinaryOutput(FILE* user_app, const std::string& temp_fi
     return kTaskCompleted;
 }
 
+
+TaskState Executor::TransMultipleTextOutput(FILE* user_app, const std::string& temp_file_name,
+                                            FileSystem::Param param, const TaskInfo& task) {
+    boost::scoped_ptr<FileSystem> fs_array[26];
+    PipeStyle pipe_style = task.job().pipe_style();
+    std::string raw_data;
+    int offset = 0;
+    while (!feof(user_app)) {
+        if (ShouldStop(task.task_id())) {
+            LOG(WARNING, "task: %d is canceled.", task.task_id());
+            pclose(user_app);
+            return kTaskCanceled;
+        }
+        if (pipe_style == kStreaming) {
+            std::string line;
+            bool ok = ReadLine(user_app, &line); //contains \n
+            if (!ok) {
+                LOG(WARNING, "read app output fail");
+                return kTaskFailed;
+            }
+            if (feof(user_app)) {
+                LOG(INFO, "read user app over");
+                break;
+            }
+            if (line.size() < 2) {
+                continue;
+            }
+            if (line[line.size() - 1] == '\n') {
+                line.erase(line.end() - 1);
+            }
+            if (line.size() < 2) {
+                continue;
+            }
+            char suffix = line[line.size() - 1];
+            if (suffix < 'A' || suffix > 'Z') {
+                continue;
+            }
+            offset = suffix - 'A';
+            raw_data = line.substr(0, line.size() - 2) + "\n";
+        } else if (pipe_style == kBiStreaming) {
+            std::string key;
+            std::string value;
+            bool ok = ReadRecord(user_app, &key, &value);
+            if (!ok) {
+                LOG(WARNING, "read app output fail");
+                return kTaskFailed;
+            }
+            if (feof(user_app)) {
+                LOG(INFO, "read user app over");
+                break;
+            }
+            if (value.size() < 2) { // e.g. "...#A", length is at least 2
+                continue;
+            }
+            char suffix = value[value.size() - 1];
+            if (suffix < 'A' || suffix > 'Z') {
+                continue;
+            }
+            offset = suffix - 'A';
+            value.erase(value.end() - 2, value.end());
+            raw_data = key + "\t" + value + "\n";
+        } else {
+            LOG(FATAL, "unkonow pipe_style: %d", pipe_style);
+        }
+        if (fs_array[offset].get() == NULL) {
+            FileSystem* fs = FileSystem::CreateInfHdfs();
+            fs_array[offset].reset(fs);
+            char suffix = 'A' + offset;
+            std::string real_name = temp_file_name + "-" + suffix;
+            bool ok = fs->Open(real_name, param, kWriteFile);
+            if (!ok) {
+                LOG(WARNING, "create output file fail, %s", real_name.c_str());
+                return kTaskFailed;
+            }
+        }
+        bool ok = fs_array[offset]->WriteAll((void*)raw_data.data(), raw_data.size());
+        if (!ok) {
+            LOG(WARNING, "write output to dfs fail");
+            return kTaskFailed;
+        }
+    }
+    for (int i = 0; i < 26; i++) {
+        if (fs_array[i].get() == NULL) {
+            continue;
+        }
+        bool ok = fs_array[i]->Close();
+        if (!ok) {
+            LOG(WARNING, "close file fail: %s", temp_file_name.c_str());
+            return kTaskFailed;
+        }
+    }
+    return kTaskCompleted;
+}
+
 void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
     std::string log_name;
     std::string work_dir = task.job().output() + "/_temporary";
@@ -387,6 +481,36 @@ void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
             LOG(WARNING, "fail to report errors to hdfs");
         }
     }
+}
+
+bool Executor::MoveMultipleTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map) {
+    std::string old_name;
+    if (is_map) {
+        old_name = GetMapWorkFilename(task);
+    } else {
+        old_name = GetReduceWorkFilename(task);
+    }
+    for (int i = 0; i < 26; i++) {
+        char suffix = 'A' + i;
+        std::string real_old_name = old_name + "-" + suffix;
+        if (!fs->Exist(real_old_name)) {
+            continue;
+        }
+        char new_name[4096];
+        snprintf(new_name, sizeof(new_name), "%s/part-%05d-%c", 
+                 task.job().output().c_str(), task.task_id(), suffix);
+        LOG(INFO, "rename %s -> %s", real_old_name.c_str(), new_name);
+        if (fs->Rename(real_old_name, new_name)) {
+            continue;
+        } else {
+            if (fs->Exist(new_name)) {
+                LOG(WARNING, "an early attempt has done the task.");
+                continue;
+            }
+            return false;
+        }
+    }
+    return true;
 }
 
 } //namespace shuttle

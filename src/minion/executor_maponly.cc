@@ -42,6 +42,11 @@ TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
         if (status != kTaskCompleted) {
             return status;
         }
+    } else if (task.job().output_format() == kSuffixMultipleTextOutput) {
+        TaskState status = TransMultipleTextOutput(user_app, temp_file_name, param, task);
+        if (status != kTaskCompleted) {
+            return status;
+        }
     } else {
         LOG(FATAL, "unknown output format");
     }
@@ -52,9 +57,16 @@ TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
     }
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     boost::scoped_ptr<FileSystem> fs_guard(fs);
-    if (!MoveTempToOutput(task, fs, true)) {
-        LOG(WARNING, "fail to move output");
-        return kTaskMoveOutputFailed;
+    if (task.job().output_format() == kSuffixMultipleTextOutput) {
+        if (!MoveMultipleTempToOutput(task, fs, true)) {
+            LOG(WARNING, "fail to move multiple output");
+            return kTaskMoveOutputFailed;
+        } 
+    } else {
+        if (!MoveTempToOutput(task, fs, true)) {
+            LOG(WARNING, "fail to move output");
+            return kTaskMoveOutputFailed;
+        }   
     }
     return kTaskCompleted;
 }

@@ -47,6 +47,9 @@ protected:
                               FileSystem::Param param, const TaskInfo& task);
     TaskState TransBinaryOutput(FILE* user_app, const std::string& temp_file_name,
                                 FileSystem::Param param, const TaskInfo& task);
+    TaskState TransMultipleTextOutput(FILE* user_app, const std::string& temp_file_name,
+                                      FileSystem::Param param, const TaskInfo& task);
+    bool MoveMultipleTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
 protected:
     char* line_buf_;
 

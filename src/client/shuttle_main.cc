@@ -180,6 +180,8 @@ ParseOutputFormat(const std::string& output_format) {
     } else if (boost::starts_with(output_format, "Binary") ||
             boost::starts_with(output_format, "SequenceFile")) {
         return ::baidu::shuttle::sdk::kBinaryOutput;
+    } else if (boost::starts_with(output_format, "SuffixMultipleText")) {
+        return ::baidu::shuttle::sdk::kSuffixMultipleTextOutput;
     }
     return ::baidu::shuttle::sdk::kTextOutput;
 }

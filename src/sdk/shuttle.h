@@ -53,7 +53,8 @@ enum InputFormat {
 
 enum OutputFormat {
     kTextOutput = 0,
-    kBinaryOutput = 1
+    kBinaryOutput = 1,
+    kSuffixMultipleTextOutput = 2
 };
 
 enum TaskType {
