@@ -192,6 +192,7 @@ void MinionImpl::Loop() {
         if (task_state == kTaskFailed) {
             LOG(WARNING, "task state: %s", TaskState_Name(task_state).c_str());
             executor_->ReportErrors(task, (work_mode_ != kReduce));
+            sleep(FLAGS_suspend_time);
         }
     }
 
