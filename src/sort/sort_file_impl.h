@@ -68,6 +68,7 @@ private:
     int32_t cur_block_size_;
     std::string last_key_;
     FileSystem* fs_;
+    std::string path_;
 };
 
 } //namespace shuttle

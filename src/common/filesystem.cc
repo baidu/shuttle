@@ -211,7 +211,9 @@ bool InfHdfs::Seek(int64_t pos) {
 }
 
 int32_t InfHdfs::Read(void* buf, size_t len) {
-    return hdfsRead(fs_, fd_, buf, len);
+    int32_t ret = hdfsRead(fs_, fd_, buf, len);
+    // /LOG(INFO, "InfHdfs::Read, %d, %d", len ,ret);
+    return ret;
 }
 
 int32_t InfHdfs::Write(void* buf, size_t len) {

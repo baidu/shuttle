@@ -146,6 +146,7 @@ Status SortFileReaderImpl::ReadFull(std::string* result_buf, int32_t len,
     if (result_buf == NULL || len < 0 ) {
         return kInvalidArg;
     }
+    //LOG(INFO, "cur offset: %ld, need: %d", fs_->Tell(), len);
     result_buf->reserve(len);
     Status status = kOk;
     int once_buf_size = std::min(40960, len); //at most 40K
@@ -174,7 +175,8 @@ Status SortFileReaderImpl::ReadFull(std::string* result_buf, int32_t len,
 
     result_buf->append(buf, n_read);
     while (result_buf->size() < (size_t)len) {
-        n_read = fs_->Read((void*)buf, once_buf_size);
+        int try_read_count = std::min((size_t)once_buf_size, len - result_buf->size());
+        n_read = fs_->Read((void*)buf, try_read_count);
         if (n_read < 0) {
             status = kReadFileFail;
             break;
@@ -182,19 +184,18 @@ Status SortFileReaderImpl::ReadFull(std::string* result_buf, int32_t len,
             status = kNoMore;
             break;
         } else {
-            if (result_buf->size() + n_read > (size_t)len) {
-                n_read = len - result_buf->size();
-            }
             result_buf->append(buf, n_read);
         }
     }
     free(buf);
+    //LOG(INFO, "after, cur offset: %ld", fs_->Tell());
     return status;
 }
 
 Status SortFileReaderImpl::ReadNextRecord(DataBlock& data_block) {
     int32_t block_size;
     int n_read = fs_->Read((void*)&block_size, sizeof(int32_t));
+    //LOG(INFO, "read: %s, block_size: %ld", path_.c_str(), block_size);
     if (n_read != sizeof(int32_t)) {
         LOG(WARNING, "fail to read block size, %s", path_.c_str());
         return kReadFileFail;
@@ -354,6 +355,7 @@ Status SortFileWriterImpl::Open(const std::string& path, FileSystem::Param param
     if (!fs_->Open(path, param, kWriteFile)) {
         return kOpenFileFail;
     }
+    path_ = path;
     return kOk;
 }
 
@@ -441,6 +443,7 @@ Status SortFileWriterImpl::FlushCurBlock() {
         LOG(WARNING, "get cur offset fail");
         return kWriteFileFail;
     }
+    //LOG(INFO, "file:%s, block_size: %ld", path_.c_str(), block_size);
     int32_t h_ret = fs_->Write((void*)&block_size, sizeof(int32_t));
     if (h_ret != sizeof(int32_t) ) {
         LOG(WARNING, "write block size fail");
