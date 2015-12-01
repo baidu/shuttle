@@ -147,7 +147,7 @@ Status JobTracker::BuildResourceManagers() {
     if (job_descriptor_.input_format() == kNLineInput) {
         map_manager_ = new NLineResourceManager(inputs, input_param);
     } else {
-        map_manager_ = new ResourceManager(inputs, input_param);
+        map_manager_ = new ResourceManager(inputs, input_param, job_descriptor_.split_size());
     }
     int sum_of_map = map_manager_->SumOfItem();
     job_descriptor_.set_map_total(sum_of_map);
@@ -816,7 +816,7 @@ void JobTracker::Load(const std::string& jobid, const JobState state,
     if (job_descriptor_.map_total() != 0) {
         std::vector<std::string> input;
         FileSystem::Param param;
-        map_manager_ = new ResourceManager(input, param);
+        map_manager_ = new ResourceManager(input, param, job_descriptor_.split_size());
 
         std::vector<IdItem> id_data;
         id_data.resize(job_descriptor_.map_total());

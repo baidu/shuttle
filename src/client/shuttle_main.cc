@@ -65,6 +65,7 @@ bool map_speculative_exec = true;
 bool reduce_speculative_exec = true;
 int map_retry = 3;
 int reduce_retry = 3;
+int64_t split_size = 500l * 1024 * 1024;
 
 }
 
@@ -110,6 +111,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.reduce.tasks\t\tSpecify the number of reduce tasks\n"
         "\t  mapred.map.tasks.speculative.execution\tAllow if shuttle can speculatively decide attempts of a map\n"
         "\t  mapred.reduce.tasks.speculative.execution\tDitto on reduce tasks\n"
+        "\t  mapred.input.split.size\t\tSpecify the block size to divide the input files\n"
         "\t  map.key.field.separator\tSpecify the separator for key field in shuffling\n"
         "\t  stream.num.map.output.key.fields\tSpecify the output fields number of key after mapper\n"
         "\t  num.key.fields.for.partition\tSpecify the first n fields in key in partitioning\n"
@@ -397,6 +399,8 @@ static void ParseJobConfig() {
             config::output_password = it->substr(strlen("mapred.job.output.password="));
         } else if (boost::starts_with(*it, "map.key.field.separator=")) {
             config::key_separator = it->substr(strlen("map.key.field.separator="));
+        } else if (boost::starts_with(*it, "mapred.input.split.size=")) {
+            config::split_size = ParseMemory(it->substr(strlen("mapred.input.split.size=")));
         } else if (boost::starts_with(*it, "stream.num.map.output.key.fields=")) {
             config::key_fields_num = boost::lexical_cast<int>(
                     it->substr(strlen("stream.num.map.output.key.fields=")));
@@ -677,6 +681,7 @@ static int SubmitJob() {
     job_desc.reduce_allow_duplicates = config::reduce_speculative_exec;
     job_desc.map_retry = config::map_retry;
     job_desc.reduce_retry = config::reduce_retry;
+    job_desc.split_size = config::split_size;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);

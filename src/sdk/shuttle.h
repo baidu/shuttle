@@ -112,6 +112,7 @@ struct JobDescription {
     bool reduce_allow_duplicates;
     int32_t map_retry;
     int32_t reduce_retry;
+    int64_t split_size;
 };
 
 struct TaskInstance {

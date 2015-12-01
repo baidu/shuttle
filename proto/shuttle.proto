@@ -105,6 +105,7 @@ message JobDescriptor {
     optional bool reduce_allow_duplicates = 26 [default = true];
     optional int32 map_retry = 27;
     optional int32 reduce_retry = 28;
+    optional int64 split_size = 29;
 }
 
 message TaskInput {

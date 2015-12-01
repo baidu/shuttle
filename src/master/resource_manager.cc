@@ -204,7 +204,8 @@ std::vector<IdItem> IdManager::Dump() {
 }
 
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
-                                 FileSystem::Param& param) : fs_(NULL), manager_(NULL) {
+                                 FileSystem::Param& param,
+                                 int64_t split_size) : fs_(NULL), manager_(NULL) {
     if (input_files.size() == 0) {
         return;
     }
@@ -262,7 +263,7 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
         files.insert(files.end(), sub_files[i].begin(), sub_files[i].end());
     }
     int counter = 0;
-    const int64_t block_size = FLAGS_input_block_size;
+    const int64_t block_size = split_size == 0 ? FLAGS_input_block_size : split_size;
     for (std::vector<FileInfo>::iterator it = files.begin();
             it != files.end(); ++it) {
         int blocks = it->size / block_size;

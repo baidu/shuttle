@@ -7,23 +7,24 @@
 using namespace baidu::shuttle;
 
 std::vector<std::string> input_files;
+const int64_t split_size = 500l * 1024 * 1024;
 int sum_of_items = 0;
 
 TEST(ResManTest, SetInputFilesTest) {
     FileSystem::Param p;
-    ResourceManager resman(input_files, p);
+    ResourceManager resman(input_files, p, split_size);
     EXPECT_EQ(resman.SumOfItem(), sum_of_items);
 }
 
 /*TEST(ResManTest, NLineFileTest) {
     FileSystem::Param p;
-    NLineResourceManager resman(input_files, p);
+    NLineResourceManager resman(input_files, p, split_size);
     EXPECT_EQ(resman.SumOfItem(), sum_of_items);
 }*/
 
 TEST(ResManTest, GetItemTest) {
     FileSystem::Param p;
-    ResourceManager resman(input_files, p);
+    ResourceManager resman(input_files, p, split_size);
     int sum = resman.SumOfItem();
     int64_t last_offset = 0;
     std::string last_input_file;
@@ -43,7 +44,7 @@ TEST(ResManTest, GetItemTest) {
 
 TEST(ResManTest, GetCertainItemTest) {
     FileSystem::Param p;
-    ResourceManager resman(input_files, p);
+    ResourceManager resman(input_files, p, split_size);
     int sum = resman.SumOfItem();
     int64_t last_size = 0;
     delete resman.GetItem();
@@ -60,7 +61,7 @@ TEST(ResManTest, GetCertainItemTest) {
 
 TEST(ResManTest, ReturnBackItemTest) {
     FileSystem::Param p;
-    ResourceManager resman(input_files, p);
+    ResourceManager resman(input_files, p, split_size);
     int64_t last_end = 0;
     std::string last_input_file;
     ResourceItem* cur = resman.GetItem();

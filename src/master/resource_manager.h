@@ -130,7 +130,7 @@ protected:
 class ResourceManager : public BasicResourceManager<ResourceItem> {
 public:
     ResourceManager(const std::vector<std::string>& input_files,
-                    FileSystem::Param& param);
+                    FileSystem::Param& param, int64_t split_size);
     virtual ~ResourceManager();
 
     virtual ResourceItem* GetItem();
