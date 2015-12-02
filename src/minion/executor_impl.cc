@@ -473,6 +473,8 @@ void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
         task_local_dir << task_type << task.task_id() << "_" << task.attempt_id();
         cmd_ss << "ls -tr " << task_local_dir.str() << "/* | grep -P 'stdout|stderr|\\.log' | "
                   "while read f_name ;do  echo $f_name && tail -10000 $f_name; done";
+        LOG(INFO, "=== upload task log ===");
+        LOG(INFO, "%s", cmd_ss.str().c_str());
         FILE* reporter = popen(cmd_ss.str().c_str(), "r");
         std::string line;
         while (ReadLine(reporter, &line)) {
