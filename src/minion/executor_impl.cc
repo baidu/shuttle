@@ -467,8 +467,13 @@ void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     boost::scoped_ptr<FileSystem> fs_guard(fs);
     if (fs->Exist(work_dir) && fs->Open(log_name, param, kWriteFile)) {
-        FILE* reporter = popen("ls -tr | grep -P 'stdout_|stderr_|\\.log' | "
-                               "while read f_name ;do  echo $f_name && cat $f_name; done | tail -20000", "r");
+        std::stringstream cmd_ss;
+        std::stringstream task_local_dir;
+        std::string task_type = (is_map ? "map_" : "reduce_");
+        task_local_dir << task_type << task.task_id() << "_" << task.attempt_id();
+        cmd_ss << "ls -tr " << task_local_dir.str() << "/* | grep -P 'stdout|stderr|\\.log' | "
+                  "while read f_name ;do  echo $f_name && tail -10000 $f_name; done";
+        FILE* reporter = popen(cmd_ss.str().c_str(), "r");
         std::string line;
         while (ReadLine(reporter, &line)) {
             if (feof(reporter)) {
