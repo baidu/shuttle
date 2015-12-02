@@ -390,7 +390,7 @@ void MasterImpl::KeepGarbageCollecting() {
             it != dead_trackers_.end(); ++it) {
         JobTracker* jobtracker = it->second;
         const std::string& jobid = it->first;
-        int32_t interval_seconds = jobtracker->GetFinishTime() - common::timer::now_time();
+        int32_t interval_seconds = common::timer::now_time() - jobtracker->GetFinishTime();
         if (interval_seconds < 0 || interval_seconds > FLAGS_gc_interval) {
             gc_jobs.insert(jobid);
         }
@@ -407,7 +407,7 @@ void MasterImpl::KeepGarbageCollecting() {
             RemoveJobFromNexus(jobid);
         }
     }
-    gc_.DelayTask(FLAGS_gc_interval * 1000,
+    gc_.DelayTask(60000,
                   boost::bind(&MasterImpl::KeepGarbageCollecting, this));
 }
 
