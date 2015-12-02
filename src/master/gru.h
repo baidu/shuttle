@@ -1,43 +1,39 @@
 #ifndef _BAIDU_SHUTTLE_GRU_H_
 #define _BAIDU_SHUTTLE_GRU_H_
-#include <string>
-
-#include <stdint.h>
-
 #include "proto/shuttle.pb.h"
-#include "galaxy.h"
 
 namespace baidu {
 namespace shuttle {
 
+// Interface Gru
+template <class Resource>
 class Gru {
-
 public:
-    Gru(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
-        const std::string& job_id, WorkMode mode);
-    virtual ~Gru() { Kill(); }
+    // Operations
+    virtual Status Start() = 0;
+    virtual Status Update(const std::string& priority, int capacity) = 0;
+    virtual Status Kill() = 0;
+    virtual Resource* Assign(const std::string& endpoint, Status* status) = 0;
+    virtual Status Finish(int no, int attempt, TaskState state) = 0;
 
-    Status Start();
-    Status Kill();
-    Status Update(const std::string& priority, int capacity);
+    // Data getters
+    virtual time_t GetStartTime() = 0;
+    virtual time_t GetFinishTime() = 0;
+    virtual TaskStatistics GetStatistics() = 0;
+    virtual Status GetHistory(const std::vector& buf) = 0;
 
-    static int additional_millicores;
-    static int64_t additional_map_memory;
-    static int64_t additional_reduce_memory;
+    // For backup and recovery
+    // Load()
+    // Dump()
+};
 
-private:
-    // For galaxy manangement
-    ::baidu::galaxy::Galaxy* galaxy_;
-    ::baidu::galaxy::JobDescription galaxy_job_;
-    std::string minion_id_;
+class AlphaGru : Gru {
+};
 
-    // Minion information
-    std::string minion_name_;
-    JobDescriptor* job_;
-    const std::string& job_id_;
-    WorkMode mode_;
-    std::string mode_str_;
+class BetaGru : Gru {
+};
 
+class OmegaGru : Gru {
 };
 
 }
