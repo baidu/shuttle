@@ -29,6 +29,7 @@ DEFINE_string(dfs_user, "", "user name of dfs master");
 DEFINE_string(dfs_password, "", "password of dfs master");
 DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
 DEFINE_int32(tuo_size, 0, "one tuo contains how many maps'output");
+DEFINE_int32(slow_start_no, 200, "if redcue_no greater than this, sleep a random time");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -249,6 +250,12 @@ int main(int argc, char* argv[]) {
         std::stringstream ss;
         ss << FLAGS_work_dir + "/" << i << ".tuo";
         tuo_file_names.push_back(ss.str());
+    }
+    if (FLAGS_reduce_no > FLAGS_slow_start_no) {
+        double rn = rand() / (RAND_MAX+0.0);
+        int random_period = static_cast<int>(rn * 240);
+        LOG(INFO, "sleep a random time: %d", random_period);
+        sleep(random_period);
     }
     MergeAndPrint(tuo_file_names);
     return 0;
