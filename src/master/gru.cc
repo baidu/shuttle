@@ -3,6 +3,8 @@
 #include <sstream>
 #include <gflags/gflags.h>
 #include <boost/algorithm/string.hpp>
+#include <vector>
+#include "logging.h"
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -71,18 +73,39 @@ Status Gru::Start() {
     galaxy_job.pod.tasks.push_back(minion);
     std::string minion_id;
     if (galaxy_->SubmitJob(galaxy_job, &minion_id)) {
+        LOG(INFO, "galaxy job id: %s", minion_id.c_str());
         minion_id_ = minion_id;
         galaxy_job_ = galaxy_job;
+        int retry_count = 10;
+        while (minion_id_.empty() && retry_count-- > 0 ) {
+            std::vector<galaxy::JobInformation> jobs;
+            if (galaxy_->ListJobs(&jobs) ) {
+                for (size_t i = 0; i < jobs.size(); i++) {
+                    const galaxy::JobInformation& job_info = jobs[i];
+                    if (job_info.job_name ==  galaxy_job_.job_name) {
+                        minion_id_ = job_info.job_id;
+                        LOG(INFO, "galaxy job id: %s", minion_id_.c_str());
+                        break;
+                    }
+                }
+            }
+            sleep(3);
+        }
+        if (minion_id_.empty()) {
+            LOG(INFO, "can not get galaxy job id");
+            return kGalaxyError;
+        }
         return kOk;
     }
     return kGalaxyError;
 }
 
 Status Gru::Kill() {
+    LOG(INFO, "kill galaxy job: %s", minion_id_.c_str());
     if (minion_id_.empty()) {
         return kOk;
     }
-    if (!galaxy_->TerminateJob(minion_id_)) {
+    if (galaxy_->TerminateJob(minion_id_)) {
         return kOk;
     }
     return kGalaxyError;
