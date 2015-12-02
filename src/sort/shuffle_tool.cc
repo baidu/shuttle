@@ -97,7 +97,6 @@ bool MergeManyFilesToOne(const std::vector<std::string>& file_names,
     }
     FileSystem::Param param_write;
     FillParam(param_write);
-    param_write["replica"] = "2";
     status = writer->Open(output_file, param_write);
     if (status != kOk) {
         LOG(WARNING, "fail to open %s for write", output_file.c_str());
@@ -241,7 +240,7 @@ int main(int argc, char* argv[]) {
         LOG(FATAL, "invalid map task total");
     }
     if (FLAGS_tuo_size == 0) {
-        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 100);
+        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 50);
     }
     LOG(INFO, "tuo_size: %d", FLAGS_tuo_size);
     int n_tuo = MergeTuo();
