@@ -247,7 +247,8 @@ TaskState MapExecutor::BiStreamingShuffle(FILE* user_app, const TaskInfo& task,
         if (feof(user_app)) {
             break;
         }
-        int reduce_no = partitioner->Calc(key);
+        std::string sort_key;
+        int reduce_no = partitioner->Calc(key, &sort_key);
         std::string record;
         int32_t key_len = key.size();
         int32_t value_len = value.size();
@@ -255,7 +256,7 @@ TaskState MapExecutor::BiStreamingShuffle(FILE* user_app, const TaskInfo& task,
         record.append(key);
         record.append((const char*)(&value_len), sizeof(value_len));
         record.append(value);
-        Status em_status = emitter->Emit(reduce_no, key, record);
+        Status em_status = emitter->Emit(reduce_no, sort_key, record);
         if (em_status != kOk) {
             LOG(WARNING, "emit fail, %s, %s", record.c_str(),
                 Status_Name(em_status).c_str());
