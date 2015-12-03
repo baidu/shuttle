@@ -485,6 +485,11 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             state = kTaskCanceled;
         }
     }
+    std::string cur_node;
+    size_t port_pos = cur->endpoint.find(":");
+    if (port_pos != std::string::npos) {
+        cur_node = cur->endpoint.substr(0, port_pos);
+    }
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -519,6 +524,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     LOG(INFO, "map phrase ends now: %s", job_id_.c_str());
                     failed_count_.resize(0);
                     failed_count_.resize(reduce_manager_->SumOfItem(), 0);
+                    failed_nodes_.clear();
                     mu_.Unlock();
                     MutexLock lock(&alloc_mu_);
                     std::vector<AllocateItem*> rest;
@@ -551,7 +557,13 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             break;
         case kTaskFailed:
             map_manager_->ReturnBackItem(cur->resource_no);
-            ++ failed_count_[cur->resource_no];
+            //only increment failed_count when fail on different nodes
+            if (failed_nodes_[cur->resource_no].find(cur_node) == failed_nodes_[cur->resource_no].end()) {
+                ++ failed_count_[cur->resource_no];
+                failed_nodes_[cur->resource_no].insert(cur_node);
+                LOG(WARNING, "failed map task: job_id: %s, no: %d, aid: %d, node: %s",
+                    job_id_.c_str(), cur->resource_no, cur->attempt, cur_node.c_str());
+            }
             ++ map_failed_;
             if (failed_count_[cur->resource_no] >= job_descriptor_.map_retry()) {
                 LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
@@ -576,6 +588,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         cur->state = state;
         cur->period = std::time(NULL) - cur->alloc_time;
     }
+
     if (state != kTaskCompleted) {
         return kOk;
     }
@@ -639,6 +652,12 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             state = kTaskCanceled;
         }
     }
+    std::string cur_node;
+    size_t port_pos = cur->endpoint.find(":");
+    if (port_pos != std::string::npos) {
+        cur_node = cur->endpoint.substr(0, port_pos);
+    }
+
     {
         MutexLock lock(&mu_);
         switch (state) {
@@ -669,7 +688,13 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             break;
         case kTaskFailed:
             reduce_manager_->ReturnBackItem(cur->resource_no);
-            ++ failed_count_[cur->resource_no];
+            //only increment failed_count when fail on different nodes
+            if (failed_nodes_[cur->resource_no].find(cur_node) == failed_nodes_[cur->resource_no].end()) {
+                ++ failed_count_[cur->resource_no];
+                failed_nodes_[cur->resource_no].insert(cur_node);
+                LOG(WARNING, "failed reduce task: job_id: %s, no: %d, aid: %d, node: %s",
+                              job_id_.c_str(), cur->resource_no, cur->attempt, cur_node.c_str());
+            }
             ++ reduce_failed_;
             if (failed_count_[cur->resource_no] >= job_descriptor_.reduce_retry()) {
                 LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
@@ -889,8 +914,9 @@ std::string JobTracker::GenerateJobId() {
     struct tm t;
     localtime_r(&seconds, &t);
     std::stringstream ss;
-    ss << "job_" << (t.tm_year + 1900) << (t.tm_mon + 1) << t.tm_mday
-       << t.tm_hour << t.tm_min << t.tm_sec << "_"
+    char time_buf[32] = { 0 };
+    ::strftime(time_buf, 32, "%Y%m%d_%H%M%S", &t);
+    ss << "job_" << time_buf << "_"
        << boost::lexical_cast<std::string>(random());
     return ss.str();
 }

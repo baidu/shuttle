@@ -130,6 +130,7 @@ private:
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;
     std::vector<int> failed_count_;
+    std::map<int, std::set<std::string> > failed_nodes_;
     std::queue<int> map_slug_;
     std::queue<int> reduce_slug_;
     // Map resource
