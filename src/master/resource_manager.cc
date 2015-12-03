@@ -205,18 +205,10 @@ std::vector<IdItem> IdManager::Dump() {
 
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
                                  FileSystem::Param& param,
-                                 int64_t split_size) : fs_(NULL), manager_(NULL) {
+                                 int64_t split_size) : manager_(NULL), fs_(NULL) {
     if (input_files.size() == 0) {
         return;
     }
-    if (boost::starts_with(input_files[0], "hdfs://")) {
-        std::string host;
-        int port;
-        ParseHdfsAddress(input_files[0], &host, &port, NULL);
-        param["host"] = host;
-        param["port"] = boost::lexical_cast<std::string>(port);
-    }
-    fs_ = FileSystem::CreateInfHdfs(param);
     std::vector<FileInfo> files;
     ::baidu::common::ThreadPool tp(parallel_level);
     std::vector<FileInfo> sub_files[parallel_level];
@@ -229,7 +221,8 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             const std::string& prefix = file_name.substr(0, prefix_pos);
             const std::string& suffix = file_name.substr(prefix_pos + 3);
             std::vector<FileInfo> children;
-            bool ok = fs_->List(prefix, &children);
+            FileSystem* fs = multi_fs_.GetFs(file_name, param);
+            bool ok = fs->List(prefix, &children);
             if (!ok) {
                 expand_input_files.push_back(file_name);
             } else {
@@ -245,15 +238,12 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             it != expand_input_files.end(); ++it) {
         std::string path;
         LOG(INFO, "input file: %s", it->c_str());
-        if (boost::starts_with(*it, "hdfs://")) {
-            ParseHdfsAddress(*it, NULL, NULL, &path);
-        } else {
-            path = *it;
-        }
+        path = *it;
+        FileSystem* fs = multi_fs_.GetFs(path, param);
         if (path.find('*') == std::string::npos) {
-            tp.AddTask(boost::bind(&FileSystem::List, fs_, path, &sub_files[i]));
+            tp.AddTask(boost::bind(&FileSystem::List, fs, path, &sub_files[i]));
         } else {
-            tp.AddTask(boost::bind(&FileSystem::Glob, fs_, path, &sub_files[i]));
+            tp.AddTask(boost::bind(&FileSystem::Glob, fs, path, &sub_files[i]));
         }
         i = (i + 1) % parallel_level;
     }
@@ -299,7 +289,6 @@ ResourceManager::~ResourceManager() {
         delete *it;
     }
     delete manager_;
-    delete fs_;
 }
 
 ResourceItem* ResourceManager::GetItem() {
@@ -485,6 +474,26 @@ NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input
         }
     }
     manager_ = new IdManager(resource_pool_.size());
+}
+
+FileSystem* MultiFs::GetFs(const std::string& file_path, FileSystem::Param param) {
+    std::string host;
+    int port;
+    if (boost::starts_with(file_path, "hdfs://")) {
+        ParseHdfsAddress(file_path, &host, &port, NULL);
+    }
+    MutexLock locker(&mu_);
+    if (fs_map_.find(host) == fs_map_.end()) {
+        LOG(INFO, "host: %s, param.size(): %d", host.c_str(), param.size());
+        if (!host.empty()) {
+            param["host"] = host;
+            param["port"] = boost::lexical_cast<std::string>(port);
+        }
+        FileSystem* fs  = FileSystem::CreateInfHdfs(param);
+        fs_map_[host].reset(fs);
+        return fs;
+    }
+    return fs_map_[host].get();
 }
 
 }

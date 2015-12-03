@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string>
 #include <iostream>
+#include <boost/lexical_cast.hpp>
 
 #include <gflags/gflags.h>
 #include "input_reader.h"
@@ -96,6 +97,15 @@ int main(int argc, char* argv[]) {
         std::cerr << "./input_tool -file=[file path] -offset=(offset) -len=(max read)"
                   << std::endl;
         return -1;
+    }
+    std::string host;
+    int port;
+    ParseHdfsAddress(FLAGS_file, &host, &port, NULL);
+    if (!host.empty() && ! FLAGS_dfs_host.empty() && host != FLAGS_dfs_host) { // when conflict
+        FLAGS_dfs_host = host;
+        FLAGS_dfs_port = boost::lexical_cast<std::string>(port);
+        FLAGS_dfs_user = "";
+        FLAGS_dfs_password = "";
     }
     DoRead();
     return 0;

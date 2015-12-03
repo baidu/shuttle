@@ -38,6 +38,9 @@ struct AllocateItemComparator {
     }
 };
 
+class CancelTaskRequest;
+class CancelTaskResponse;
+
 class JobTracker {
 
 public:
@@ -110,7 +113,7 @@ private:
     void KeepMonitoring(bool map_now);
     std::string GenerateJobId();
     void Replay(const std::vector<AllocateItem>& history, std::vector<IdItem>& table, bool is_map);
-
+    void CancelCallback(const CancelTaskRequest* request, CancelTaskResponse* response, bool fail, int eno);
 private:
     MasterImpl* master_;
     ::baidu::galaxy::Galaxy* galaxy_;

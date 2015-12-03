@@ -5,6 +5,8 @@
 #include <list>
 #include <string>
 #include <stdint.h>
+#include <map>
+#include <boost/shared_ptr.hpp>
 
 #include "proto/shuttle.pb.h"
 #include "common/filesystem.h"
@@ -127,6 +129,14 @@ protected:
     int done_;
 };
 
+class MultiFs {
+public:
+    FileSystem* GetFs(const std::string& file_path, FileSystem::Param param);
+private:
+    std::map<std::string, boost::shared_ptr<FileSystem> > fs_map_;
+    Mutex mu_;
+};
+
 class ResourceManager : public BasicResourceManager<ResourceItem> {
 public:
     ResourceManager(const std::vector<std::string>& input_files,
@@ -163,13 +173,14 @@ public:
     virtual std::vector<ResourceItem> Dump();
 
 protected:
-    ResourceManager() : fs_(NULL), manager_(NULL) { }
+    ResourceManager() : manager_(NULL), fs_(NULL) { }
 
 protected:
     Mutex mu_;
-    FileSystem* fs_;
     std::vector<ResourceItem*> resource_pool_;
     IdManager* manager_;
+    MultiFs multi_fs_;
+    FileSystem* fs_;
 };
 
 class NLineResourceManager : public ResourceManager {

@@ -135,8 +135,6 @@ Status JobTracker::BuildResourceManagers() {
         std::string host;
         int port;
         ParseHdfsAddress(inputs[0], &host, &port, NULL);
-        input_param["host"] = host;
-        input_param["port"] = boost::lexical_cast<std::string>(port);
         job_descriptor_.mutable_input_dfs()->set_host(host);
         job_descriptor_.mutable_input_dfs()->set_port(boost::lexical_cast<std::string>(port));
     } else if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
@@ -585,9 +583,6 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         return kOk;
     }
     Minion_Stub* stub = NULL;
-    CancelTaskRequest request;
-    CancelTaskResponse response;
-    request.set_job_id(job_id_);
     MutexLock lock(&alloc_mu_);
     for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
@@ -596,18 +591,17 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             (*it)->period = std::time(NULL) - cur->alloc_time;
             rpc_client_->GetStub((*it)->endpoint, &stub);
             boost::scoped_ptr<Minion_Stub> stub_guard(stub);
-            request.set_task_id((*it)->resource_no);
-            request.set_attempt_id((*it)->attempt);
-            // TODO Maybe check returned state here?
-            alloc_mu_.Unlock();
-            LOG(INFO, "cancel task: job:%s, task:%d, attempt:%d",
+            LOG(INFO, "cancel map task: job:%s, task:%d, attempt:%d",
                 job_id_.c_str(), (*it)->resource_no, (*it)->attempt);
-            bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::CancelTask,
-                                               &request, &response, 2, 1);
-            if (!ok) {
-                LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
-            }
-            alloc_mu_.Lock();
+            CancelTaskRequest* request = new CancelTaskRequest();
+            CancelTaskResponse* response = new CancelTaskResponse();
+            request->set_job_id(job_id_);
+            request->set_task_id((*it)->resource_no);
+            request->set_attempt_id((*it)->attempt);
+            boost::function<void (const CancelTaskRequest*, CancelTaskResponse*, bool, int) > callback;
+            callback = boost::bind(&JobTracker::CancelCallback, this, _1, _2, _3, _4);
+            rpc_client_->AsyncRequest(stub, &Minion_Stub::CancelTask,
+                                     request, response, callback , 2, 1);
         }
     }
     return kOk;
@@ -707,9 +701,6 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
         return kOk;
     }
     Minion_Stub* stub = NULL;
-    CancelTaskRequest request;
-    CancelTaskResponse response;
-    request.set_job_id(job_id_);
     MutexLock lock(&alloc_mu_);
     for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
@@ -718,19 +709,28 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             (*it)->period = std::time(NULL) - cur->alloc_time;
             rpc_client_->GetStub((*it)->endpoint, &stub);
             boost::scoped_ptr<Minion_Stub> stub_guard(stub);
-            request.set_task_id((*it)->resource_no);
-            request.set_attempt_id((*it)->attempt);
-            alloc_mu_.Unlock();
-            bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::CancelTask,
-                                               &request, &response, 2, 1);
-            if (!ok) {
-                LOG(WARNING, "failed to rpc: %s", (*it)->endpoint.c_str());
-            }
-            // TODO Maybe check returned state here?
-            alloc_mu_.Lock();
+            LOG(INFO, "cancel reduce task: job:%s, task:%d, attempt:%d",
+                job_id_.c_str(), (*it)->resource_no, (*it)->attempt);
+            CancelTaskRequest* request = new CancelTaskRequest();
+            CancelTaskResponse* response = new CancelTaskResponse();
+            request->set_job_id(job_id_);
+            request->set_task_id((*it)->resource_no);
+            request->set_attempt_id((*it)->attempt);
+            boost::function<void (const CancelTaskRequest*, CancelTaskResponse*, bool, int) > callback;
+            callback = boost::bind(&JobTracker::CancelCallback, this, _1, _2, _3, _4);
+            rpc_client_->AsyncRequest(stub, &Minion_Stub::CancelTask,
+                                      request, response, callback , 2, 1);
         }
     }
     return kOk;
+}
+
+void JobTracker::CancelCallback(const CancelTaskRequest* request, CancelTaskResponse* response, bool fail, int eno) {
+    delete request;
+    delete response;
+    if (fail) {
+        LOG(WARNING, "fail to cancel task, err: %d", eno);
+    }
 }
 
 TaskStatistics JobTracker::GetMapStatistics() {
@@ -983,8 +983,14 @@ void JobTracker::KeepMonitoring(bool map_now) {
             map_now ? ++map_killed_ : ++reduce_killed_;
         }
         if (map_now) {
+            if (top->state == kTaskKilled) {
+                map_manager_->ReturnBackItem(top->resource_no);
+            }
             map_slug_.push(top->resource_no);
         } else {
+            if (top->state == kTaskKilled) {
+                reduce_manager_->ReturnBackItem(top->resource_no);
+            }
             reduce_slug_.push(top->resource_no);
         }
         LOG(INFO, "Reallocate a long no-response tasks: < no - %d, attempt - %d>: %s",

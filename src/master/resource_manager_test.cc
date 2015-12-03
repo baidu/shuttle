@@ -50,6 +50,7 @@ TEST(ResManTest, GetCertainItemTest) {
     delete resman.GetItem();
     for (int i = 2; i < sum + 2; ++i) {
         ResourceItem* cur = resman.GetCertainItem(0);
+        if (!cur) continue;
         EXPECT_EQ(cur->no, 0);
         EXPECT_EQ(cur->attempt, i);
         EXPECT_EQ(cur->offset, 0);
