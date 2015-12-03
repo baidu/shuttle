@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
     std::string host;
     int port;
     ParseHdfsAddress(FLAGS_file, &host, &port, NULL);
-    if (!host.empty() && ! FLAGS_dfs_host.empty() && host != FLAGS_dfs_host) { // when conflict
+    if (!host.empty() && host != FLAGS_dfs_host) { // when conflict
         FLAGS_dfs_host = host;
         FLAGS_dfs_port = boost::lexical_cast<std::string>(port);
         FLAGS_dfs_user = "";

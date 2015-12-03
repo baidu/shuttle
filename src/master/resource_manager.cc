@@ -243,7 +243,9 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
         if (path.find('*') == std::string::npos) {
             tp.AddTask(boost::bind(&FileSystem::List, fs, path, &sub_files[i]));
         } else {
-            tp.AddTask(boost::bind(&FileSystem::Glob, fs, path, &sub_files[i]));
+            std::string no_host_path = path;
+            ParseHdfsAddress(path, NULL, NULL, &no_host_path);
+            tp.AddTask(boost::bind(&FileSystem::Glob, fs, no_host_path, &sub_files[i]));
         }
         i = (i + 1) % parallel_level;
     }
