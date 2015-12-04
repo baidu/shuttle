@@ -1,4 +1,6 @@
 #include "minion_impl.h"
+
+#include <time.h>
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
 #include <boost/scoped_ptr.hpp>
@@ -105,7 +107,14 @@ void MinionImpl::SetJobId(const std::string& jobid) {
     jobid_ = jobid;
 }
 
+void MinionImpl::SleepRandomTime() {
+    double rn = rand() / (RAND_MAX+0.0);
+    int random_period = static_cast<int>(rn * FLAGS_suspend_time);
+    sleep(5 + random_period);
+}
+
 void MinionImpl::Loop() {
+    srand(time(NULL));
     Master_Stub* stub;
     rpc_client_.GetStub(master_endpoint_, &stub);
     if (stub == NULL) {
@@ -128,7 +137,7 @@ void MinionImpl::Loop() {
                                               &request, &response, 5, 1);
             if (!ok) {
                 LOG(WARNING, "fail to fetch task from master[%s]", master_endpoint_.c_str());
-                sleep(FLAGS_suspend_time);
+                SleepRandomTime();
                 continue;
             } else {
                 break;
@@ -142,7 +151,7 @@ void MinionImpl::Loop() {
             break;
         } else if (response.status() == kSuspend) {
             LOG(INFO, "minion will suspend for a while");
-            sleep(FLAGS_suspend_time);
+            SleepRandomTime();
             continue;
         } else if (response.status() != kOk) {
             LOG(FATAL, "invalid response status: %s",
@@ -177,12 +186,12 @@ void MinionImpl::Loop() {
                                          &fn_request, &fn_response, 5, 1);
             if (!ok) {
                 LOG(WARNING, "fail to send task state to master");
-                sleep(FLAGS_suspend_time);
+                SleepRandomTime();
                 continue;
             } else {
                 if (fn_response.status() ==  kSuspend) {
                     LOG(WARNING, "wait a moment and then report finish");
-                    sleep(FLAGS_suspend_time);
+                    SleepRandomTime();
                     continue;
                 }
                 break;
@@ -192,7 +201,7 @@ void MinionImpl::Loop() {
         if (task_state == kTaskFailed) {
             LOG(WARNING, "task state: %s", TaskState_Name(task_state).c_str());
             executor_->ReportErrors(task, (work_mode_ != kReduce));
-            sleep(FLAGS_suspend_time);
+            SleepRandomTime();
         }
     }
 

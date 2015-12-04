@@ -364,6 +364,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
     alloc->period = -1;
     MutexLock lock(&alloc_mu_);
     allocation_table_.push_back(alloc);
+    map_index_[alloc->resource_no][alloc->attempt] = alloc;
     time_heap_.push(alloc);
     LOG(INFO, "assign map: < no - %d, attempt - %d >, to %s: %s",
             alloc->resource_no, alloc->attempt, endpoint.c_str(), job_id_.c_str());
@@ -448,6 +449,7 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
     alloc->period = -1;
     MutexLock lock(&alloc_mu_);
     allocation_table_.push_back(alloc);
+    reduce_index_[alloc->resource_no][alloc->attempt] = alloc;
     time_heap_.push(alloc);
     LOG(INFO, "assign reduce: < no - %d, attempt - %d >, to %s: %s",
             alloc->resource_no, alloc->attempt, endpoint.c_str(), job_id_.c_str());
@@ -457,20 +459,59 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
     return cur;
 }
 
+void JobTracker::CancelOtherAttempts(
+    const std::map<int, std::map<int, AllocateItem*> >& lookup_index,
+    int no, int attempt) 
+{
+    Minion_Stub* stub = NULL;
+    MutexLock lock(&alloc_mu_);
+    std::map<int, std::map<int, AllocateItem*> >::const_iterator it;
+    std::map<int, AllocateItem*>::const_iterator jt;   
+    it = lookup_index.find(no);
+    if (it != lookup_index.end()) {
+        for (jt = it->second.begin(); jt != it->second.end(); jt++) {
+            AllocateItem* candidate = jt->second;
+            if (candidate->attempt == attempt) {
+                continue;
+            }
+            candidate->state = kTaskCanceled;
+            candidate->period = std::time(NULL) - candidate->alloc_time;
+            rpc_client_->GetStub(candidate->endpoint, &stub);
+            boost::scoped_ptr<Minion_Stub> stub_guard(stub);
+            LOG(INFO, "cancel %s task: job:%s, task:%d, attempt:%d",
+                candidate->is_map ? "map" : "reduce",
+                job_id_.c_str(), candidate->resource_no, candidate->attempt);
+            CancelTaskRequest* request = new CancelTaskRequest();
+            CancelTaskResponse* response = new CancelTaskResponse();
+            request->set_job_id(job_id_);
+            request->set_task_id(candidate->resource_no);
+            request->set_attempt_id(candidate->attempt);
+            boost::function<void (const CancelTaskRequest*, CancelTaskResponse*, bool, int) > callback;
+            callback = boost::bind(&JobTracker::CancelCallback, this, _1, _2, _3, _4);
+            rpc_client_->AsyncRequest(stub, &Minion_Stub::CancelTask,
+                                      request, response, callback , 2, 1);
+        }
+    }
+}
+
 Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     AllocateItem* cur = NULL;
     {
         MutexLock lock(&alloc_mu_);
-        std::vector<AllocateItem*>::iterator it;
-        for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
-            if ((*it)->is_map && (*it)->resource_no == no && (*it)->attempt == attempt) {
-                if ((*it)->state == kTaskRunning) {
-                    cur = *it;
+        std::map<int, std::map<int, AllocateItem*> >::iterator it;
+        std::map<int, AllocateItem*>::iterator jt;
+        it = map_index_.find(no);
+        if (it != map_index_.end()) {
+            jt = it->second.find(attempt);
+            if (jt != it->second.end()) {
+                AllocateItem* candidate = jt->second;
+                if (candidate->state == kTaskRunning) {
+                    cur = candidate;
                 }
-                break;
             }
         }
     }
+
     if (cur == NULL) {
         LOG(WARNING, "try to finish an inexist map task: < no - %d, attempt - %d >: %s",
                 no, attempt, job_id_.c_str());
@@ -595,28 +636,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     if (!map_allow_duplicates_) {
         return kOk;
     }
-    Minion_Stub* stub = NULL;
-    MutexLock lock(&alloc_mu_);
-    for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
-            it != allocation_table_.end(); ++it) {
-        if ((*it)->is_map && (*it)->resource_no == no && (*it)->attempt != attempt) {
-            (*it)->state = kTaskCanceled;
-            (*it)->period = std::time(NULL) - cur->alloc_time;
-            rpc_client_->GetStub((*it)->endpoint, &stub);
-            boost::scoped_ptr<Minion_Stub> stub_guard(stub);
-            LOG(INFO, "cancel map task: job:%s, task:%d, attempt:%d",
-                job_id_.c_str(), (*it)->resource_no, (*it)->attempt);
-            CancelTaskRequest* request = new CancelTaskRequest();
-            CancelTaskResponse* response = new CancelTaskResponse();
-            request->set_job_id(job_id_);
-            request->set_task_id((*it)->resource_no);
-            request->set_attempt_id((*it)->attempt);
-            boost::function<void (const CancelTaskRequest*, CancelTaskResponse*, bool, int) > callback;
-            callback = boost::bind(&JobTracker::CancelCallback, this, _1, _2, _3, _4);
-            rpc_client_->AsyncRequest(stub, &Minion_Stub::CancelTask,
-                                     request, response, callback , 2, 1);
-        }
-    }
+    CancelOtherAttempts(map_index_, no, attempt);
     return kOk;
 }
 
@@ -628,13 +648,16 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     AllocateItem* cur = NULL;
     {
         MutexLock lock(&alloc_mu_);
-        std::vector<AllocateItem*>::iterator it;
-        for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
-            if (!((*it)->is_map) && (*it)->resource_no == no && (*it)->attempt == attempt) {
-                if ((*it)->state == kTaskRunning) {
-                    cur = *it;
+        std::map<int, std::map<int, AllocateItem*> >::iterator it;
+        std::map<int, AllocateItem*>::iterator jt;
+        it = reduce_index_.find(no);
+        if (it != reduce_index_.end()) {
+            jt = it->second.find(attempt);
+            if (jt != it->second.end()) {
+                AllocateItem* candidate = jt->second;
+                if (candidate->state == kTaskRunning) {
+                    cur = candidate;
                 }
-                break;
             }
         }
     }
@@ -725,28 +748,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
     if (!reduce_allow_duplicates_) {
         return kOk;
     }
-    Minion_Stub* stub = NULL;
-    MutexLock lock(&alloc_mu_);
-    for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
-            it != allocation_table_.end(); ++it) {
-        if (!((*it)->is_map) && (*it)->resource_no == no && (*it)->attempt != attempt) {
-            (*it)->state = kTaskCanceled;
-            (*it)->period = std::time(NULL) - cur->alloc_time;
-            rpc_client_->GetStub((*it)->endpoint, &stub);
-            boost::scoped_ptr<Minion_Stub> stub_guard(stub);
-            LOG(INFO, "cancel reduce task: job:%s, task:%d, attempt:%d",
-                job_id_.c_str(), (*it)->resource_no, (*it)->attempt);
-            CancelTaskRequest* request = new CancelTaskRequest();
-            CancelTaskResponse* response = new CancelTaskResponse();
-            request->set_job_id(job_id_);
-            request->set_task_id((*it)->resource_no);
-            request->set_attempt_id((*it)->attempt);
-            boost::function<void (const CancelTaskRequest*, CancelTaskResponse*, bool, int) > callback;
-            callback = boost::bind(&JobTracker::CancelCallback, this, _1, _2, _3, _4);
-            rpc_client_->AsyncRequest(stub, &Minion_Stub::CancelTask,
-                                      request, response, callback , 2, 1);
-        }
-    }
+    CancelOtherAttempts(reduce_index_, no, attempt);
     return kOk;
 }
 
@@ -882,6 +884,11 @@ void JobTracker::Load(const std::string& jobid, const JobState state,
             it != data.end(); ++it) {
         AllocateItem* alloc = new AllocateItem(*it);
         allocation_table_.push_back(alloc);
+        if (alloc->is_map) {
+            map_index_[alloc->resource_no][alloc->attempt] = alloc;
+        } else {
+            reduce_index_[alloc->resource_no][alloc->attempt] = alloc;
+        }
         int& cur_killed = alloc->is_map ? map_killed_ : reduce_killed_;
         int& cur_failed = alloc->is_map ? map_failed_ : reduce_failed_;
         switch(alloc->state) {

@@ -15,6 +15,7 @@ using baidu::common::INFO;
 using baidu::common::WARNING;
 
 DECLARE_string(master_port);
+DECLARE_int32(master_rpc_thread_num);
 
 static volatile bool s_quit = false;
 static void SignalIntHandler(int /*sig*/){
@@ -26,6 +27,7 @@ int main(int argc, char* argv[]) {
     baidu::shuttle::MasterImpl * master = new baidu::shuttle::MasterImpl();
     master->Init();
     sofa::pbrpc::RpcServerOptions options;
+    options.work_thread_num = FLAGS_master_rpc_thread_num;
     sofa::pbrpc::RpcServer rpc_server(options);
     if (!rpc_server.RegisterService(static_cast<baidu::shuttle::Master*>(master))) {
         LOG(FATAL, "failed to register master service");

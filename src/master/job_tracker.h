@@ -114,6 +114,8 @@ private:
     std::string GenerateJobId();
     void Replay(const std::vector<AllocateItem>& history, std::vector<IdItem>& table, bool is_map);
     void CancelCallback(const CancelTaskRequest* request, CancelTaskResponse* response, bool fail, int eno);
+    void CancelOtherAttempts(const std::map<int, std::map<int, AllocateItem*> >& lookup_index,
+                             int no, int attempt) ;
 private:
     MasterImpl* master_;
     ::baidu::galaxy::Galaxy* galaxy_;
@@ -160,6 +162,8 @@ private:
     FileSystem* fs_;
     int32_t start_time_;
     int32_t finish_time_;
+    std::map<int, std::map<int, AllocateItem*> > map_index_;
+    std::map<int, std::map<int, AllocateItem*> > reduce_index_;
 };
 
 }

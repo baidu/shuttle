@@ -34,6 +34,7 @@ private:
     void SaveBreakpoint(const TaskInfo& task);
     void ClearBreakpoint();
     void CheckUnfinishedTask(Master_Stub* master_stub);
+    void SleepRandomTime();
     std::string endpoint_;
     ThreadPool pool_;
     std::string master_endpoint_;
