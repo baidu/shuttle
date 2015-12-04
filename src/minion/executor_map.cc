@@ -124,7 +124,7 @@ TaskState MapExecutor::Exec(const TaskInfo& task) {
     }
     if (!MoveTempToShuffle(task)) {
         LOG(WARNING, "move map result to shuffle dir fail");
-        return kTaskMoveOutputFailed;
+        return kTaskFailed;
     }
     return kTaskCompleted;
 }

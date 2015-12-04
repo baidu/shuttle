@@ -181,10 +181,13 @@ bool Executor::MoveTempToShuffle(const TaskInfo& task) {
     FileSystem::Param param;
     FillParam(param, task);
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    boost::scoped_ptr<FileSystem> fs_guard(fs);
     LOG(INFO, "rename %s -> %s", old_dir.c_str(), new_dir);
-    bool ret = fs->Rename(old_dir, new_dir);
-    delete fs;
-    return ret;
+    fs->Rename(old_dir, new_dir);
+    if (fs->Exist(new_dir)) {
+        return true;
+    }
+    return false;
 }
 
 void Executor::FillParam(FileSystem::Param& param, const TaskInfo& task) {
