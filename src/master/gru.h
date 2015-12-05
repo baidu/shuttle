@@ -2,6 +2,7 @@
 #define _BAIDU_SHUTTLE_GRU_H_
 #include <string>
 #include "proto/shuttle.pb.h"
+#include "proto/app_master.pb.h"
 #include "mutex.h"
 
 namespace baidu {
@@ -41,10 +42,10 @@ public:
     virtual Status Finish(int no, int attempt, TaskState state) = 0;
 
     // Data getters
-    virtual Status GetHistory(const std::vector& buf) const = 0;
-    virtual Status GetStartTime() const = 0;
-    virtual Status GetFinishTime() const = 0;
-    virtual Status GetStatistics() const = 0;
+    virtual Status GetHistory(const std::vector<AllocateItem>& buf) const = 0;
+    virtual time_t GetStartTime() const = 0;
+    virtual time_t GetFinishTime() const = 0;
+    virtual TaskStatistics GetStatistics() const = 0;
 
     // For backup and recovery
     // Load()

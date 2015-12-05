@@ -7,6 +7,7 @@
 #include "galaxy_handler.h"
 #include "resource_manager.h"
 #include "thread_pool.h"
+#include "logging.h"
 
 namespace baidu {
 namespace shuttle {
@@ -16,14 +17,14 @@ template <class Resource>
 class BasicGru : Gru<Resource> {
 public:
     // General initialization
-    Gru(JobDescriptor& job, const std::string& job_id, int node) :
+    BasicGru(JobDescriptor& job, const std::string& job_id, int node) :
             manager_(NULL), job_id_(job_id),  rpc_client_(NULL), job_(job), state_(kPending),
             galaxy_(NULL), node_(node), total_tasks_(0), start_time_(0), finish_time_(0),
             killed_(0), failed_(0), end_game_begin_(0), monitor_(1), allow_duplicates_(true) {
         rpc_client_ = new RpcClient();
         monitor_.AddTask(boost::bind(&Gru<Resource>::KeepMonitoring, this));
     }
-    virtual ~Gru() {
+    virtual ~BasicGru() {
         if (rpc_client_ != NULL) {
             delete rpc_client_;
             rpc_client_ = NULL;
@@ -31,7 +32,7 @@ public:
     }
 
     virtual Status Start();
-    virtual Status Update(const std::string priority, int capacity);
+    virtual Status Update(const std::string& priority, int capacity);
     virtual Status Kill();
 
     virtual time_t GetStartTime() const {
@@ -94,35 +95,41 @@ protected:
 
 class AlphaGru : public BasicGru<ResourceItem> {
 public:
-    virtual Resource* Assign(const std::string& endpoint, Status* status);
+    AlphaGru();
+    virtual ~AlphaGru();
+    virtual ResourceItem* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
 protected:
-    virtual BasicResourceManager<Resource>* BuildResourceManager();
+    virtual BasicResourceManager<ResourceItem>* BuildResourceManager();
     virtual GalaxyHandler* BuildGalaxyHandler();
 };
 
 class BetaGru : public BasicGru<IdItem> {
 public:
-    virtual Resource* Assign(const std::string& endpoint, Status* status);
+    BetaGru();
+    virtual ~BetaGru();
+    virtual IdItem* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
 protected:
-    virtual BasicResourceManager<Resource>* BuildResourceManager();
+    virtual BasicResourceManager<IdItem>* BuildResourceManager();
     virtual GalaxyHandler* BuildGalaxyHandler();
 };
 
 class OmegaGru : public BasicGru<IdItem> {
 public:
-    virtual Resource* Assign(const std::string& endpoint, Status* status);
+    OmegaGru();
+    virtual ~OmegaGru();
+    virtual IdItem* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
 protected:
-    virtual BasicResourceManager<Resource>* BuildResourceManager();
+    virtual BasicResourceManager<IdItem>* BuildResourceManager();
     virtual GalaxyHandler* BuildGalaxyHandler();
 };
 
 // ----- Implementations start now -----
 
 template <class Resource>
-Status Gru<Resource>::Start() {
+Status BasicGru<Resource>::Start() {
     start_time_ = std::time(NULL);
     if (BuildResourceManager() != kOk) {
         return kNoMore;
@@ -138,7 +145,7 @@ Status Gru<Resource>::Start() {
 }
 
 template <class Resource>
-Status Gru<Resource>::Update(const std::string& priority, int capacity) {
+Status BasicGru<Resource>::Update(const std::string& priority, int capacity) {
     if (galaxy_ == NULL) {
         return;
     }
@@ -154,7 +161,7 @@ Status Gru<Resource>::Update(const std::string& priority, int capacity) {
 }
 
 template <class Resource>
-Status Gru<Resource>::Kill() {
+Status BasicGru<Resource>::Kill() {
     meta_mu_.Lock();
     if (galaxy_ != NULL) {
         LOG(INFO, "node %d phase finished, kill: %s", job_id_.c_str());
@@ -173,12 +180,12 @@ Status Gru<Resource>::Kill() {
 }
 
 template <class Resource>
-TaskStatistics BasicGru<Resource>::GetStatistics() {
+TaskStatistics BasicGru<Resource>::GetStatistics() const {
     int pending = 0, running = 0, completed = 0;
     if (manager_ != NULL) {
-        pending = manager->Pending();
-        running = manager->Allocated();
-        completed = manager->Done();
+        pending = manager_->Pending();
+        running = manager_->Allocated();
+        completed = manager_->Done();
     }
     MutexLock lock(&meta_mu_);
     TaskStatistics task;
@@ -200,7 +207,7 @@ void BasicGru<Resource>::KeepMonitoring() {
     alloc_mu_.Lock();
     std::vector< std::vector<AllocateItem*> >::iterator it;
     for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
-        for (std::vector<AllocateItem>::iterator jt = it->begin();
+        for (std::vector<AllocateItem*>::iterator jt = it->begin();
                 jt != it->end(); ++jt) {
             if ((*jt)->state == kTaskCompleted) {
                 time_used.push_back((*jt)->period);
@@ -212,10 +219,10 @@ void BasicGru<Resource>::KeepMonitoring() {
 }
 
 template <class Resource>
-void Gru<Resource>::SerializeAllocationTable(std::vector<AllocateItem>& buf) {
+void BasicGru<Resource>::SerializeAllocationTable(std::vector<AllocateItem>& buf) {
     std::vector< std::vector<AllocateItem*> >::iterator it;
     MutexLock lock(&alloc_mu_);
-    for (it = allocation_table_.begin(); it != allocation_table_; ++it) {
+    for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
         for (std::vector<AllocateItem*>::iterator jt = it->begin();
                 jt != it->end(); ++jt) {
             buf.push_back(*(*jt));
@@ -224,7 +231,7 @@ void Gru<Resource>::SerializeAllocationTable(std::vector<AllocateItem>& buf) {
 }
 
 template <class Resource>
-void Gru<Resource>::BuildEndGameCounters() {
+void BasicGru<Resource>::BuildEndGameCounters() {
     if (manager_ == NULL) {
         return;
     }
