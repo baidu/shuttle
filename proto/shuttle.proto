@@ -76,36 +76,39 @@ enum PipeStyle {
     kBiStreaming = 1;
 }
 
+message NodeConfig {
+    optional int32 node = 1;
+    optional int32 capacity = 2;
+    optional int32 total = 3;
+    optional int32 millicores = 4;
+    optional int64 memory = 5;
+    optional string command = 6;
+    repeated string inputs = 7;
+    optional InputFormat input_format = 8;
+    optional DfsInfo input_dfs = 9;
+    optional string output = 10;
+    optional OutputFormat output_format = 11;
+    optional DfsInfo output_dfs = 12;
+    optional Partition partition = 13;
+    optional string key_separator = 14;
+    optional int32 key_fields_num = 15;
+    optional int32 partition_fields_num = 16;
+    optional bool allow_duplicates = 17 [default = true];
+    optional int32 retry = 18;
+}
+
 message JobDescriptor {
     optional string name = 1;
     optional string user = 2;
     optional JobPriority priority = 3;
-    optional int32 map_capacity = 4;
-    optional int32 reduce_capacity = 5;
-    optional int32 millicores = 6;
-    optional int64 memory = 7;
-    repeated string inputs = 8;
-    optional string output = 9;
-    repeated string files = 10;
-    optional string map_command = 11;
-    optional string reduce_command = 12;
-    optional Partition partition = 13;
-    optional int32 map_total = 14;
-    optional int32 reduce_total = 15;
-    optional string key_separator = 16;
-    optional int32 key_fields_num = 17;
-    optional int32 partition_fields_num = 18;
-    optional JobType job_type = 19;
-    optional DfsInfo input_dfs = 20;
-    optional DfsInfo output_dfs = 21;
-    optional InputFormat input_format = 22;
-    optional OutputFormat output_format = 23;
-    optional PipeStyle pipe_style = 24;
-    optional bool map_allow_duplicates = 25 [default = true];
-    optional bool reduce_allow_duplicates = 26 [default = true];
-    optional int32 map_retry = 27;
-    optional int32 reduce_retry = 28;
-    optional int64 split_size = 29;
+    repeated string files = 4;
+    optional PipeStyle pipe_style = 5;
+    optional int64 split_size = 6;
+    repeated NodeConfig nodes = 7;
+    message NodeNeigbor {
+        repeated int32 neigbors = 1;
+    }
+    repeated NodeNeigbor map = 8;
 }
 
 message TaskInput {
