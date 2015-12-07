@@ -375,12 +375,12 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.reduce.tasks=")) {
             config::reduce_tasks = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.reduce.tasks=")));
-        } else if (boost::starts_with(*it, "mapred.max.map.attempts=")) {
+        } else if (boost::starts_with(*it, "mapred.map.max.attempts=")) {
             config::map_retry = boost::lexical_cast<int>(
-                    it->substr(strlen("mapred.max.map.attempts=")));
-        } else if (boost::starts_with(*it, "mapred.max.reduce.attempts=")) {
+                    it->substr(strlen("mapred.map.max.attempts=")));
+        } else if (boost::starts_with(*it, "mapred.reduce.max.attempts=")) {
             config::reduce_retry = boost::lexical_cast<int>(
-                    it->substr(strlen("mapred.max.reduce.attempts=")));
+                    it->substr(strlen("mapred.reduce.max.attempts=")));
         } else if (boost::starts_with(*it, "mapred.job.input.host=")) {
             config::input_host = it->substr(strlen("mapred.job.input.host="));
         } else if (boost::starts_with(*it, "mapred.job.input.port=")) {
