@@ -18,6 +18,7 @@ using baidu::common::WARNING;
 
 DECLARE_int32(minion_port);
 DECLARE_string(jobid);
+DECLARE_int32(max_minions);
 
 static volatile bool s_quit = false;
 static void SignalIntHandler(int /*sig*/){
@@ -45,7 +46,7 @@ int main(int argc, char* argv[]) {
     LOG(INFO, "hostname: %s", hostname.c_str());
     while (!rpc_server.Start(endpoint)) {
         LOG(WARNING, "failed to start server on %s", endpoint.c_str());
-        if (++retry_count > 500) {
+        if (++retry_count > FLAGS_max_minions) {
             LOG(FATAL, "cannot find free port");
             exit(-1);
         }

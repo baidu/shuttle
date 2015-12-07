@@ -77,6 +77,7 @@ CheckStatus() {
 	msg=$2
 	if [ $ret -ne 0 ]; then
 		echo $msg
+		sleep 60
 		exit $ret
 	fi
 }
