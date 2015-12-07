@@ -68,7 +68,7 @@ Status Gru::Start() {
     minion.start_cmd = ss.str().c_str();
     minion.stop_cmd = ss_stop.str().c_str();
     minion.requirement = galaxy_job.pod.requirement;
-    minion.mem_isolation_type = "kMemIsolationLimit";
+    minion.mem_isolation_type = "kMemIsolationCgroup";
     minion.cpu_isolation_type = "kCpuIsolationSoft";
     galaxy_job.pod.tasks.push_back(minion);
     std::string minion_id;
