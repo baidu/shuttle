@@ -17,7 +17,7 @@ DECLARE_int32(parallel_attempts);
 namespace baidu {
 namespace shuttle {
 
-static const int parallel_level = 10;
+static const int parallel_level = 50;
 
 IdItem::IdItem(const IdItem& res) {
     CopyFrom(res);
@@ -203,6 +203,32 @@ std::vector<IdItem> IdManager::Dump() {
     return copy;
 }
 
+void ResourceManager::ExpandWildcard(const std::vector<std::string>& input_files,
+                                     std::vector<std::string>& expand_files,
+                                     FileSystem::Param& param) {
+    for (size_t i = 0; i < input_files.size(); i++) {
+        const std::string& file_name = input_files[i];
+        size_t prefix_pos;
+        if ((prefix_pos = file_name.find("/*/")) != std::string::npos) {
+            const std::string& prefix = file_name.substr(0, prefix_pos);
+            const std::string& suffix = file_name.substr(prefix_pos + 3);
+            std::vector<FileInfo> children;
+            FileSystem* fs = multi_fs_.GetFs(file_name, param);
+            bool ok = fs->List(prefix, &children);
+            if (!ok) {
+                expand_files.push_back(file_name);
+            } else {
+                for (size_t j = 0; j < children.size(); j++) {
+                    expand_files.push_back(
+                            children[j].name + "/" + suffix);
+                }
+            }
+        } else {
+            expand_files.push_back(file_name);
+        }
+    }
+}
+
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
                                  FileSystem::Param& param,
                                  int64_t split_size) : manager_(NULL), fs_(NULL) {
@@ -211,29 +237,11 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
     }
     std::vector<FileInfo> files;
     ::baidu::common::ThreadPool tp(parallel_level);
-    std::vector<FileInfo> sub_files[parallel_level];
-    int i = 0;
     std::vector<std::string> expand_input_files;
-    for (size_t i = 0; i < input_files.size(); i++) {
-        const std::string& file_name = input_files[i];
-        size_t prefix_pos ;
-        if ( (prefix_pos = file_name.find("/*/")) != std::string::npos) {
-            const std::string& prefix = file_name.substr(0, prefix_pos);
-            const std::string& suffix = file_name.substr(prefix_pos + 3);
-            std::vector<FileInfo> children;
-            FileSystem* fs = multi_fs_.GetFs(file_name, param);
-            bool ok = fs->List(prefix, &children);
-            if (!ok) {
-                expand_input_files.push_back(file_name);
-            } else {
-                for (size_t j = 0; j < children.size(); j++) {
-                    expand_input_files.push_back(children[j].name + "/" + suffix);
-                }
-            }
-        } else {
-            expand_input_files.push_back(file_name);
-        }
-    }
+    ExpandWildcard(input_files, expand_input_files, param);
+
+    std::vector<FileInfo>* sub_files = new std::vector<FileInfo>[expand_input_files.size()];
+    int i = 0;
     for (std::vector<std::string>::const_iterator it = expand_input_files.begin();
             it != expand_input_files.end(); ++it) {
         std::string path;
@@ -247,13 +255,15 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             ParseHdfsAddress(path, NULL, NULL, &no_host_path);
             tp.AddTask(boost::bind(&FileSystem::Glob, fs, no_host_path, &sub_files[i]));
         }
-        i = (i + 1) % parallel_level;
+        i++;
     }
     tp.Stop(true);
-    for (int i = 0; i < parallel_level; ++i) {
+    for (size_t i = 0; i < expand_input_files.size(); ++i) {
         files.reserve(files.size() + sub_files[i].size());
         files.insert(files.end(), sub_files[i].begin(), sub_files[i].end());
     }
+    LOG(INFO, "files total: %d", files.size());
+    delete[] sub_files;
     int counter = 0;
     const int64_t block_size = split_size == 0 ? FLAGS_input_block_size : split_size;
     for (std::vector<FileInfo>::iterator it = files.begin();

@@ -181,6 +181,11 @@ protected:
     IdManager* manager_;
     MultiFs multi_fs_;
     FileSystem* fs_;
+
+private:
+    void ExpandWildcard(const std::vector<std::string>& input_files,
+                        std::vector<std::string>& expand_files,
+                        FileSystem::Param& param);
 };
 
 class NLineResourceManager : public ResourceManager {
