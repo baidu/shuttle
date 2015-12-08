@@ -16,7 +16,6 @@ using baidu::common::INFO;
 namespace baidu {
 namespace shuttle {
 
-const static int32_t sLineBufSize = 40960;
 const static size_t sMaxInMemTable = 512 << 20;
 
 struct EmitItem {
@@ -210,7 +209,7 @@ TaskState MapExecutor::StreamingShuffle(FILE* user_app, const TaskInfo& task,
             pclose(user_app);
             return kTaskCanceled;
         }
-        if (fgets(line_buf_, sLineBufSize, user_app) == NULL) {
+        if (fgets(line_buf_, sLineBufferSize, user_app) == NULL) {
             break;
         }
         std::string record(line_buf_);

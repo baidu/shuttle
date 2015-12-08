@@ -18,6 +18,9 @@ using baidu::common::WARNING;
 namespace baidu {
 namespace shuttle {
 
+const int sLineBufferSize = 409600;
+const int sKeyLimit = 65536;
+
 class Partitioner;
 class Emitter;
 

@@ -6,9 +6,6 @@
 namespace baidu {
 namespace shuttle {
 
-const int sLineBufferSize = 40960;
-const int sKeyLimit = 65536;
-
 Executor::Executor() {
     line_buf_ = (char*)malloc(sLineBufferSize);
 }
