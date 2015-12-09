@@ -539,6 +539,7 @@ static int MonitorJob() {
     while (true) {
         ::baidu::shuttle::sdk::JobInstance job;
         std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
+        const std::string timestamp = FromatLongTime(time(NULL));
         bool ok = shuttle->ShowJob(config::params[0], job, tasks);
         if (!ok) {
             fprintf(stderr, "lost connection with master\n");
@@ -551,20 +552,22 @@ static int MonitorJob() {
         switch (job.state) {
         case ::baidu::shuttle::sdk::kPending:
             if (is_tty) {
-                printf("\rjob pending...");
+                printf("\r[%s] job pending...", timestamp.c_str());
             } else {
-                puts("job pending...");
+                printf("[%s] job pending...\n", timestamp.c_str());
             }
             fflush(stdout);
             break;
         case ::baidu::shuttle::sdk::kRunning:
             if (is_tty) {
                 printf("\r%s", erase);
-                printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running",
+                printf("\r[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running",
+                        timestamp.c_str(),
                         job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             } else {
-                printf("job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                printf("[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                        timestamp.c_str(),
                         job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             }
@@ -573,23 +576,25 @@ static int MonitorJob() {
         case ::baidu::shuttle::sdk::kCompleted:
             if (is_tty) {
                 printf("\r%s", erase);
-                printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                printf("\r[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                        timestamp.c_str(),
                         job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             } else {
-                printf("job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                printf("[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                        timestamp.c_str(),
                         job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             }
             fflush(stdout);
-            printf("job `%s' has completed\n", job.desc.name.c_str());
+            printf("[%s] job `%s' has completed\n", timestamp.c_str(), job.desc.name.c_str());
             return 0;
         case ::baidu::shuttle::sdk::kFailed:
         case ::baidu::shuttle::sdk::kKilled:
             if (is_tty) {
-                fprintf(stderr, "\njob `%s' is failed\n", job.desc.name.c_str());
+                fprintf(stderr, "\n[%s] job `%s' is failed\n", timestamp.c_str(), job.desc.name.c_str());
             } else {
-                fprintf(stderr, "job `%s' is failed\n", job.desc.name.c_str());
+                fprintf(stderr, "[%s] job `%s' is failed\n", timestamp.c_str(), job.desc.name.c_str());
             }
             fflush(stderr);
             delete shuttle;
