@@ -567,17 +567,22 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                     failed_count_.resize(reduce_manager_->SumOfItem(), 0);
                     failed_nodes_.clear();
                     mu_.Unlock();
-                    MutexLock lock(&alloc_mu_);
-                    std::vector<AllocateItem*> rest;
-                    while (!time_heap_.empty()) {
-                        if (!time_heap_.top()->is_map) {
-                            rest.push_back(time_heap_.top());
+                    {
+                        MutexLock lock(&alloc_mu_);
+                        std::vector<AllocateItem*> rest;
+                        while (!time_heap_.empty()) {
+                            if (!time_heap_.top()->is_map) {
+                                rest.push_back(time_heap_.top());
+                            }
+                            time_heap_.pop();
                         }
-                        time_heap_.pop();
+                        for (std::vector<AllocateItem*>::iterator it = rest.begin();
+                                it != rest.end(); ++it) {
+                            time_heap_.push(*it);
+                        }
                     }
-                    for (std::vector<AllocateItem*>::iterator it = rest.begin();
-                            it != rest.end(); ++it) {
-                        time_heap_.push(*it);
+                    if (monitor_ != NULL) {
+                        monitor_->Stop(false);
                     }
                     mu_.Lock();
                     if (monitor_ != NULL) {

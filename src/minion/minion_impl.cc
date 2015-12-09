@@ -1,6 +1,7 @@
 #include "minion_impl.h"
 
 #include <time.h>
+#include <unistd.h>
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
 #include <boost/scoped_ptr.hpp>
@@ -59,10 +60,25 @@ MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
     cur_task_id_ = -1;
     cur_attempt_id_ = -1;
     cur_task_state_ = kTaskUnknown;
+    watch_dog_.AddTask(boost::bind(&MinionImpl::WatchDogTask, this));
 }
 
 MinionImpl::~MinionImpl() {
     delete executor_;
+}
+
+void MinionImpl::WatchDogTask() {
+    double minute_load = 0.0;
+    int numCPU = sysconf( _SC_NPROCESSORS_ONLN );
+    FILE* file = fopen("/proc/loadavg", "r");
+    fscanf(file, "%lf%*", &minute_load);
+    fclose(file);
+    LOG(INFO, "load average: %f, cores: %d", minute_load, numCPU);
+    if (minute_load > numCPU) {
+        LOG(WARNING, "machine maybe overload, so the minion quit");
+        _exit(0);
+    }
+    watch_dog_.DelayTask(60000, boost::bind(&MinionImpl::WatchDogTask, this));
 }
 
 void MinionImpl::Query(::google::protobuf::RpcController* controller,

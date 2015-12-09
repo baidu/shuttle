@@ -35,6 +35,7 @@ private:
     void ClearBreakpoint();
     void CheckUnfinishedTask(Master_Stub* master_stub);
     void SleepRandomTime();
+    void WatchDogTask();
     std::string endpoint_;
     ThreadPool pool_;
     std::string master_endpoint_;
@@ -48,6 +49,7 @@ private:
     int32_t cur_attempt_id_;
     TaskState cur_task_state_;
     WorkMode work_mode_;
+    ThreadPool watch_dog_;
 };
 
 }
