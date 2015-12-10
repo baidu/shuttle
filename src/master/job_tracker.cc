@@ -635,7 +635,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         MutexLock lock(&alloc_mu_);
         cur->state = state;
         cur->period = std::time(NULL) - cur->alloc_time;
-        if (state == kTaskKilled) {
+        if (state == kTaskKilled || state == kTaskFailed) {
             map_slug_.push(cur->resource_no);
         }
     }
@@ -751,7 +751,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
         MutexLock lock(&alloc_mu_);
         cur->state = state;
         cur->period = std::time(NULL) - cur->alloc_time;
-        if (state == kTaskKilled) {
+        if (state == kTaskKilled || state == kTaskFailed) {
             reduce_slug_.push(cur->resource_no);
         }
     }

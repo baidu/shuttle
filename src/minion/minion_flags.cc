@@ -7,4 +7,4 @@ DEFINE_string(master_nexus_path, "/shuttle/master", "master address on nexus");
 DEFINE_string(work_mode, "map", "there are 3 kinds: map, reduce, map-only");
 DEFINE_bool(kill_task, false, "kill unfinished task");
 DEFINE_int32(suspend_time, 120, "suspend time in seconds when receive suspend op");
-DEFINE_int32(max_minions, 32, "max number of minions at one machine");
+DEFINE_int32(max_minions, 43, "max number of minions at one machine");
