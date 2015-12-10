@@ -74,7 +74,7 @@ void MinionImpl::WatchDogTask() {
     fscanf(file, "%lf%*", &minute_load);
     fclose(file);
     LOG(INFO, "load average: %f, cores: %d", minute_load, numCPU);
-    if (minute_load > numCPU) {
+    if (minute_load > 2 * numCPU) {
         LOG(WARNING, "machine maybe overload, so the minion quit");
         _exit(0);
     }
