@@ -41,18 +41,22 @@ Status Gru::Start() {
     galaxy_job.pod.requirement.millicores = job_->millicores() + additional_millicores;
     galaxy_job.pod.requirement.memory = job_->memory() +
         ((mode_ == kReduce) ? additional_reduce_memory : additional_map_memory);
-    std::string app_package, cache_archive;
+    std::string app_package;
+    std::vector<std::string> cache_archive_list;
     int file_size = job_->files().size();
     for (int i = 0; i < file_size; ++i) {
         const std::string& file = job_->files(i);
         if (boost::starts_with(file, "hdfs://")) {
-            cache_archive = file;
+            cache_archive_list.push_back(file);
         } else {
             app_package = file;
         }
     }
     std::stringstream ss;
-    ss << "app_package=" << app_package << " cache_archive=" << cache_archive
+    for (size_t i = 0; i < cache_archive_list.size(); i++) {
+        ss << "cache_archive_" << i << "=" << cache_archive_list[i] << " ";
+    }
+    ss << "app_package=" << app_package
        << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
        << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
        << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_);

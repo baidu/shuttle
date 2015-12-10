@@ -542,8 +542,10 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
                 break;
             }
             int completed = map_manager_->Done();
+            int not_done = job_descriptor_.map_total() - completed;
             map_dismiss_minion_num_ = job_descriptor_.map_capacity() - (int)
-                ::ceil((job_descriptor_.map_total() - completed) * FLAGS_left_percent / 100.0);
+                ::ceil( std::max(not_done, 5) * FLAGS_left_percent / 100.0);
+
             LOG(INFO, "complete a map task(%d/%d): %s",
                     completed, map_manager_->SumOfItem(), job_id_.c_str());
             if (completed == reduce_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
@@ -633,6 +635,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
         MutexLock lock(&alloc_mu_);
         cur->state = state;
         cur->period = std::time(NULL) - cur->alloc_time;
+        if (state == kTaskKilled) {
+            map_slug_.push(cur->resource_no);
+        }
     }
 
     if (state != kTaskCompleted) {
@@ -746,6 +751,9 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
         MutexLock lock(&alloc_mu_);
         cur->state = state;
         cur->period = std::time(NULL) - cur->alloc_time;
+        if (state == kTaskKilled) {
+            reduce_slug_.push(cur->resource_no);
+        }
     }
     if (state != kTaskCompleted) {
         return kOk;

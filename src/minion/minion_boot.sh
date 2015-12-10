@@ -42,20 +42,26 @@ DownloadUserTar() {
 		echo "need app_pacakge"
 		return -1
 	fi
-	if [ "$cache_archive" != "" ]; then
-		cache_archive_addr=`echo $cache_archive | cut -d"#" -f 1`
-		cache_archive_dir=`echo $cache_archive | cut -d"#" -f 2`
-		if [ "$cache_archive_dir" == "" ]; then
-			return -1
+	for ((i=0;i<5;i++))
+	do
+		cache_archive=$( eval echo \$cache_archive_${i} )
+		if [ "$cache_archive" != "" ]; then
+			cache_archive_addr=`echo $cache_archive | cut -d"#" -f 1`
+			cache_archive_dir=`echo $cache_archive | cut -d"#" -f 2`
+			if [ "$cache_archive_dir" == "" ]; then
+				return -1
+			fi
+			mkdir $cache_archive_dir
+			rm -f $cache_archive_dir/*.tar.gz
+			${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
+			if [ $? -ne 0 ]; then
+				return -1
+			fi
+			(cd $cache_archive_dir && tar -xzvf *.tar.gz)
+		else
+			break
 		fi
-		mkdir $cache_archive_dir
-		rm -f $cache_archive_dir/*.tar.gz
-		${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
-		if [ $? -ne 0 ]; then
-			return -1
-		fi
-		(cd $cache_archive_dir && tar -xzvf *.tar.gz)
-	fi
+	done
 	local_package=`echo $app_package | awk -F"/" '{print $NF}'`
 	./NfsShell get /disk/shuttle/${app_package} ${local_package}
 	return $?	
