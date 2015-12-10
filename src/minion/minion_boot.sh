@@ -4,9 +4,10 @@ set -o pipefail
 
 CmdArgs=$*
 
+HADOOP_CLIENT_HOME=/tmp/hadoop-client
 
 DownloadHadoop() {
-	if [ ! -d /tmp/hadoop-client ]; then
+	if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/libhdfs/libhdfs.so ]; then
 		./NfsShell get /disk/shuttle/hadoop-client.tar.gz ./hadoop-client.tar.gz
 		if [ $? -ne 0 ]; then
 			return 1
@@ -15,8 +16,11 @@ DownloadHadoop() {
 		if [ $? -ne 0 ]; then
 			return 2
 		fi
-		mv ./hadoop-client /tmp/
-		return $?
+		if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/libhdfs/libhdfs.so ]; then
+			rm -rf ${HADOOP_CLIENT_HOME}
+			mv ./hadoop-client /tmp/
+			return $?
+		fi
 	fi
 	return 0
 }
@@ -29,7 +33,7 @@ DownloadMinionTar() {
 ExtractMinionTar() {
 	tar -xzf minion.tar.gz
 	ret=$?
-	mv ./hadoop-site.xml /tmp/hadoop-client/hadoop/conf/
+	mv -f ./hadoop-site.xml $HADOOP_CLIENT_HOME/hadoop/conf/
 	return $ret
 }
 
@@ -46,7 +50,7 @@ DownloadUserTar() {
 		fi
 		mkdir $cache_archive_dir
 		rm -f $cache_archive_dir/*.tar.gz
-		/tmp/hadoop-client/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
+		${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
 		if [ $? -ne 0 ]; then
 			return -1
 		fi
@@ -58,7 +62,7 @@ DownloadUserTar() {
 }
 
 ExtractUserTar() {
-	tar -xzvf ${local_package}
+	tar -xzf ${local_package}
 	return $?
 }
 
