@@ -103,12 +103,14 @@ message ListJobsResponse {
 message ShowJobRequest {
     required string jobid = 1;
     optional bool all = 2;
+    optional bool show_detail = 3;
 }
 
 message ShowJobResponse {
     optional Status status = 1;
     optional JobOverview job = 2;
     repeated TaskOverview tasks = 3;
+    optional string error_msg = 4;
 }
 
 message AssignTaskRequest {
@@ -129,6 +131,7 @@ message FinishTaskRequest {
     optional TaskState task_state = 4;
     optional string endpoint = 5;
     optional WorkMode work_mode = 6;
+    optional string error_msg = 7;
 }
 
 message FinishTaskResponse {

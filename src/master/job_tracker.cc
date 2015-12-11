@@ -494,7 +494,7 @@ void JobTracker::CancelOtherAttempts(
     }
 }
 
-Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
+Status JobTracker::FinishMap(int no, int attempt, TaskState state, const std::string& err_msg) {
     AllocateItem* cur = NULL;
     {
         MutexLock lock(&alloc_mu_);
@@ -615,6 +615,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
             ++ map_failed_;
             if (failed_count_[cur->resource_no] >= job_descriptor_.map_retry()) {
                 LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
+                LOG(WARNING, "=== error msg ===");
+                LOG(WARNING, "%s", err_msg.c_str());
+                error_msg_ = err_msg;
                 mu_.Unlock(); 
                 master_->RetractJob(job_id_);
                 mu_.Lock();
@@ -650,7 +653,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state) {
     return kOk;
 }
 
-Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
+Status JobTracker::FinishReduce(int no, int attempt, TaskState state, const std::string& err_msg) {
     if (map_manager_ && map_manager_->Done() < job_descriptor_.map_total()) {
         LOG(WARNING, "reduce finish too early, wait a moment");
         return kSuspend;
@@ -731,6 +734,9 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state) {
             ++ reduce_failed_;
             if (failed_count_[cur->resource_no] >= job_descriptor_.reduce_retry()) {
                 LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
+                LOG(WARNING, "=== error msg ===");
+                LOG(WARNING, "%s", err_msg.c_str());
+                error_msg_ = err_msg;
                 mu_.Unlock();
                 master_->RetractJob(job_id_);
                 mu_.Lock();

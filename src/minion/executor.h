@@ -31,7 +31,8 @@ public:
     void SetEnv(const std::string& jobid, const TaskInfo& task);
     virtual TaskState Exec(const TaskInfo& task) = 0;
     void Stop(int32_t task_id);
-    void ReportErrors(const TaskInfo& task, bool is_map);
+    std::string GetErrorMsg(const TaskInfo& task, bool is_map);
+    void UploadErrorMsg(const TaskInfo& task, bool is_map, const std::string& error_msg);
     static void FillParam(FileSystem::Param& param, const TaskInfo& task);
 protected:
     Executor() ;

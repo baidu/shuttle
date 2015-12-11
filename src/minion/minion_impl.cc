@@ -74,7 +74,7 @@ void MinionImpl::WatchDogTask() {
     fscanf(file, "%lf%*", &minute_load);
     fclose(file);
     LOG(INFO, "load average: %f, cores: %d", minute_load, numCPU);
-    if (minute_load > 2 * numCPU) {
+    if (minute_load > 2.5 * numCPU) {
         LOG(WARNING, "machine maybe overload, so the minion quit");
         _exit(0);
     }
@@ -189,6 +189,10 @@ void MinionImpl::Loop() {
             cur_task_state_ = task_state;
         }
         LOG(INFO, "exec done, task state: %s", TaskState_Name(task_state).c_str());
+        std::string error_msg;
+        if (task_state == kTaskFailed) {
+            error_msg = executor_->GetErrorMsg(task, (work_mode_ != kReduce));
+        }
         ::baidu::shuttle::FinishTaskRequest fn_request;
         ::baidu::shuttle::FinishTaskResponse fn_response;
         fn_request.set_jobid(jobid_);
@@ -197,6 +201,7 @@ void MinionImpl::Loop() {
         fn_request.set_task_state(task_state);
         fn_request.set_endpoint(endpoint_);
         fn_request.set_work_mode(work_mode_);
+        fn_request.set_error_msg(error_msg);
         while (!stop_) {
             bool ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
                                          &fn_request, &fn_response, 5, 1);
@@ -216,7 +221,7 @@ void MinionImpl::Loop() {
         ClearBreakpoint();
         if (task_state == kTaskFailed) {
             LOG(WARNING, "task state: %s", TaskState_Name(task_state).c_str());
-            executor_->ReportErrors(task, (work_mode_ != kReduce));
+            executor_->UploadErrorMsg(task, (work_mode_ != kReduce), error_msg);
             SleepRandomTime();
         }
     }

@@ -156,7 +156,9 @@ public:
     virtual bool ShowJob(const std::string& job_id, 
                          sdk::JobInstance& job,
                          std::vector<sdk::TaskInstance>& tasks,
-                         bool display_all = true) = 0;
+                         bool display_all,
+                         bool show_detail,
+                         std::string& error_msg) = 0;
     virtual bool ListJobs(std::vector<sdk::JobInstance>& jobs,
                           bool display_all = true) = 0;
     virtual void SetRpcTimeout(int timeout) = 0;

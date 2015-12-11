@@ -201,8 +201,10 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
         job->mutable_reduce_stat()->CopyFrom(jobtracker->GetReduceStatistics());
         job->set_start_time(jobtracker->GetStartTime());
         job->set_finish_time(jobtracker->GetFinishTime());
-
-        jobtracker->Check(response);
+        response->set_error_msg(jobtracker->GetErrorMsg());
+        if (request->show_detail()) {
+            jobtracker->Check(response);
+        }
         // TODO Query progress here
     } else {
         LOG(WARNING, "try to access an inexist job: %s", job_id.c_str());
@@ -294,11 +296,13 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
         if (request->work_mode() == kReduce) {
             status = jobtracker->FinishReduce(request->task_id(),
                                               request->attempt_id(),
-                                              request->task_state());
+                                              request->task_state(),
+                                              request->error_msg());
         } else {
             status = jobtracker->FinishMap(request->task_id(),
                                            request->attempt_id(),
-                                           request->task_state());
+                                           request->task_state(),
+                                           request->error_msg());
         }
         response->set_status(status);
     } else {

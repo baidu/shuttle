@@ -66,7 +66,7 @@ bool reduce_speculative_exec = true;
 int map_retry = 3;
 int reduce_retry = 3;
 int64_t split_size = 500l * 1024 * 1024;
-
+std::string err_msg;
 }
 
 const std::string error_message = "shuttle client - A fast computing framework base on Galaxy\n"
@@ -233,6 +233,9 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
         } else if (!strcmp(ctx, "cacheArchive")) {
             if (!config::file.empty()) {
                 config::file += ",";
+            }
+            if (!boost::starts_with(opt[i+1], "hdfs://") || !boost::contains(opt[i+1],"tar.gz")) {
+                config::err_msg = "cacheArchive should like this hdfs://hostname:port/abc.tar.gz";
             }
             config::file += opt[++i];
         } else if (!strcmp(ctx, "mapper")) {
@@ -466,6 +469,10 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
     printf("State: %s\n", state_string[job.state]);
     printf("Start Time: %s\n", FromatLongTime(job.start_time).c_str());
     printf("Finish Time: %s\n", job.finish_time == 0 ? "-": FromatLongTime(job.finish_time).c_str());
+    for (size_t i = 0; i < job.desc.inputs.size(); i++) {
+        printf("Input[%d]: %s\n", (int)i, job.desc.inputs[i].c_str());
+    }
+    printf("Output: %s\n", job.desc.output.c_str());
     printf("====================\n");
     ::baidu::common::TPrinter tp(7);
     tp.AddRow(7, "", "total", "pending", "running", "failed", "killed", "completed");
@@ -540,7 +547,8 @@ static int MonitorJob() {
         ::baidu::shuttle::sdk::JobInstance job;
         std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
         const std::string timestamp = FromatLongTime(time(NULL));
-        bool ok = shuttle->ShowJob(config::params[0], job, tasks);
+        std::string error_msg;
+        bool ok = shuttle->ShowJob(config::params[0], job, tasks, true, false, error_msg);
         if (!ok) {
             fprintf(stderr, "lost connection with master\n");
             if (error_tolerance-- <= 0) {
@@ -590,11 +598,23 @@ static int MonitorJob() {
             printf("[%s] job `%s' has completed\n", timestamp.c_str(), job.desc.name.c_str());
             return 0;
         case ::baidu::shuttle::sdk::kFailed:
-        case ::baidu::shuttle::sdk::kKilled:
             if (is_tty) {
                 fprintf(stderr, "\n[%s] job `%s' is failed\n", timestamp.c_str(), job.desc.name.c_str());
             } else {
                 fprintf(stderr, "[%s] job `%s' is failed\n", timestamp.c_str(), job.desc.name.c_str());
+            }
+            fprintf(stderr, "=== error msg ===\n");
+            fprintf(stderr, "%s", error_msg.c_str());
+            fprintf(stderr, "==================\n");
+            fprintf(stderr, "check error details here: %s\n", (job.desc.output + "/_temporary/errors").c_str());
+            fflush(stderr);
+            delete shuttle;
+            return -1;
+        case ::baidu::shuttle::sdk::kKilled:
+            if (is_tty) {
+                fprintf(stderr, "\n[%s] job `%s' is killed\n", timestamp.c_str(), job.desc.name.c_str());
+            } else {
+                fprintf(stderr, "[%s] job `%s' is killed\n", timestamp.c_str(), job.desc.name.c_str());
             }
             fflush(stderr);
             delete shuttle;
@@ -805,7 +825,8 @@ static int ShowJob() {
 
     ::baidu::shuttle::sdk::JobInstance job;
     std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
-    bool ok = shuttle->ShowJob(config::params[0], job, tasks, config::display_all);
+    std::string error_msg;
+    bool ok = shuttle->ShowJob(config::params[0], job, tasks, config::display_all, true, error_msg);
     delete shuttle;
     done = true;
     if (!ok) {
@@ -815,6 +836,11 @@ static int ShowJob() {
     std::sort(tasks.begin(), tasks.end(), TaskComparator());
     PrintJobDetails(job);
     PrintTasksInfo(tasks);
+    if (!error_msg.empty()) {
+        printf("===== error message =====\n");
+        printf("%s", error_msg.c_str());
+        printf("=========================\n");
+    }
     return 0;
 }
 
@@ -837,6 +863,10 @@ void SignalHandler(int /*sig*/) {
 
 int main(int argc, char* argv[]) {
     ParseCommandLineFlags(&argc, &argv);
+    if (!config::err_msg.empty()) {
+        fprintf(stderr, "%s\n", config::err_msg.c_str());
+        return -1;
+    }
     ParseJobConfig();
     ParseNexusFile();
     if (argc < 2) {

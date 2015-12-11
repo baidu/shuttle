@@ -53,8 +53,8 @@ public:
     Status Kill();
     ResourceItem* AssignMap(const std::string& endpoint, Status* status);
     IdItem* AssignReduce(const std::string& endpoint, Status* status);
-    Status FinishMap(int no, int attempt, TaskState state);
-    Status FinishReduce(int no, int attempt, TaskState state);
+    Status FinishMap(int no, int attempt, TaskState state, const std::string& err_msg);
+    Status FinishReduce(int no, int attempt, TaskState state, const std::string& err_msg);
 
     std::string GetJobId() {
         MutexLock lock(&mu_);
@@ -75,6 +75,10 @@ public:
     time_t GetFinishTime() {
         MutexLock lock(&mu_);
         return finish_time_;
+    }
+    const std::string& GetErrorMsg() {
+        MutexLock lock(&mu_);
+        return error_msg_;
     }
     TaskStatistics GetMapStatistics();
     TaskStatistics GetReduceStatistics();
@@ -164,6 +168,7 @@ private:
     int32_t finish_time_;
     std::map<int, std::map<int, AllocateItem*> > map_index_;
     std::map<int, std::map<int, AllocateItem*> > reduce_index_;
+    std::string error_msg_;
 };
 
 }

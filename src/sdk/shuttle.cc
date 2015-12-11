@@ -27,7 +27,9 @@ public:
     bool ShowJob(const std::string& job_id, 
                  sdk::JobInstance& job,
                  std::vector<sdk::TaskInstance>& tasks,
-                 bool display_all);
+                 bool display_all,
+                 bool show_detail,
+                 std::string& error_msg);
     bool ListJobs(std::vector<sdk::JobInstance>& jobs,
                   bool display_all);
     void SetRpcTimeout(int second);
@@ -180,11 +182,14 @@ bool ShuttleImpl::KillTask(const std::string& job_id, sdk::TaskType mode,
 bool ShuttleImpl::ShowJob(const std::string& job_id, 
                           sdk::JobInstance& job,
                           std::vector<sdk::TaskInstance>& tasks,
-                          bool display_all) {
+                          bool display_all,
+                          bool show_detail,
+                          std::string& error_msg) {
     ::baidu::shuttle::ShowJobRequest request;
     ::baidu::shuttle::ShowJobResponse response;
     request.set_jobid(job_id);
     request.set_all(display_all);
+    request.set_show_detail(show_detail);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::ShowJob,
                                       &request, &response, rpc_timeout_, 1);
@@ -273,6 +278,7 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
         task.end_time = it->end_time();
         tasks.push_back(task);
     }
+    error_msg = response.error_msg();
     return true;
 }
 

@@ -440,7 +440,7 @@ TaskState Executor::TransMultipleTextOutput(FILE* user_app, const std::string& t
     return kTaskCompleted;
 }
 
-void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
+void Executor::UploadErrorMsg(const TaskInfo& task, bool is_map, const std::string& error_msg) {
     std::string log_name;
     std::string work_dir = task.job().output() + "/_temporary";
     if (is_map) {
@@ -467,27 +467,33 @@ void Executor::ReportErrors(const TaskInfo& task, bool is_map) {
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     boost::scoped_ptr<FileSystem> fs_guard(fs);
     if (fs->Exist(work_dir) && fs->Open(log_name, param, kWriteFile)) {
-        std::stringstream cmd_ss;
-        std::stringstream task_local_dir;
-        std::string task_type = (is_map ? "map_" : "reduce_");
-        task_local_dir << task_type << task.task_id() << "_" << task.attempt_id();
-        cmd_ss << "ls -tr " << task_local_dir.str() << "/* | grep -P 'stdout|stderr|\\.log' | "
-                  "while read f_name ;do  echo $f_name && tail -10000 $f_name; done";
-        LOG(INFO, "=== upload task log ===");
-        LOG(INFO, "%s", cmd_ss.str().c_str());
-        FILE* reporter = popen(cmd_ss.str().c_str(), "r");
-        std::string line;
-        while (ReadLine(reporter, &line)) {
-            if (feof(reporter)) {
-                break;
-            }
-            fs->WriteAll(&line[0], line.size());
-        }
-        pclose(reporter);
+        fs->WriteAll((void*)&error_msg[0], error_msg.size());
         if (!fs->Close()) {
-            LOG(WARNING, "fail to report errors to hdfs");
+            LOG(WARNING, "fail to upload errors to hdfs");
         }
     }
+}
+
+std::string Executor::GetErrorMsg(const TaskInfo& task, bool is_map) {
+    std::stringstream cmd_ss;
+    std::stringstream task_local_dir;
+    std::string task_type = (is_map ? "map_" : "reduce_");
+    task_local_dir << task_type << task.task_id() << "_" << task.attempt_id();
+    cmd_ss << "ls -tr " << task_local_dir.str() << "/* | grep -P 'stdout|stderr|\\.log' | "
+              "while read f_name ;do  echo $f_name && tail -c 4000 $f_name; done | tail -c 8000";
+    LOG(INFO, "=== upload task log ===");
+    LOG(INFO, "%s", cmd_ss.str().c_str());
+    FILE* reporter = popen(cmd_ss.str().c_str(), "r");
+    std::string err_msg;
+    std::string line;
+    while (ReadLine(reporter, &line)) {
+        if (feof(reporter)) {
+            break;
+        }
+        err_msg += line;
+    }
+    pclose(reporter);
+    return err_msg;
 }
 
 bool Executor::MoveMultipleTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map) {
