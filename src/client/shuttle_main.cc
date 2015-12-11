@@ -473,7 +473,9 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
         printf("Input[%d]: %s\n", (int)i, job.desc.inputs[i].c_str());
     }
     printf("Output: %s\n", job.desc.output.c_str());
-    printf("====================\n");
+    printf("Map Capacity: %d\n", job.desc.map_capacity);
+    printf("Reduce Capacity: %d\n", job.desc.reduce_capacity);
+    printf("\n====================\n");
     ::baidu::common::TPrinter tp(7);
     tp.AddRow(7, "", "total", "pending", "running", "failed", "killed", "completed");
     tp.AddRow(7, "Map", boost::lexical_cast<std::string>(job.map_stat.total).c_str(),
