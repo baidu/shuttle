@@ -57,7 +57,7 @@ DownloadUserTar() {
 			if [ $? -ne 0 ]; then
 				return -1
 			fi
-			(cd $cache_archive_dir && tar -xzvf *.tar.gz)
+			(cd $cache_archive_dir && tar -xzf *.tar.gz)
 		else
 			break
 		fi

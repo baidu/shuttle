@@ -10,7 +10,7 @@
 namespace baidu {
 namespace shuttle {
 
-const static int sDefaultRpcTimeout = 3600;
+const static int sDefaultRpcTimeout = 7200;
 
 class ShuttleImpl : public Shuttle {
 public:

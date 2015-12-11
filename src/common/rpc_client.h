@@ -19,7 +19,7 @@ public:
         // 可以通过 client_options 指定一些配置参数，譬如线程数、流控等
         sofa::pbrpc::RpcClientOptions options;
         options.max_pending_buffer_size = 128;
-        options.keep_alive_time = 3600;//seconds;
+        options.keep_alive_time = 7200;//seconds;
         _rpc_client = new sofa::pbrpc::RpcClient(options);
     }
     ~RpcClient() {
