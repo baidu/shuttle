@@ -250,7 +250,7 @@ Status JobTracker::Update(const std::string& priority,
     return kOk;
 }
 
-Status JobTracker::Kill() {
+Status JobTracker::Kill(JobState end_state) {
     {
         MutexLock lock(&mu_);
         if (map_ != NULL) {
@@ -269,9 +269,7 @@ Status JobTracker::Kill() {
             monitor_ = NULL;
         }
 
-        if (state_ != kCompleted) {
-            state_ = kKilled;
-        }
+        state_ = end_state;
     }
 
     MutexLock lock(&alloc_mu_);
@@ -560,7 +558,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state, const std::st
                     LOG(INFO, "map-only job finish: %s", job_id_.c_str());
                     fs_->Remove(job_descriptor_.output() + "/_temporary");
                     mu_.Unlock();
-                    master_->RetractJob(job_id_);
+                    master_->RetractJob(job_id_, kCompleted);
                     mu_.Lock();
                     state_ = kCompleted;
                 } else {
@@ -619,7 +617,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state, const std::st
                 LOG(WARNING, "%s", err_msg.c_str());
                 error_msg_ = err_msg;
                 mu_.Unlock(); 
-                master_->RetractJob(job_id_);
+                master_->RetractJob(job_id_, kFailed);
                 mu_.Lock();
                 state_ = kFailed;
             }
@@ -718,7 +716,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state, const std:
                     LOG(WARNING, "remove temp failed");
                 }
                 mu_.Unlock();
-                master_->RetractJob(job_id_);
+                master_->RetractJob(job_id_, kCompleted);
                 mu_.Lock();
                 state_ = kCompleted;
             }
@@ -739,7 +737,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state, const std:
                 LOG(WARNING, "%s", err_msg.c_str());
                 error_msg_ = err_msg;
                 mu_.Unlock();
-                master_->RetractJob(job_id_);
+                master_->RetractJob(job_id_, kFailed);
                 mu_.Lock();
                 state_ = kFailed;
             }

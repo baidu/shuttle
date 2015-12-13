@@ -132,7 +132,7 @@ void MasterImpl::KillJob(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status status = RetractJob(job_id);
+        Status status = RetractJob(job_id, kKilled);
         response->set_status(status);
     } else {
         LOG(WARNING, "try to kill an inexist job: %s", job_id.c_str());
@@ -323,7 +323,7 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
     done->Run();
 }
 
-Status MasterImpl::RetractJob(const std::string& jobid) {
+Status MasterImpl::RetractJob(const std::string& jobid, JobState end_state) {
     MutexLock lock(&(tracker_mu_));
     MutexLock lock2(&(dead_mu_));
     std::map<std::string, JobTracker*>::iterator it = job_trackers_.find(jobid);
@@ -335,7 +335,7 @@ Status MasterImpl::RetractJob(const std::string& jobid) {
     JobTracker* jobtracker = it->second;
     job_trackers_.erase(it);
     dead_trackers_[jobid] = jobtracker;
-    return jobtracker->Kill();
+    return jobtracker->Kill(end_state);
 }
 
 void MasterImpl::AcquireMasterLock() {

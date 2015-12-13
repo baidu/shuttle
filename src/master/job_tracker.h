@@ -50,7 +50,7 @@ public:
 
     Status Start();
     Status Update(const std::string& priority, int map_capacity, int reduce_capacity);
-    Status Kill();
+    Status Kill(JobState end_state);
     ResourceItem* AssignMap(const std::string& endpoint, Status* status);
     IdItem* AssignReduce(const std::string& endpoint, Status* status);
     Status FinishMap(int no, int attempt, TaskState state, const std::string& err_msg);

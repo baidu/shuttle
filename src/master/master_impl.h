@@ -51,7 +51,7 @@ public:
                     ::baidu::shuttle::FinishTaskResponse* response,
                     ::google::protobuf::Closure* done);
 
-    Status RetractJob(const std::string& jobid);
+    Status RetractJob(const std::string& jobid, JobState end_state);
 
 private:
     void AcquireMasterLock();
