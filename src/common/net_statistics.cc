@@ -1,7 +1,7 @@
 #include "net_statistics.h"
+#include <stdio.h>
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
-#include "logging.h"
 
 namespace baidu {
 namespace shuttle {
@@ -15,7 +15,7 @@ NetStatistics::NetStatistics(const std::string& if_name) : if_name_(if_name) {
     int64_t recv_amount = -1;
     bool ok = GetCurNetAmount(&send_amount, &recv_amount);
     if (!ok) {
-        LOG(WARNING, "fail to get network statistics from /sys/class/net/%s", if_name.c_str());
+        fprintf(stderr, "fail to get network statistics from /sys/class/net/%s\n", if_name.c_str());
         return;
     }
     pool_.DelayTask(sNetStatInterval, boost::bind(&NetStatistics::CheckStatistics, this, send_amount, recv_amount));
