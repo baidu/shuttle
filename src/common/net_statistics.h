@@ -16,12 +16,10 @@ public:
     NetStatistics(const std::string& if_name);
 
     int64_t GetSendSpeed(){
-        MutexLock lock(&mu_);
         return send_speed_;
     }
 
     int64_t GetRecvSpeed() {
-        MutexLock lock(&mu_);
         return recv_speed_;
     }
 
