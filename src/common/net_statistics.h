@@ -23,6 +23,9 @@ public:
         return recv_speed_;
     }
 
+    bool Ok() {
+        return ok_;
+    }
 private:
     void CheckStatistics(int64_t last_send_amount, int64_t last_recv_amount);
     bool GetCurNetAmount(int64_t* send_amount, int64_t* recv_amount);
@@ -31,6 +34,7 @@ private:
     std::string if_name_;
     int64_t send_speed_;
     int64_t recv_speed_;
+    bool ok_;
 };
 
 }

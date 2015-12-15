@@ -8,7 +8,7 @@ namespace shuttle {
 
 const static int32_t sNetStatInterval = 5000; //5 seconds
 
-NetStatistics::NetStatistics(const std::string& if_name) : if_name_(if_name) {
+NetStatistics::NetStatistics(const std::string& if_name) : if_name_(if_name), ok_(true) {
     send_speed_ = 0L;
     recv_speed_ = 0L;
     int64_t send_amount = -1;
@@ -16,6 +16,7 @@ NetStatistics::NetStatistics(const std::string& if_name) : if_name_(if_name) {
     bool ok = GetCurNetAmount(&send_amount, &recv_amount);
     if (!ok) {
         fprintf(stderr, "fail to get network statistics from /sys/class/net/%s\n", if_name.c_str());
+        ok_ = false;
         return;
     }
     pool_.DelayTask(sNetStatInterval, boost::bind(&NetStatistics::CheckStatistics, this, send_amount, recv_amount));
