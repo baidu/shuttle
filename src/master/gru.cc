@@ -32,7 +32,6 @@ public:
     }
 
     virtual Status Start();
-    virtual Status Update(const std::string& priority, int capacity);
     virtual Status Kill();
     virtual Resource* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
@@ -46,6 +45,9 @@ public:
         return finish_time_;
     }
     virtual TaskStatistics GetStatistics() const;
+
+    virtual Status SetCapacity(int capacity);
+    virtual Status SetPriority(const std::string& priority);
 
     virtual void RegisterNearlyFinishCallback(boost::function<void ()> callback) {
         MutexLock lock(&meta_mu_);
@@ -155,22 +157,6 @@ Status BasicGru<Resource>::Start() {
 }
 
 template <class Resource>
-Status BasicGru<Resource>::Update(const std::string& priority, int capacity) {
-    if (galaxy_ == NULL) {
-        return;
-    }
-    if (galaxy_->Update(priority, capacity) != kOk) {
-        return kGalaxyError;
-    }
-    if (capacity != -1) {
-        job_.mutable_nodes(node_)->set_capacity(capacity);
-    }
-    if (!priority.empty()) {
-        // TODO Set priority
-    }
-}
-
-template <class Resource>
 Status BasicGru<Resource>::Kill() {
     meta_mu_.Lock();
     if (galaxy_ != NULL) {
@@ -218,6 +204,29 @@ TaskStatistics BasicGru<Resource>::GetStatistics() const {
     task.set_killed(killed_);
     task.set_completed(completed);
     return task;
+}
+
+template <class Resource>
+Status BasicGru<Resource>::SetCapacity(int capacity) {
+    if (galaxy_ == NULL) {
+        return kGalaxyError;
+    }
+    if (galaxy_->SetCapacity(capacity) != kOk) {
+        return kGalaxyError;
+    }
+    job_.mutable_nodes(node_)->set_capacity(capacity);
+    return kOk;
+}
+
+template <class Resource>
+Status BasicGru<Resource>::SetPriority(const std::string& priority) {
+    if (galaxy_ == NULL) {
+        return kGalaxyError;
+    }
+    if (galaxy_->SetPriority(priority) != kOk) {
+        return kGalaxyError;
+    }
+    return kOk;
 }
 
 template <class Resource>

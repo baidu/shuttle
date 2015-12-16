@@ -88,25 +88,24 @@ Status GalaxyHandler::Kill() {
     return kGalaxyError;
 }
 
-Status GalaxyHandler::Update(const std::string& priority,
-                   int capacity) {
+Status GalaxyHandler::SetPriority(const std::string& priority) {
     ::baidu::galaxy::JobDescription job_desc = galaxy_job_;
-    if (!priority.empty()) {
-        job_desc.priority = priority;
+    job_desc.priority = priority;
+    if (!galaxy_->UpdateJob(minion_id_, job_desc)) {
+        return kGalaxyError;
     }
-    if (capacity != -1) {
-        job_desc.replica = capacity;
+    galaxy_job_.priority = priority;
+    return kOk;
+}
+
+Status GalaxyHandler::SetCapacity(int capacity) {
+    ::baidu::galaxy::JobDescription job_desc = galaxy_job_;
+    job_desc.replica = capacity;
+    if (!galaxy_->UpdateJob(minion_id_, job_desc)) {
+        return kGalaxyError;
     }
-    if (galaxy_->UpdateJob(minion_id_, job_desc)) {
-        if (!priority.empty()) {
-            galaxy_job_.priority = priority;
-        }
-        if (capacity != -1) {
-            galaxy_job_.replica = capacity;
-        }
-        return kOk;
-    }
-    return kGalaxyError;
+    galaxy_job_.replica = capacity;
+    return kOk;
 }
 
 }

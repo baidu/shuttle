@@ -37,7 +37,6 @@ class Gru {
 public:
     // Operations
     virtual Status Start() = 0;
-    virtual Status Update(const std::string& priority, int capacity) = 0;
     virtual Status Kill() = 0;
     virtual Resource* Assign(const std::string& endpoint, Status* status) = 0;
     virtual Status Finish(int no, int attempt, TaskState state) = 0;
@@ -47,6 +46,10 @@ public:
     virtual time_t GetStartTime() const = 0;
     virtual time_t GetFinishTime() const = 0;
     virtual TaskStatistics GetStatistics() const = 0;
+    
+    // Property setters
+    virtual Status SetCapacity(int capacity) = 0;
+    virtual Status SetPriority(const std::string& priority) = 0;
 
     // Notify upper job tracker the nearly finish and finish state,
     // so that the job tracker could pull up next phrase or change some states

@@ -24,7 +24,9 @@ public:
 
     Status Start();
     Status Kill();
-    Status Update(const std::string& priority, int capacity);
+
+    Status SetPriority(const std::string& priority);
+    Status SetCapacity(int capacity);
 
     static int additional_millicores;
     static int64_t additional_memory;
