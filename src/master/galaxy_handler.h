@@ -14,7 +14,7 @@ class GalaxyHandler {
 
 public:
     GalaxyHandler(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
-        const std::string& job_id, WorkMode mode);
+        const std::string& job_id, int node);
     virtual ~GalaxyHandler() { Kill(); }
 
     Status Start();
@@ -22,8 +22,7 @@ public:
     Status Update(const std::string& priority, int capacity);
 
     static int additional_millicores;
-    static int64_t additional_map_memory;
-    static int64_t additional_reduce_memory;
+    static int64_t additional_memory;
 
 private:
     // For galaxy manangement
@@ -34,9 +33,9 @@ private:
     // Minion information
     std::string minion_name_;
     JobDescriptor* job_;
-    const std::string& job_id_;
-    WorkMode mode_;
-    std::string mode_str_;
+    const std::string job_id_;
+    int node_;
+    std::string node_str_;
 
 };
 

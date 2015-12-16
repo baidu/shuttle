@@ -3,6 +3,7 @@
 #include <sstream>
 #include <gflags/gflags.h>
 #include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -13,52 +14,50 @@ DECLARE_string(master_path);
 namespace baidu {
 namespace shuttle {
 
-static const int64_t default_additional_map_memory = 1024l * 1024 * 1024;
-static const int64_t default_additional_reduce_memory = 2048l * 1024 * 1024;
+static const int64_t default_additional_memory = 1024l * 1024 * 1024;
 static const int default_additional_millicores = 0;
 
 int GalaxyHandler::additional_millicores = default_additional_millicores;
-int64_t GalaxyHandler::additional_map_memory = default_additional_map_memory;
-int64_t GalaxyHandler::additional_reduce_memory = default_additional_reduce_memory;
+int64_t GalaxyHandler::additional_memory = default_additional_memory;
 
 GalaxyHandler::GalaxyHandler(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
-         const std::string& job_id, WorkMode mode) :
-        galaxy_(galaxy), job_(job), job_id_(job_id), mode_(mode) {
-    mode_str_ = ((mode == kReduce) ? "reduce" : "map");
-    minion_name_ = job->name() + "_" + mode_str_;
+         const std::string& job_id, int node) :
+        galaxy_(galaxy), job_(job), job_id_(job_id), node_(node) {
+    node_str_ = (job_->nodes(node).type() == kReduce) ? "m" : "r";
+    node_str_ += boost::lexical_cast<std::string>(node);
+    minion_name_ = job->name() + "_" + node_str_;
 }
 
 Status GalaxyHandler::Start() {
+    const NodeConfig& cur_node = job_->nodes(node_);
     ::baidu::galaxy::JobDescription galaxy_job;
     galaxy_job.job_name = minion_name_ + "@minion";
     galaxy_job.type = "kLongRun";
     galaxy_job.priority = "kOnline";
-    galaxy_job.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
+    galaxy_job.replica = cur_node.capacity();
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
     galaxy_job.pod.version = "1.0.0";
-    galaxy_job.pod.requirement.millicores = job_->millicores() + additional_millicores;
-    galaxy_job.pod.requirement.memory = job_->memory() +
-        ((mode_ == kReduce) ? additional_reduce_memory : additional_map_memory);
+    galaxy_job.pod.requirement.millicores = cur_node.millicores() + additional_millicores;
+    galaxy_job.pod.requirement.memory = cur_node.memory() + additional_memory;
+    // TODO Need to compatible with minion
+    // XXX Changed: app_package is separated by comma to store more values
     std::string app_package, cache_archive;
-    int file_size = job_->files().size();
-    for (int i = 0; i < file_size; ++i) {
-        const std::string& file = job_->files(i);
-        if (boost::starts_with(file, "hdfs://")) {
-            cache_archive = file;
-        } else {
-            app_package = file;
-        }
+    ::google::protobuf::RepeatedPtrField<const std::string>::iterator it;
+    for (it = job_->files().begin(); it != job_->files().end(); ++it) {
+        app_package += (*it) + ",";
     }
+    app_package.erase(app_package.end() - 1);
+    // XXX Changed: work_mode --> node
     std::stringstream ss;
-    ss << "app_package=" << app_package << " cache_archive=" << cache_archive
+    ss << "app_package=" << app_package << " cache_archive=" << job_->cache_archive()
        << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
        << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
-       << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_);
+       << " -node=" << node_;
     std::stringstream ss_stop;
-    ss_stop << "source hdfs_env.sh; ./minion -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+    ss_stop << "source hdfs_env.sh; ./minion -jobid=" << job_id_
+            << " -nexus_addr=" << FLAGS_nexus_server_list
             << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
-            << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_)
-            << " -kill_task";
+            << " -node=" << node_ << " -kill_task";
     ::baidu::galaxy::TaskDescription minion;
     minion.offset = 1;
     minion.binary = FLAGS_minion_path;

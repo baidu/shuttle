@@ -44,12 +44,6 @@ enum Partition {
 enum WorkMode {
     kMap = 0;
     kReduce = 1;
-    kMapOnly = 2;
-}
-
-enum JobType {
-    kMapOnlyJob = 0;
-    kMapReduceJob = 1;
 }
 
 message DfsInfo {
@@ -78,23 +72,24 @@ enum PipeStyle {
 
 message NodeConfig {
     optional int32 node = 1;
-    optional int32 capacity = 2;
-    optional int32 total = 3;
-    optional int32 millicores = 4;
-    optional int64 memory = 5;
-    optional string command = 6;
-    repeated string inputs = 7;
-    optional InputFormat input_format = 8;
-    optional DfsInfo input_dfs = 9;
-    optional string output = 10;
-    optional OutputFormat output_format = 11;
-    optional DfsInfo output_dfs = 12;
-    optional Partition partition = 13;
-    optional string key_separator = 14;
-    optional int32 key_fields_num = 15;
-    optional int32 partition_fields_num = 16;
-    optional bool allow_duplicates = 17 [default = true];
-    optional int32 retry = 18;
+    optional WorkMode type = 2;
+    optional int32 capacity = 3;
+    optional int32 total = 4;
+    optional int32 millicores = 5;
+    optional int64 memory = 6;
+    optional string command = 7;
+    repeated string inputs = 8;
+    optional InputFormat input_format = 9;
+    optional DfsInfo input_dfs = 10;
+    optional string output = 11;
+    optional OutputFormat output_format = 12;
+    optional DfsInfo output_dfs = 13;
+    optional Partition partition = 14;
+    optional string key_separator = 15;
+    optional int32 key_fields_num = 16;
+    optional int32 partition_fields_num = 17;
+    optional bool allow_duplicates = 18 [default = true];
+    optional int32 retry = 19;
 }
 
 message JobDescriptor {
@@ -102,13 +97,14 @@ message JobDescriptor {
     optional string user = 2;
     optional JobPriority priority = 3;
     repeated string files = 4;
-    optional PipeStyle pipe_style = 5;
-    optional int64 split_size = 6;
-    repeated NodeConfig nodes = 7;
+    optional string cache_archive = 5;
+    optional PipeStyle pipe_style = 6;
+    optional int64 split_size = 7;
+    repeated NodeConfig nodes = 8;
     message NodeNeigbor {
         repeated int32 neigbors = 1;
     }
-    repeated NodeNeigbor map = 8;
+    repeated NodeNeigbor map = 9;
 }
 
 message TaskInput {
