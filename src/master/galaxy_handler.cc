@@ -10,6 +10,7 @@ DECLARE_string(minion_path);
 DECLARE_string(nexus_server_list);
 DECLARE_string(nexus_root_path);
 DECLARE_string(master_path);
+DECLARE_string(galaxy_address);
 
 namespace baidu {
 namespace shuttle {
@@ -20,16 +21,16 @@ static const int default_additional_millicores = 0;
 int GalaxyHandler::additional_millicores = default_additional_millicores;
 int64_t GalaxyHandler::additional_memory = default_additional_memory;
 
-GalaxyHandler::GalaxyHandler(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
-         const std::string& job_id, int node) :
-        galaxy_(galaxy), job_(job), job_id_(job_id), node_(node) {
-    node_str_ = (job_->nodes(node).type() == kReduce) ? "m" : "r";
+GalaxyHandler::GalaxyHandler(JobDescriptor& job, const std::string& job_id, int node) :
+        galaxy_(NULL), job_(job), job_id_(job_id), node_(node) {
+    galaxy_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
+    node_str_ = (job_.nodes(node).type() == kReduce) ? "m" : "r";
     node_str_ += boost::lexical_cast<std::string>(node);
-    minion_name_ = job->name() + "_" + node_str_;
+    minion_name_ = job.name() + "_" + node_str_;
 }
 
 Status GalaxyHandler::Start() {
-    const NodeConfig& cur_node = job_->nodes(node_);
+    const NodeConfig& cur_node = job_.nodes(node_);
     ::baidu::galaxy::JobDescription galaxy_job;
     galaxy_job.job_name = minion_name_ + "@minion";
     galaxy_job.type = "kLongRun";
@@ -43,13 +44,13 @@ Status GalaxyHandler::Start() {
     // XXX Changed: app_package is separated by comma to store more values
     std::string app_package, cache_archive;
     ::google::protobuf::RepeatedPtrField<const std::string>::iterator it;
-    for (it = job_->files().begin(); it != job_->files().end(); ++it) {
+    for (it = job_.files().begin(); it != job_.files().end(); ++it) {
         app_package += (*it) + ",";
     }
     app_package.erase(app_package.end() - 1);
     // XXX Changed: work_mode --> node
     std::stringstream ss;
-    ss << "app_package=" << app_package << " cache_archive=" << job_->cache_archive()
+    ss << "app_package=" << app_package << " cache_archive=" << job_.cache_archive()
        << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
        << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
        << " -node=" << node_;

@@ -13,9 +13,14 @@ namespace shuttle {
 class GalaxyHandler {
 
 public:
-    GalaxyHandler(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
-        const std::string& job_id, int node);
-    virtual ~GalaxyHandler() { Kill(); }
+    GalaxyHandler(JobDescriptor& job, const std::string& job_id, int node);
+    virtual ~GalaxyHandler() {
+        Kill();
+        if (galaxy_ != NULL) {
+            delete galaxy_;
+            galaxy_ = NULL;
+        }
+    }
 
     Status Start();
     Status Kill();
@@ -32,7 +37,7 @@ private:
 
     // Minion information
     std::string minion_name_;
-    JobDescriptor* job_;
+    JobDescriptor& job_;
     const std::string job_id_;
     int node_;
     std::string node_str_;

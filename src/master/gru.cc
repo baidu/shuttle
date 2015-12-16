@@ -34,6 +34,8 @@ public:
     virtual Status Start();
     virtual Status Update(const std::string& priority, int capacity);
     virtual Status Kill();
+    virtual Resource* Assign(const std::string& endpoint, Status* status);
+    virtual Status Finish(int no, int attempt, TaskState state);
 
     virtual time_t GetStartTime() const {
         // start_time_ generated at beginning and is read-only ever since
@@ -58,7 +60,6 @@ public:
 protected:
     // Inner Interface for every gru to implement
     virtual BasicResourceManager<Resource>* BuildResourceManager() = 0;
-    virtual GalaxyHandler* BuildGalaxyHandler() = 0;
 
     // Non-interface methods, which resemble in every gru
     void KeepMonitoring();
@@ -107,35 +108,32 @@ protected:
 
 class AlphaGru : public BasicGru<ResourceItem> {
 public:
-    AlphaGru();
+    AlphaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~AlphaGru();
     virtual ResourceItem* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
 protected:
     virtual BasicResourceManager<ResourceItem>* BuildResourceManager();
-    virtual GalaxyHandler* BuildGalaxyHandler();
 };
 
 class BetaGru : public BasicGru<IdItem> {
 public:
-    BetaGru();
+    BetaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~BetaGru();
     virtual IdItem* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
 protected:
     virtual BasicResourceManager<IdItem>* BuildResourceManager();
-    virtual GalaxyHandler* BuildGalaxyHandler();
 };
 
 class OmegaGru : public BasicGru<IdItem> {
 public:
-    OmegaGru();
+    OmegaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~OmegaGru();
     virtual IdItem* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
 protected:
     virtual BasicResourceManager<IdItem>* BuildResourceManager();
-    virtual GalaxyHandler* BuildGalaxyHandler();
 };
 
 // ----- Implementations start now -----
@@ -147,7 +145,7 @@ Status BasicGru<Resource>::Start() {
         return kNoMore;
     }
     BuildEndGameCounters();
-    galaxy_ = BuildGalaxyHandler();
+    galaxy_ = new GalaxyHandler(job_, job_id_, node_);
     if (galaxy_->Start() == kOk) {
         LOG(INFO, "start a new phase, node %d: %s", node_, job_id_.c_str());
         return kOk;
@@ -165,7 +163,7 @@ Status BasicGru<Resource>::Update(const std::string& priority, int capacity) {
         return kGalaxyError;
     }
     if (capacity != -1) {
-        // TODO Set capacity
+        job_.mutable_nodes(node_)->set_capacity(capacity);
     }
     if (!priority.empty()) {
         // TODO Set priority
@@ -188,6 +186,18 @@ Status BasicGru<Resource>::Kill() {
 
     // TODO Cancel every task
     finish_time_ = std::time(NULL);
+    return kOk;
+}
+
+template <class Resource>
+Resource* Assign(const std::string& endpoint, Status* status) {
+    // TODO Assign implemenation
+    return NULL;
+}
+
+template <class Resource>
+Status Finish(int no, int attempt, TaskState state) {
+    // TODO Finish implementation
     return kOk;
 }
 
