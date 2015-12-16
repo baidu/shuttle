@@ -1,6 +1,7 @@
 #ifndef _BAIDU_SHUTTLE_GRU_H_
 #define _BAIDU_SHUTTLE_GRU_H_
 #include <string>
+#include <boost/function.hpp>
 #include "proto/shuttle.pb.h"
 #include "proto/app_master.pb.h"
 #include "mutex.h"
@@ -46,6 +47,11 @@ public:
     virtual time_t GetStartTime() const = 0;
     virtual time_t GetFinishTime() const = 0;
     virtual TaskStatistics GetStatistics() const = 0;
+
+    // Notify upper job tracker the nearly finish and finish state,
+    // so that the job tracker could pull up next phrase or change some states
+    virtual void RegisterNearlyFinishCallback(boost::function<void ()> callback) = 0;
+    virtual void RegisterFinishedCallback(boost::function<void ()> callback) = 0;
 
     // For backup and recovery
     // Load()

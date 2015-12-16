@@ -45,6 +45,16 @@ public:
     }
     virtual TaskStatistics GetStatistics() const;
 
+    virtual void RegisterNearlyFinishCallback(boost::function<void ()> callback) {
+        MutexLock lock(&meta_mu_);
+        nearly_finish_callback_ = callback;
+    }
+
+    virtual void RegisterFinishedCallback(boost::function<void ()> callback) {
+        MutexLock lock(&meta_mu_);
+        finished_callback_ = callback;
+    }
+
 protected:
     // Inner Interface for every gru to implement
     virtual BasicResourceManager<Resource>* BuildResourceManager() = 0;
@@ -83,6 +93,8 @@ protected:
     int end_game_begin_;
     // Initialized to true since it depends on job descriptor
     bool allow_duplicates_;
+    boost::function<void ()> nearly_finish_callback_;
+    boost::function<void ()> finished_callback_;
 
     Mutex alloc_mu_;
     ThreadPool monitor_;
