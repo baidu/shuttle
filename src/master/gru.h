@@ -42,10 +42,10 @@ public:
     virtual Status Finish(int no, int attempt, TaskState state) = 0;
 
     // Data getters
-    virtual Status GetHistory(const std::vector<AllocateItem>& buf) const = 0;
-    virtual time_t GetStartTime() const = 0;
-    virtual time_t GetFinishTime() const = 0;
-    virtual TaskStatistics GetStatistics() const = 0;
+    virtual Status GetHistory(const std::vector<AllocateItem>& buf) = 0;
+    virtual time_t GetStartTime() = 0;
+    virtual time_t GetFinishTime() = 0;
+    virtual TaskStatistics GetStatistics() = 0;
     
     // Property setters
     virtual Status SetCapacity(int capacity) = 0;
@@ -62,9 +62,9 @@ public:
     
     // Factory methods
     // TODO Give appropriate parameters for initialization
-    static Gru<ResourceItem>* GetAlphaGru();
-    static Gru<IdItem>* GetBetaGru();
-    static Gru<IdItem>* GetOmegaGru();
+    static Gru<ResourceItem>* GetAlphaGru(JobDescriptor& job, const std::string& job_id, int node);
+    static Gru<IdItem>* GetBetaGru(JobDescriptor& job, const std::string& job_id, int node);
+    static Gru<IdItem>* GetOmegaGru(JobDescriptor& job, const std::string& job_id, int node);
 };
 
 

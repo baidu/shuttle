@@ -4,8 +4,12 @@
 #include <queue>
 #include <map>
 #include <boost/bind.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
 #include "galaxy_handler.h"
 #include "resource_manager.h"
+#include "common/rpc_client.h"
+#include "common/tools_util.h"
 #include "thread_pool.h"
 #include "logging.h"
 
@@ -19,10 +23,12 @@ public:
     // General initialization
     BasicGru(JobDescriptor& job, const std::string& job_id, int node) :
             manager_(NULL), job_id_(job_id),  rpc_client_(NULL), job_(job), state_(kPending),
-            galaxy_(NULL), node_(node), total_tasks_(0), start_time_(0), finish_time_(0),
-            killed_(0), failed_(0), end_game_begin_(0), monitor_(1), allow_duplicates_(true) {
+            galaxy_(NULL), node_(node), cur_node_(NULL), total_tasks_(0),
+            start_time_(0), finish_time_(0), killed_(0), failed_(0), end_game_begin_(0),
+            allow_duplicates_(true), nearly_finish_callback_(0), finished_callback_(0), monitor_(1) {
         rpc_client_ = new RpcClient();
-        monitor_.AddTask(boost::bind(&Gru<Resource>::KeepMonitoring, this));
+        cur_node_ = job_.mutable_nodes(node_);
+        monitor_.AddTask(boost::bind(&BasicGru<Resource>::KeepMonitoring, this));
     }
     virtual ~BasicGru() {
         if (rpc_client_ != NULL) {
@@ -36,15 +42,15 @@ public:
     virtual Resource* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
 
-    virtual time_t GetStartTime() const {
+    virtual time_t GetStartTime() {
         // start_time_ generated at beginning and is read-only ever since
         return start_time_;
     }
-    virtual time_t GetFinishTime() const {
+    virtual time_t GetFinishTime() {
         MutexLock lock(&meta_mu_);
         return finish_time_;
     }
-    virtual TaskStatistics GetStatistics() const;
+    virtual TaskStatistics GetStatistics();
 
     virtual Status SetCapacity(int capacity);
     virtual Status SetPriority(const std::string& priority);
@@ -85,6 +91,8 @@ protected:
     GalaxyHandler* galaxy_;
     // Carefully initialized
     int node_;
+    // Carefully initialized
+    NodeConfig* cur_node_;
     // Initialized to 0 since it depends on the gru
     int total_tasks_;
     // Carefully initialized in Start()
@@ -112,8 +120,6 @@ class AlphaGru : public BasicGru<ResourceItem> {
 public:
     AlphaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~AlphaGru();
-    virtual ResourceItem* Assign(const std::string& endpoint, Status* status);
-    virtual Status Finish(int no, int attempt, TaskState state);
 protected:
     virtual BasicResourceManager<ResourceItem>* BuildResourceManager();
 };
@@ -122,8 +128,6 @@ class BetaGru : public BasicGru<IdItem> {
 public:
     BetaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~BetaGru();
-    virtual IdItem* Assign(const std::string& endpoint, Status* status);
-    virtual Status Finish(int no, int attempt, TaskState state);
 protected:
     virtual BasicResourceManager<IdItem>* BuildResourceManager();
 };
@@ -132,8 +136,6 @@ class OmegaGru : public BasicGru<IdItem> {
 public:
     OmegaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~OmegaGru();
-    virtual IdItem* Assign(const std::string& endpoint, Status* status);
-    virtual Status Finish(int no, int attempt, TaskState state);
 protected:
     virtual BasicResourceManager<IdItem>* BuildResourceManager();
 };
@@ -141,9 +143,28 @@ protected:
 // ----- Implementations start now -----
 
 template <class Resource>
+Gru<ResourceItem>* Gru<Resource>::GetAlphaGru(JobDescriptor& job,
+        const std::string& job_id, int node) {
+    return new AlphaGru(job, job_id, node);
+}
+
+template <class Resource>
+Gru<IdItem>* Gru<Resource>::GetBetaGru(JobDescriptor& job,
+        const std::string& job_id, int node) {
+    return new BetaGru(job, job_id, node);
+}
+
+template <class Resource>
+Gru<IdItem>* Gru<Resource>::GetOmegaGru(JobDescriptor& job,
+        const std::string& job_id, int node) {
+    return new OmegaGru(job, job_id, node);
+}
+
+template <class Resource>
 Status BasicGru<Resource>::Start() {
     start_time_ = std::time(NULL);
-    if (BuildResourceManager() != kOk) {
+    manager_ = BuildResourceManager();
+    if (manager_ == NULL) {
         return kNoMore;
     }
     BuildEndGameCounters();
@@ -160,7 +181,7 @@ template <class Resource>
 Status BasicGru<Resource>::Kill() {
     meta_mu_.Lock();
     if (galaxy_ != NULL) {
-        LOG(INFO, "node %d phase finished, kill: %s", job_id_.c_str());
+        LOG(INFO, "node %d phase finished, kill: %s", node_, job_id_.c_str());
         delete galaxy_;
         galaxy_ = NULL;
     }
@@ -188,7 +209,7 @@ Status Finish(int no, int attempt, TaskState state) {
 }
 
 template <class Resource>
-TaskStatistics BasicGru<Resource>::GetStatistics() const {
+TaskStatistics BasicGru<Resource>::GetStatistics() {
     int pending = 0, running = 0, completed = 0;
     if (manager_ != NULL) {
         pending = manager_->Pending();
@@ -214,7 +235,7 @@ Status BasicGru<Resource>::SetCapacity(int capacity) {
     if (galaxy_->SetCapacity(capacity) != kOk) {
         return kGalaxyError;
     }
-    job_.mutable_nodes(node_)->set_capacity(capacity);
+    cur_node_->set_capacity(capacity);
     return kOk;
 }
 
@@ -267,6 +288,77 @@ void BasicGru<Resource>::BuildEndGameCounters() {
         return;
     }
     // TODO Build end game counters here
+}
+
+AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id, int node) :
+        BasicGru<ResourceItem>(job, job_id, node) {
+    // TODO Initialize AlphaGru
+    //   Generate temp output dir
+}
+
+BasicResourceManager<ResourceItem>* AlphaGru::BuildResourceManager() {
+    std::vector<std::string> inputs;
+    const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames
+        = cur_node_->inputs();
+    inputs.reserve(input_filenames.size());
+    std::copy(input_filenames.begin(), input_filenames.end(), inputs.begin());
+
+    FileSystem::Param input_param;
+    const DfsInfo& input_dfs = cur_node_->input_dfs();
+    if(!input_dfs.user().empty() && !input_dfs.password().empty()) {
+        input_param["user"] = input_dfs.user();
+        input_param["password"] = input_dfs.password();
+    }
+    if (boost::starts_with(inputs[0], "hdfs://")) {
+        std::string host;
+        int port;
+        ParseHdfsAddress(inputs[0], &host, &port, NULL);
+        input_param["host"] = host;
+        input_param["port"] = boost::lexical_cast<std::string>(port);
+        cur_node_->mutable_input_dfs()->set_host(host);
+        cur_node_->mutable_input_dfs()->set_port(boost::lexical_cast<std::string>(port));
+    } else if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
+        input_param["host"] = input_dfs.host();
+        input_param["port"] = input_dfs.port();
+    }
+
+    ResourceManager* manager = NULL;
+    if (cur_node_->input_format() == kNLineInput) {
+        manager = new NLineResourceManager(inputs,input_param);
+    } else {
+        manager = new ResourceManager(inputs, input_param, job_.split_size());
+    }
+    if (manager == NULL || manager->SumOfItem() < 1) {
+        LOG(INFO, "node %d phase cannot divide input, which may not exist: %s",
+                node_, job_id_.c_str());
+        cur_node_->set_total(0);
+        state_ = kFailed;
+        if (!finished_callback_) {
+            finished_callback_();
+        }
+        return NULL;
+    }
+    cur_node_->set_total(manager_->SumOfItem());
+    return manager;
+}
+
+BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id, int node) :
+        BasicGru<IdItem>(job, job_id, node) {
+    // TODO Initialize BetaGru
+    //   Generate temp output dir
+}
+
+BasicResourceManager<IdItem>* BetaGru::BuildResourceManager() {
+    return new IdManager(cur_node_->total());
+}
+
+OmegaGru::OmegaGru(JobDescriptor& job, const std::string& job_id, int node) :
+        BasicGru<IdItem>(job, job_id, node) {
+    // TODO Initialize BetaGru
+}
+
+BasicResourceManager<IdItem>* OmegaGru::BuildResourceManager() {
+    return new IdManager(cur_node_->total());
 }
 
 } // namespace shuttle
