@@ -18,7 +18,6 @@
 #include "common/tools_util.h"
 #include "thread_pool.h"
 #include "mutex.h"
-#include "common/net_statistics.h"
 
 DEFINE_int32(total, 0, "total numbers of map tasks");
 DEFINE_int32(reduce_no, 0, "the reduce number of this reduce task");
@@ -31,7 +30,6 @@ DEFINE_string(dfs_password, "", "password of dfs master");
 DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
 DEFINE_int32(tuo_size, 0, "one tuo contains how many maps'output");
 DEFINE_int32(slow_start_no, 200, "if redcue_no greater than this, sleep a random time");
-DEFINE_int64(flow_limit, 256L * 1024 * 1024, "the limit of network traffic on minion machine, default is 256M");
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -42,7 +40,6 @@ using namespace baidu::shuttle;
 
 int32_t g_file_no(0);
 FileSystem* g_fs(NULL);
-NetStatistics* g_net_stat;
 
 void FillParam(FileSystem::Param& param) {
     if (!FLAGS_dfs_user.empty()) {
@@ -77,18 +74,6 @@ bool AddSortFiles(const std::string map_dir, std::vector<std::string>* file_name
     }
 }
 
-void WaitWhenNetworkIsBusy() {
-    while (g_net_stat->GetRecvSpeed() > FLAGS_flow_limit
-            || g_net_stat->GetSendSpeed() > FLAGS_flow_limit) {
-        double rn = rand() / (RAND_MAX + 0.0);
-        int random_period = static_cast<int>(rn * 10);
-        LOG(WARNING, "sleep %d seconds, net traffic is busy, rx:%lld, tx:%lld",
-                random_period, g_net_stat->GetRecvSpeed(),
-                g_net_stat->GetSendSpeed());
-        sleep(random_period);
-    }
-}
-
 bool MergeManyFilesToOne(const std::vector<std::string>& file_names,
                          const std::string& output_file) {
     MergeFileReader reader;
@@ -118,7 +103,6 @@ bool MergeManyFilesToOne(const std::vector<std::string>& file_names,
         return false;
     }
     while (!scan_it->Done()) {
-        WaitWhenNetworkIsBusy();
         status = writer->Put(scan_it->Key(), scan_it->Value());
         if (status != kOk) {
             LOG(WARNING, "fail to put: %s", output_file.c_str());
@@ -162,7 +146,6 @@ void MergeAndPrint(const std::vector<std::string>& file_names) {
         LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
     }
     while (!scan_it->Done()) {
-        WaitWhenNetworkIsBusy();
         if (FLAGS_pipe == "streaming") {
             std::cout << scan_it->Value() << std::endl;
         } else {
@@ -250,12 +233,6 @@ int main(int argc, char* argv[]) {
     baidu::common::SetLogFile(GetLogName("./shuffle_tool.log").c_str());
     baidu::common::SetWarningFile(GetLogName("./shuffle_tool.log.wf").c_str());
     google::ParseCommandLineFlags(&argc, &argv, true);
-    g_net_stat = new NetStatistics("xgbe0");
-    if (g_net_stat && !g_net_stat->Ok()) {
-        delete g_net_stat;
-        g_net_stat = new NetStatistics("eth1");
-        FLAGS_flow_limit = 64 * 1024 * 1024;
-    }
     FileSystem::Param param;
     FillParam(param);
     g_fs = FileSystem::CreateInfHdfs(param);
@@ -280,8 +257,5 @@ int main(int argc, char* argv[]) {
         sleep(random_period);
     }
     MergeAndPrint(tuo_file_names);
-    if (g_net_stat) {
-        delete g_net_stat;
-    }
     return 0;
 }

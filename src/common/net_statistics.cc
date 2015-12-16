@@ -8,23 +8,34 @@ namespace shuttle {
 
 const static int32_t sNetStatInterval = 5000; //5 seconds
 
-NetStatistics::NetStatistics(const std::string& if_name) : if_name_(if_name), ok_(true) {
+NetStatistics::NetStatistics() : ok_(true), is_10gb_(false) {
     send_speed_ = 0L;
     recv_speed_ = 0L;
     int64_t send_amount = -1;
     int64_t recv_amount = -1;
-    bool ok = GetCurNetAmount(&send_amount, &recv_amount);
-    if (!ok) {
-        fprintf(stderr, "fail to get network statistics from /sys/class/net/%s\n", if_name.c_str());
-        ok_ = false;
-        return;
+    bool ok = GetCurNetAmount("xgbe0", &send_amount, &recv_amount);
+    if (ok) {
+        if_name_ = "xgbe0";
+        is_10gb_ = true;
+    } else {
+        fprintf(stderr, "fail to get network statistics from /sys/class/net/xgbe0\n");
+        ok = GetCurNetAmount("eth1", &send_amount, &recv_amount);
+        if (ok) {
+            if_name_ = "eth1";
+            is_10gb_ = false;
+        } else {
+            fprintf(stderr, "fail to get network statistics from /sys/class/net/eth1\n");
+            ok_ = false;
+            return;
+        }
     }
     pool_.DelayTask(sNetStatInterval, boost::bind(&NetStatistics::CheckStatistics, this, send_amount, recv_amount));
 }
 
-bool NetStatistics::GetCurNetAmount(int64_t* send_amount, int64_t* recv_amount) {
-    std::string recv_bytes_file = std::string("/sys/class/net/") + if_name_ + "/statistics/rx_bytes";
-    std::string send_bytes_file = std::string("/sys/class/net/") + if_name_ + "/statistics/tx_bytes";
+bool NetStatistics::GetCurNetAmount(const std::string& if_name, 
+                                    int64_t* send_amount, int64_t* recv_amount) {
+    std::string recv_bytes_file = std::string("/sys/class/net/") + if_name + "/statistics/rx_bytes";
+    std::string send_bytes_file = std::string("/sys/class/net/") + if_name + "/statistics/tx_bytes";
     FILE* file = fopen(recv_bytes_file.c_str(), "r");
     if (file) {
         fscanf(file, "%lld", recv_amount);
@@ -45,7 +56,7 @@ bool NetStatistics::GetCurNetAmount(int64_t* send_amount, int64_t* recv_amount) 
 void NetStatistics::CheckStatistics(int64_t last_send_amount, int64_t last_recv_amount) {
     int64_t send_amount = -1;
     int64_t recv_amount = -1;
-    GetCurNetAmount(&send_amount, &recv_amount);
+    GetCurNetAmount(if_name_, &send_amount, &recv_amount);
     {
         MutexLock lock(&mu_);
         send_speed_ = (send_amount - last_send_amount) / (sNetStatInterval / 1000);

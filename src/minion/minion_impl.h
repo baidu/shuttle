@@ -7,6 +7,7 @@
 #include "proto/minion.pb.h"
 #include "ins_sdk.h"
 #include "executor.h"
+#include "common/net_statistics.h"
 
 namespace baidu {
 namespace shuttle {
@@ -50,6 +51,8 @@ private:
     TaskState cur_task_state_;
     WorkMode work_mode_;
     ThreadPool watch_dog_;
+    NetStatistics netstat_;
+    bool task_frozen_;
 };
 
 }

@@ -61,6 +61,7 @@ minion_src = 'src/minion/minion_main.cc \
               src/minion/partition.cc \
               src/common/filesystem.cc \
               src/common/tools_util.cc \
+              src/common/net_statistics.cc \
               proto/minion.proto \
               proto/app_master.proto \
               proto/shuttle.proto'
@@ -101,8 +102,7 @@ sf_tool_src = 'src/sort/sf_tool.cc \
 
 shuffle_tool_src = 'src/sort/shuffle_tool.cc \
                     src/sort/sort_file_impl.cc \
-                    src/sort/merge_file_impl.cc \
-                    src/common/net_statistics.cc '
+                    src/sort/merge_file_impl.cc '
 
 input_reader_src = 'src/sort/input_reader.cc \
                     src/common/filesystem.cc \

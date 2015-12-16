@@ -16,6 +16,8 @@ DECLARE_string(work_mode);
 DECLARE_string(jobid);
 DECLARE_bool(kill_task);
 DECLARE_int32(suspend_time);
+DECLARE_int64(flow_limit_10gb);
+DECLARE_int64(flow_limit_1gb);
 
 using baidu::common::Log;
 using baidu::common::FATAL;
@@ -28,7 +30,8 @@ namespace shuttle {
 const std::string sBreakpointFile = "./task_running";
 
 MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
-                           stop_(false) {
+                           stop_(false),
+                           task_frozen_(false) {
     if (FLAGS_work_mode == "map") {
         executor_ = Executor::GetExecutor(kMap);
         work_mode_ =  kMap;
@@ -73,12 +76,30 @@ void MinionImpl::WatchDogTask() {
     FILE* file = fopen("/proc/loadavg", "r");
     fscanf(file, "%lf%*", &minute_load);
     fclose(file);
-    LOG(INFO, "load average: %f, cores: %d", minute_load, numCPU);
-    if (minute_load > 3.5 * numCPU) {
-        LOG(WARNING, "machine maybe overload, so the minion quit");
-        _exit(0);
+    int64_t network_limit = FLAGS_flow_limit_10gb;
+    if (!netstat_.Is10gb()) {
+       network_limit =  FLAGS_flow_limit_1gb;
     }
-    watch_dog_.DelayTask(60000, boost::bind(&MinionImpl::WatchDogTask, this));
+    if (minute_load > 3.5 * numCPU) {
+        LOG(WARNING, "load average: %f, cores: %d", minute_load, numCPU);
+        LOG(WARNING, "machine may be overloaded, so froze the task");
+        system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
+        task_frozen_ = true;
+    } else if (netstat_.GetSendSpeed() > network_limit ||
+               netstat_.GetRecvSpeed() > network_limit) {
+        LOG(WARNING, "traffic tx:%lld, rx:%lld", 
+            netstat_.GetSendSpeed(), netstat_.GetRecvSpeed());
+        LOG(WARNING, "network traffic is busy, so froze the task");
+        system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
+        task_frozen_ = true;
+    } else {
+        if (task_frozen_) {
+            LOG(INFO, "machine seems healthy, so resume the task");
+        }
+        system("killall -SIGCONT input_tool shuffle_tool 2>/dev/null");
+        task_frozen_ = false;
+    }
+    watch_dog_.DelayTask(5000, boost::bind(&MinionImpl::WatchDogTask, this));
 }
 
 void MinionImpl::Query(::google::protobuf::RpcController* controller,
