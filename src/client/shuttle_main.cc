@@ -449,12 +449,6 @@ static std::string GetMasterAddr() {
     return master_addr;
 }
 
-static inline std::string ParseTimeToReadable(const time_t& time) {
-    char time_buf[32] = { 0 };
-    ::strftime(time_buf, 32, "%T", ::localtime(&time));
-    return time_buf;
-}
-
 static inline std::string FromatLongTime(const time_t& time) {
     char time_buf[32] = { 0 };
     ::strftime(time_buf, 32, "%Y-%m-%d %H:%M:%S", ::localtime(&time));
@@ -505,8 +499,8 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
                   (it->state == ::baidu::shuttle::sdk::kTaskUnknown) ?
                       "Unknown" : state_string[it->state],
                   it->minion_addr.c_str(),
-                  ParseTimeToReadable(it->start_time).c_str(),
-                  (it->end_time > it->start_time) ? ParseTimeToReadable(it->end_time).c_str() : "-");
+                  FromatLongTime(it->start_time).c_str(),
+                  (it->end_time > it->start_time) ? FromatLongTime(it->end_time).c_str() : "-");
     }
     printf("%s\n", tp.ToString().c_str());
 }
@@ -515,8 +509,8 @@ static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance 
     const int column = 5;
     ::baidu::common::TPrinter tp(column);
     tp.AddRow(column, "job id", "job name", "state", "map(r/p/c)", "reduce(r/p/c)");
-    for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_iterator it = jobs.begin();
-            it != jobs.end(); ++it) {
+    for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_reverse_iterator it = jobs.rbegin();
+            it != jobs.rend(); ++it) {
         std::string map_running = boost::lexical_cast<std::string>(it->map_stat.running)
             + "/" + boost::lexical_cast<std::string>(it->map_stat.pending)
             + "/" + boost::lexical_cast<std::string>(it->map_stat.completed);
