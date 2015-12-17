@@ -150,6 +150,13 @@ struct TaskComparator {
     }
 };
 
+struct JobComparator {
+    bool operator()(const ::baidu::shuttle::sdk::JobInstance& job1,
+                    const ::baidu::shuttle::sdk::JobInstance& job2) const {
+        return job1.jobid > job2.jobid;
+    }
+};
+
 static inline ::baidu::shuttle::sdk::PartitionMethod
 ParsePartitioner(const std::string& partitioner) {
     if (boost::iequals(partitioner, "keyfieldbased") ||
@@ -255,6 +262,11 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
         } else if (!strcmp(ctx, "outputformat")) {
             config::output_format = ParseOutputFormat(opt[++i]);
         } else if (!strcmp(ctx, "jobconf")) {
+            if (!config::jobconf.empty()) {
+                config::jobconf += ",";
+            }
+            config::jobconf += opt[++i];
+        } else if (!strcmp(ctx, "D")) {
             if (!config::jobconf.empty()) {
                 config::jobconf += ",";
             }
@@ -505,12 +517,13 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
     printf("%s\n", tp.ToString().c_str());
 }
 
-static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
+static void PrintJobsInfo(std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
     const int column = 5;
     ::baidu::common::TPrinter tp(column);
     tp.AddRow(column, "job id", "job name", "state", "map(r/p/c)", "reduce(r/p/c)");
-    for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_reverse_iterator it = jobs.rbegin();
-            it != jobs.rend(); ++it) {
+    std::sort(jobs.begin(), jobs.end(), JobComparator());
+    for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_iterator it = jobs.begin();
+            it != jobs.end(); ++it) {
         std::string map_running = boost::lexical_cast<std::string>(it->map_stat.running)
             + "/" + boost::lexical_cast<std::string>(it->map_stat.pending)
             + "/" + boost::lexical_cast<std::string>(it->map_stat.completed);
