@@ -56,8 +56,11 @@ message SubmitJobResponse {
 message UpdateJobRequest {
     required string jobid = 1;
     optional JobPriority priority = 2;
-    optional int32 map_capacity = 3;
-    optional int32 reduce_capacity = 4;
+    message UpdatedNode {
+        required int32 node = 1;
+        required int32 capacity = 2;
+    }
+    repeated UpdatedNode capacities = 3;
 }
 
 message UpdateJobResponse {
@@ -80,8 +83,7 @@ message JobOverview {
     optional JobDescriptor desc = 1;
     optional string jobid = 2;
     optional JobState state = 3;
-    optional TaskStatistics map_stat = 4;
-    optional TaskStatistics reduce_stat = 5;
+    repeated TaskStatistics stats = 5;
     optional int32 start_time = 6;
     optional int32 finish_time = 7;
 }
@@ -113,22 +115,23 @@ message ShowJobResponse {
 
 message AssignTaskRequest {
     optional string jobid = 1;
-    optional string endpoint = 2;
-    optional WorkMode work_mode = 3;
+    optional int32 node = 2;
+    optional string endpoint = 3;
 }
 
 message AssignTaskResponse {
     optional Status status = 1;
-    optional TaskInfo task = 2;
+    optional JobDescriptor job = 2;
+    optional TaskInfo task = 3;
 }
 
 message FinishTaskRequest {
     required string jobid = 1;
-    required int32 task_id = 2;
-    required int32 attempt_id = 3;
-    optional TaskState task_state = 4;
-    optional string endpoint = 5;
-    optional WorkMode work_mode = 6;
+    required int32 node = 2;
+    required int32 task_id = 3;
+    required int32 attempt_id = 4;
+    optional TaskState task_state = 5;
+    optional string endpoint = 6;
 }
 
 message FinishTaskResponse {

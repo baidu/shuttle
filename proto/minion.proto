@@ -8,15 +8,17 @@ message QueryRequest {
 
 message QueryResponse {
     optional string job_id = 1;
-    optional int32 task_id = 2;
-    optional int32 attempt_id = 3;
-    optional TaskState task_state = 4;
+    optional int32 node = 2;
+    optional int32 task_id = 3;
+    optional int32 attempt_id = 4;
+    optional TaskState task_state = 5;
 }
 
 message CancelTaskRequest {
     optional string job_id = 1;
-    optional int32 task_id = 2;
-    optional int32 attempt_id = 3;
+    optional int32 node = 2;
+    optional int32 task_id = 3;
+    optional int32 attempt_id = 4;
 }
 
 message CancelTaskResponse {
