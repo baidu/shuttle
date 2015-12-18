@@ -153,6 +153,14 @@ struct TaskComparator {
 struct JobComparator {
     bool operator()(const ::baidu::shuttle::sdk::JobInstance& job1,
                     const ::baidu::shuttle::sdk::JobInstance& job2) const {
+        if (job1.state == ::baidu::shuttle::sdk::kRunning && 
+            job2.state != ::baidu::shuttle::sdk::kRunning) {
+            return true;
+        }
+        if (job1.state != ::baidu::shuttle::sdk::kRunning && 
+            job2.state == ::baidu::shuttle::sdk::kRunning) {
+            return false;
+        }
         return job1.jobid > job2.jobid;
     }
 };

@@ -240,7 +240,7 @@ int main(int argc, char* argv[]) {
         LOG(FATAL, "invalid map task total");
     }
     if (FLAGS_tuo_size == 0) {
-        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 50);
+        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 300);
     }
     LOG(INFO, "tuo_size: %d", FLAGS_tuo_size);
     int n_tuo = MergeTuo();
