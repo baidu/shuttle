@@ -6,8 +6,19 @@ CmdArgs=$*
 
 HADOOP_CLIENT_HOME=/tmp/hadoop-client
 
-DownloadHadoop() {
+IsValidHadoop() {
 	if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/libhdfs/libhdfs.so ]; then
+		return 1
+	fi
+	if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/lib/native/Linux-amd64-64/liblzma.so.0 ]; then
+		return 2
+	fi
+	return 0
+}
+
+DownloadHadoop() {
+	IsValidHadoop
+	if [ $? -ne 0 ]; then
 		./NfsShell get /disk/shuttle/hadoop-client.tar.gz ./hadoop-client.tar.gz
 		if [ $? -ne 0 ]; then
 			return 1
@@ -16,7 +27,8 @@ DownloadHadoop() {
 		if [ $? -ne 0 ]; then
 			return 2
 		fi
-		if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/libhdfs/libhdfs.so ]; then
+		IsValidHadoop
+		if [ $? -ne 0 ]; then
 			rm -rf ${HADOOP_CLIENT_HOME}
 			mv ./hadoop-client /tmp/
 			return $?

@@ -8,5 +8,5 @@ DEFINE_string(work_mode, "map", "there are 3 kinds: map, reduce, map-only");
 DEFINE_bool(kill_task, false, "kill unfinished task");
 DEFINE_int32(suspend_time, 120, "suspend time in seconds when receive suspend op");
 DEFINE_int32(max_minions, 43, "max number of minions at one machine");
-DEFINE_int64(flow_limit_10gb, 256L * 1024 * 1024, "the limit of network traffic for 10gb machine, default is 256M");
+DEFINE_int64(flow_limit_10gb, 384L * 1024 * 1024, "the limit of network traffic for 10gb machine, default is 384M");
 DEFINE_int64(flow_limit_1gb, 64L * 1024 * 1024, "the limit of network traffic for 1gb machine, default is 64M");
