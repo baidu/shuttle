@@ -10,7 +10,7 @@ namespace shuttle {
 
 const static int32_t sBlockSize = (64 << 10);
 const static int32_t sMagicNumber = 25997;
-const static int32_t sMaxIndexSize = 10000;
+const static int32_t sMaxIndexSize = 15000;
 
 SortFileReader* SortFileReader::Create(FileType file_type, Status* status) {
     if (file_type == kHdfsFile) {
@@ -380,6 +380,9 @@ Status SortFileWriterImpl::Put(const std::string& key, const std::string& value)
 }
 
 Status SortFileWriterImpl::FlushIdxBlock() {
+    while (idx_block_.items_size() > sMaxIndexSize) {
+        MakeIndexSparse();
+    }
     std::string raw_buf, tmp_buf;
     bool ret = idx_block_.SerializeToString(&tmp_buf);
     if (!ret) {
@@ -454,13 +457,11 @@ Status SortFileWriterImpl::FlushCurBlock() {
         LOG(WARNING, "write data block fail");
         return kWriteFileFail;
     }
-    if (idx_block_.items_size() < sMaxIndexSize) {
-        KeyOffset* item = idx_block_.add_items();
-        item->set_key(cur_block_.items(0).key());
-        item->set_offset(offset);
-    } else {
-        MakeIndexSparse();
-    }
+
+    KeyOffset* item = idx_block_.add_items();
+    item->set_key(cur_block_.items(0).key());
+    item->set_offset(offset);
+
     cur_block_.Clear();
     cur_block_size_ = 0;
     return kOk;
