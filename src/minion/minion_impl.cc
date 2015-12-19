@@ -80,7 +80,7 @@ void MinionImpl::WatchDogTask() {
     if (!netstat_.Is10gb()) {
        network_limit =  FLAGS_flow_limit_1gb;
     }
-    if (minute_load > 3.5 * numCPU) {
+    if (minute_load > 2.5 * numCPU) {
         LOG(WARNING, "load average: %f, cores: %d", minute_load, numCPU);
         LOG(WARNING, "machine may be overloaded, so froze the task");
         double rn = rand() / (RAND_MAX+0.0);

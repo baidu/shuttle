@@ -288,6 +288,11 @@ SortFileReader::Iterator* SortFileReaderImpl::Scan(const std::string& start_key,
     IndexBlock idx_block;
     LOG(INFO, "try load index of: %s", path_.c_str());
     Status status = LoadIndexBlock(&idx_block);
+    for(int i = 0; i < 3 && status != kOk; i++) {
+        idx_block.Clear();
+        status = LoadIndexBlock(&idx_block);
+        sleep(3);
+    }
     if (status != kOk) {
         LOG(WARNING, "faild to load index block, %s", path_.c_str());
         IteratorImpl* it = new IteratorImpl(start_key, end_key, this);
