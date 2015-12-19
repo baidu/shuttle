@@ -3,6 +3,14 @@ set -x
 set -o pipefail
 user_cmd=$*
 
+JailRun() {
+	set -x
+	ulimit -m ${mapred_memory_limit}
+	ulimit -n 10240
+	${user_cmd}
+	return $?
+}
+
 if [ "${mapred_task_is_map}" == "true" ]
 then
 	work_dir="map_${mapred_task_partition}_${mapred_attempt_id}"
@@ -31,7 +39,7 @@ then
 	fi
 	./input_tool -file=${map_input_file} \
 	-offset=${map_input_start} \
-	-len=${map_input_length} ${dfs_flags} ${format} ${pipe_style} ${is_nline} | $user_cmd 2>./stderr
+	-len=${map_input_length} ${dfs_flags} ${format} ${pipe_style} ${is_nline} | JailRun 2>./stderr
 	exit $?
 elif [ "${mapred_task_is_map}" == "false" ]
 then
@@ -54,7 +62,7 @@ then
 	./shuffle_tool -total=${mapred_map_tasks} \
 	-work_dir=${minion_shuffle_work_dir} \
 	-reduce_no=${mapred_task_partition} \
-	-attempt_id=${mapred_attempt_id} $dfs_flags $pipe_style | $user_cmd 2>./stderr
+	-attempt_id=${mapred_attempt_id} $dfs_flags $pipe_style | JailRun 2>./stderr
 	exit $?
 else
 	echo "not in shuttle env"
