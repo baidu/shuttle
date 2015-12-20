@@ -99,9 +99,9 @@ void MinionImpl::WatchDogTask() {
     } else {
         if (task_frozen_) {
             LOG(INFO, "machine seems healthy, so resume the task");
+            system("killall -SIGCONT input_tool shuffle_tool 2>/dev/null");
+            task_frozen_ = false;
         }
-        system("killall -SIGCONT input_tool shuffle_tool 2>/dev/null");
-        task_frozen_ = false;
     }
     watch_dog_.DelayTask(5000, boost::bind(&MinionImpl::WatchDogTask, this));
 }
