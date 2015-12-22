@@ -21,7 +21,8 @@ public:
     Status Kill();
     Status Update(const std::string& priority, int capacity);
 
-    static int additional_millicores;
+    static int additional_map_millicores;
+    static int additional_reduce_millicores;
     static int64_t additional_map_memory;
     static int64_t additional_reduce_memory;
 

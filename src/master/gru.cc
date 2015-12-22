@@ -17,9 +17,11 @@ namespace shuttle {
 
 static const int64_t default_additional_map_memory = 1024l * 1024 * 1024;
 static const int64_t default_additional_reduce_memory = 2048l * 1024 * 1024;
-static const int default_additional_millicores = 0;
+static const int default_map_additional_millicores = 0;
+static const int default_reduce_additional_millicores = 500;
 
-int Gru::additional_millicores = default_additional_millicores;
+int Gru::additional_map_millicores = default_map_additional_millicores;
+int Gru::additional_reduce_millicores = default_reduce_additional_millicores;
 int64_t Gru::additional_map_memory = default_additional_map_memory;
 int64_t Gru::additional_reduce_memory = default_additional_reduce_memory;
 
@@ -38,7 +40,11 @@ Status Gru::Start() {
     galaxy_job.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
     galaxy_job.pod.version = "1.0.0";
-    galaxy_job.pod.requirement.millicores = job_->millicores() + additional_millicores;
+    if (mode_str_ == "map") {
+        galaxy_job.pod.requirement.millicores = job_->millicores() + additional_map_millicores;
+    } else {
+        galaxy_job.pod.requirement.millicores = job_->millicores() + additional_reduce_millicores;
+    }
     galaxy_job.pod.requirement.memory = job_->memory() +
         ((mode_ == kReduce) ? additional_reduce_memory : additional_map_memory);
     std::string app_package;
