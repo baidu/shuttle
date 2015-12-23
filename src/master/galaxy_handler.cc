@@ -66,8 +66,8 @@ Status GalaxyHandler::Start() {
     minion.start_cmd = ss.str().c_str();
     minion.stop_cmd = ss_stop.str().c_str();
     minion.requirement = galaxy_job.pod.requirement;
-    minion.mem_isolation_type = "kMemIsolationLimit";
-    minion.cpu_isolation_type = "kCpuIsolationSoft";
+    minion.mem_isolation_type = "kMemIsolationCgroup";
+    minion.cpu_isolation_type = "kCpuIsolationHard";
     galaxy_job.pod.tasks.push_back(minion);
     std::string minion_id;
     if (galaxy_->SubmitJob(galaxy_job, &minion_id)) {
@@ -82,7 +82,7 @@ Status GalaxyHandler::Kill() {
     if (minion_id_.empty()) {
         return kOk;
     }
-    if (!galaxy_->TerminateJob(minion_id_)) {
+    if (galaxy_->TerminateJob(minion_id_)) {
         return kOk;
     }
     return kGalaxyError;
