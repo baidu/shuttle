@@ -12,12 +12,14 @@ DagScheduler::~DagScheduler() {
 }
 
 std::vector<int> DagScheduler::AvailableNodes() {
+	return std::vector<int>();
 }
 
-bool DagScheduler::RemoveFinishedNode(int node) {
+bool DagScheduler::RemoveFinishedNode(int /*node*/) {
+	return false;
 }
 
-void DagScheduler::ConvertMap(const JobDescriptor& job) {
+void DagScheduler::ConvertMap(const JobDescriptor& /*job*/) {
 }
 
 }

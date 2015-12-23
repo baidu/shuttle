@@ -42,13 +42,14 @@ CONFIGS('third-64/gflags@gflags_2-0-0-100_PD_BL')
 CONFIGS('third-64/snappy@1.0.5.100')
 CONFIGS('inf/computing/libhdfs@libhdfs_1-4-2-62665_PD_BL@COMAKE', IncludePaths('./output/include'))
 
-master_src = 'src/master/master_main.cc \
+master_src = 'src/master/gru.cc \
+              src/master/galaxy_handler.cc \
+              src/master/job_tracker.cc \
+              src/master/dag_scheduler.cc \
+              src/master/master_main.cc \
               src/master/master_impl.cc \
               src/master/master_flags.cc \
-              src/master/job_tracker.cc \
               src/master/resource_manager.cc \
-              src/master/gru.cc \
-              src/master/galaxy_handler.cc \
               src/common/filesystem.cc \
               src/common/tools_util.cc \
               src/sort/input_reader.cc \
