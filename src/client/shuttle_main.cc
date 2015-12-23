@@ -560,6 +560,10 @@ static int MonitorJob() {
     memset(erase, ' ', 84);
     bool is_tty = ::isatty(fileno(stdout));
     int error_tolerance = 5;
+    int monitor_interval = 2;
+    if (!is_tty) {
+        monitor_interval = 20;
+    }
     while (true) {
         ::baidu::shuttle::sdk::JobInstance job;
         std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
@@ -637,7 +641,7 @@ static int MonitorJob() {
             delete shuttle;
             return -1;
         }
-        sleep(2);
+        sleep(monitor_interval);
     }
     delete shuttle;
     if (error_tolerance <= 0) {
