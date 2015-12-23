@@ -10,7 +10,8 @@ IsValidHadoop() {
 	if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/libhdfs/libhdfs.so ]; then
 		return 1
 	fi
-	if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/lib/native/Linux-amd64-64/liblzma.so.0 ]; then
+	lib_so_count=`ls ${HADOOP_CLIENT_HOME}/hadoop/lib/native/Linux-amd64-64/ | wc -l`
+	if [ $lib_so_count -ne 19 ]; then
 		return 2
 	fi
 	return 0

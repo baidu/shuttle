@@ -998,7 +998,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
             returned_item.push_back(top);
             continue;
         }
-        if (not_allow_duplicates || ((now - top->alloc_time < timeout) && is_long_task)) {
+        if (not_allow_duplicates || (now - top->alloc_time < timeout) ) {
             QueryRequest request;
             QueryResponse response;
             Minion_Stub* stub = NULL;

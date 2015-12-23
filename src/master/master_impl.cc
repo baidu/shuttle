@@ -372,8 +372,8 @@ void MasterImpl::OnMasterLockChange(const ::galaxy::ins::sdk::WatchParam& param,
 void MasterImpl::OnLockChange(const std::string& lock_session_id) {
     std::string self_session_id = nexus_->GetSessionID();
     if (self_session_id != lock_session_id) {
-        LOG(FATAL, "master lost lock, die");
-        abort();
+        LOG(WARNING, "master lost lock");
+        //abort();
     }
 }
 
