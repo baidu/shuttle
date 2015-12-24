@@ -102,7 +102,7 @@ message JobDescriptor {
     optional int64 split_size = 7;
     repeated NodeConfig nodes = 8;
     message NodeNeigbor {
-        repeated int32 neigbors = 1;
+        repeated int32 next = 1;
     }
     repeated NodeNeigbor map = 9;
 }

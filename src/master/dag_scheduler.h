@@ -10,13 +10,8 @@ namespace shuttle {
 
 struct DagNode {
     int node;
-    int pre;
-    int next;
-};
-
-struct AdjancencyListNode {
-    int node;
-    std::list< DagNode* > depends;
+    std::vector<int> pre;
+    std::vector<int> next;
 };
 
 class DagScheduler {
@@ -36,9 +31,12 @@ private:
 
 private:
     Mutex mu_;
-    // Backward adjacency list to store the dependency map
+    // Adjacency list to store the dependency map
     // Converted from the forward adjacency list in proto
-    std::list<AdjancencyListNode> dependency_map_;
+    std::vector<DagNode> dependency_map_;
+    // Dynamically adjust and record the in-degree of the map
+    // When a node is finished the successors of his lose 1 indegree
+    std::vector<int> indegree_;
     int left_;
 
 };
