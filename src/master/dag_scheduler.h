@@ -26,10 +26,10 @@ public:
         return left_;
     }
 
-private:
+protected:
     void ConvertMap(const JobDescriptor& job);
 
-private:
+protected:
     Mutex mu_;
     // Adjacency list to store the dependency map
     // Converted from the forward adjacency list in proto
