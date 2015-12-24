@@ -137,6 +137,17 @@ const std::string Executor::GetMapWorkDir(const TaskInfo& task) {
     return output_file_name;
 }
 
+const std::string Executor::GetReduceWorkDir(const TaskInfo& task) {
+    char output_file_name[4096];
+    snprintf(output_file_name, sizeof(output_file_name),
+            "%s/_temporary/reduce_%d/attempt_%d",
+            task.job().output().c_str(),
+            task.task_id(),
+            task.attempt_id()
+            );
+    return output_file_name;
+}
+
 const std::string Executor::GetReduceWorkFilename(const TaskInfo& task) {
     char output_file_name[4096];
     snprintf(output_file_name, sizeof(output_file_name), 
@@ -161,6 +172,7 @@ bool Executor::MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_ma
              task.job().output().c_str(), task.task_id());
     LOG(INFO, "rename %s -> %s", old_name.c_str(), new_name);
     if (fs->Rename(old_name, new_name)) {
+        MoveByPassData(task, fs, is_map);
         return true;
     } else {
         if (fs->Exist(new_name)) {
@@ -182,6 +194,7 @@ bool Executor::MoveTempToShuffle(const TaskInfo& task) {
     FillParam(param, task);
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     boost::scoped_ptr<FileSystem> fs_guard(fs);
+    MoveByPassData(task, fs, true);
     LOG(INFO, "rename %s -> %s", old_dir.c_str(), new_dir);
     fs->Rename(old_dir, new_dir);
     if (fs->Exist(new_dir)) {
@@ -524,6 +537,49 @@ bool Executor::MoveMultipleTempToOutput(const TaskInfo& task, FileSystem* fs, bo
                 continue;
             }
             return false;
+        }
+    }
+    MoveByPassData(task, fs, is_map);
+    return true;
+}
+
+bool Executor::MoveByPassData(const TaskInfo& task, FileSystem* fs, bool is_map) {
+    std::string tmp_dir;
+    if (is_map) {
+        tmp_dir = GetMapWorkDir(task);
+    } else {
+        tmp_dir = GetReduceWorkDir(task);
+    }
+    std::vector<FileInfo> children;
+    if (!fs->List(tmp_dir, &children)) {
+        return false;
+    }
+    for (size_t i = 0; i < children.size(); i++) {
+        const FileInfo& child_dir = children[i];
+        if(child_dir.kind != 'D') {
+            continue;
+        }
+        //sub-directory
+        std::vector<FileInfo> bypass_files;
+        if (!fs->List(child_dir.name, &bypass_files)) {
+            continue;
+        }
+        for (size_t j = 0; j < bypass_files.size(); j++) {
+            const FileInfo& bypass_file = bypass_files[j];
+            if (bypass_file.kind == 'F') {
+                size_t pos1 = child_dir.name.rfind("/");
+                std::string short_dir_name = child_dir.name.substr(pos1);
+                std::string short_file_name = 
+                    bypass_file.name.substr(child_dir.name.size() + 1);
+                std::string new_name = 
+                    task.job().output() + "/" + short_dir_name + "/" + short_file_name;
+                if (!fs->Exist(task.job().output() + "/" + short_dir_name)) {
+                    fs->Mkdirs(task.job().output() + "/" + short_dir_name);
+                }
+                LOG(INFO, "rename bypass: %s -> %s",
+                    bypass_file.name.c_str(), new_name.c_str());
+                fs->Rename(bypass_file.name, new_name);
+            }
         }
     }
     return true;

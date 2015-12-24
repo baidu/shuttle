@@ -19,6 +19,7 @@ MapOnlyExecutor::~MapOnlyExecutor() {
 
 TaskState MapOnlyExecutor::Exec(const TaskInfo& task) {
     LOG(INFO, "exec map-only task");
+    ::setenv("mapred_work_output_dir", GetMapWorkDir(task).c_str(), 1);
     std::string cmd = "sh ./app_wrapper.sh " + task.job().map_command();
     LOG(INFO, "maponly command is: %s", cmd.c_str());
     FILE* user_app = popen(cmd.c_str(), "r");

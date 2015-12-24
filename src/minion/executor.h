@@ -40,8 +40,10 @@ protected:
     const std::string GetMapWorkFilename(const TaskInfo& task);
     const std::string GetReduceWorkFilename(const TaskInfo& task);
     const std::string GetMapWorkDir(const TaskInfo& task);
+    const std::string GetReduceWorkDir(const TaskInfo& task);
     bool MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
     bool MoveTempToShuffle(const TaskInfo& task);
+    bool MoveByPassData(const TaskInfo& task, FileSystem* fs, bool is_map);
     const std::string GetShuffleWorkDir(const TaskInfo& task);
 
     bool ReadLine(FILE* user_app, std::string* line);

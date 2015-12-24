@@ -65,7 +65,6 @@ private:
 
 MapExecutor::MapExecutor() {
     ::setenv("mapred_task_is_map", "true", 1);
-
 }
 
 MapExecutor::~MapExecutor() {
@@ -74,6 +73,7 @@ MapExecutor::~MapExecutor() {
 
 TaskState MapExecutor::Exec(const TaskInfo& task) {
     LOG(INFO, "exec map task");
+    ::setenv("mapred_work_output_dir", GetMapWorkDir(task).c_str(), 1);
     std::string cmd = "sh ./app_wrapper.sh " + task.job().map_command();
     LOG(INFO, "map command is: %s", cmd.c_str());
     FILE* user_app = popen(cmd.c_str(), "r");

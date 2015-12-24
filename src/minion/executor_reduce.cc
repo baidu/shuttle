@@ -17,6 +17,7 @@ ReduceExecutor::~ReduceExecutor() {
 
 TaskState ReduceExecutor::Exec(const TaskInfo& task) {
     LOG(INFO, "exec reduce task");
+    ::setenv("mapred_work_output_dir", GetReduceWorkDir(task).c_str(), 1);
     std::string cmd = "sh ./app_wrapper.sh " + task.job().reduce_command();
     LOG(INFO, "reduce command is: %s", cmd.c_str());
     FILE* user_app = popen(cmd.c_str(), "r");
