@@ -38,7 +38,6 @@ private:
     // When a node is finished the successors of his lose 1 indegree
     std::vector<int> indegree_;
     int left_;
-
 };
 
 }

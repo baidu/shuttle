@@ -13,19 +13,23 @@ DagScheduler::~DagScheduler() {
 
 std::vector<int> DagScheduler::AvailableNodes() {
     std::vector<int> available;
+    mu_.Lock();
     for (size_t i = 0; i < indegree_.size(); ++i) {
         if (indegree_[i] == 0) {
             available.push_back(i);
         }
     }
+    mu_.Unlock();
     return available;
 }
 
 bool DagScheduler::RemoveFinishedNode(int node) {
     size_t cur = static_cast<size_t>(node);
+    // size of indegree is inchangable so there's no need to lock
     if (cur > indegree_.size()) {
         return false;
     }
+    MutexLock lock(&mu_);
     indegree_[cur] = -1;
     for (std::vector<int>::iterator it = dependency_map_[cur].next.begin();
             it != dependency_map_[cur].next.end(); ++it) {
