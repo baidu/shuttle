@@ -126,6 +126,10 @@ resourcemanager_test_src = 'src/master/resource_manager.cc \
                             src/common/tools_util.cc \
                             proto/shuttle.proto'
 
+dag_scheduler_test_src = 'src/master/dag_scheduler.cc \
+                          src/master/dag_scheduler_test.cc \
+                          proto/shuttle.proto'
+
 Application('master', Sources(master_src))
 Application('minion', Sources(minion_src, executor_src, sort_src))
 Application('sort_test', Sources(sort_test_src, sort_src))
@@ -135,6 +139,7 @@ Application('input_tool', Sources(input_tool_src, input_reader_src))
 Application('input_test', Sources(input_test_src, input_reader_src))
 Application('partition_test', Sources(partition_src, partition_test_src))
 Application('resourcemanager_test', Sources(resourcemanager_test_src, input_reader_src))
+Application('dagscheduler_test', Sources(dag_scheduler_test_src))
 Application('shuffle_tool', Sources(sort_src, shuffle_tool_src))
 
 StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
