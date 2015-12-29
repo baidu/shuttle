@@ -249,7 +249,7 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
             if (!config::file.empty()) {
                 config::file += ",";
             }
-            if (!boost::starts_with(opt[i+1], "hdfs://") || !boost::contains(opt[i+1],"tar.gz")) {
+            if (!boost::starts_with(opt[i+1], "hdfs://") || !boost::contains(opt[i+1],".tar")) {
                 config::err_msg = "cacheArchive should like this hdfs://hostname:port/abc.tar.gz";
             }
             config::file += opt[++i];
