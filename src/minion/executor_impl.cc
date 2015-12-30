@@ -1,5 +1,6 @@
 #include "executor.h"
 #include <unistd.h>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/scoped_ptr.hpp>
 
@@ -582,6 +583,49 @@ bool Executor::MoveByPassData(const TaskInfo& task, FileSystem* fs, bool is_map)
             }
         }
     }
+    return true;
+}
+
+bool Executor::ParseCounters(const TaskInfo& task,
+                             std::map<std::string, int64_t>* counters,
+                             bool is_map) {
+    assert(counters);
+    std::stringstream cmd_ss;
+    std::stringstream task_local_dir;
+    std::string task_type = (is_map ? "map_" : "reduce_");
+    task_local_dir << task_type << task.task_id() << "_" << task.attempt_id();
+    std::string task_stderr_name = task_local_dir.str() + "/stderr";
+    FILE* task_stderr_file = fopen(task_stderr_name.c_str(), "r");
+    if (!task_stderr_file) {
+        LOG(WARNING, "failed to read stderr of this task");
+        return false;
+    }
+    std::string line;
+    while (ReadLine(task_stderr_file, &line)) {
+        if (feof(task_stderr_file)) {
+            break;
+        }
+        if (!boost::starts_with(line, "reporter:counter:")) {
+            continue;
+        }
+        size_t value_idx = line.rfind(",");
+        size_t key_idx = line.find(":");
+        int64_t value;
+        std::string key;
+        if (value_idx == std::string::npos || 
+            key_idx == std::string::npos ||
+            key_idx >= value_idx) {
+            continue;
+        }
+        key = line.substr(key_idx+1, value_idx - key_idx - 1);
+        if (key.empty()) {
+            continue;
+        }
+        std::string s_value = line.substr(value_idx+1);
+        sscanf(s_value.c_str(), "%lld", (long long int*)&value);
+        (*counters)[key] = value;
+    }
+    fclose(task_stderr_file);
     return true;
 }
 

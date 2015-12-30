@@ -81,7 +81,8 @@ private:
                               int32_t finish_time);
     bool SaveJobToNexus(JobTracker* jobtracker);
     bool RemoveJobFromNexus(const std::string& jobid);
-
+    void ParseJobCounters(const google::protobuf::RepeatedPtrField<baidu::shuttle::TaskCounter>& rpc_counters,
+                          std::map<std::string, int64_t>* counters);
 private:
     ::baidu::galaxy::Galaxy* galaxy_sdk_;
     Mutex tracker_mu_;

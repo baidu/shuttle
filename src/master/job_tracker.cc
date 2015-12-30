@@ -492,7 +492,9 @@ void JobTracker::CancelOtherAttempts(
     }
 }
 
-Status JobTracker::FinishMap(int no, int attempt, TaskState state, const std::string& err_msg) {
+Status JobTracker::FinishMap(int no, int attempt, TaskState state, 
+                             const std::string& err_msg,
+                             const std::map<std::string, int64_t>& counters) {
     AllocateItem* cur = NULL;
     {
         MutexLock lock(&alloc_mu_);
@@ -543,6 +545,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state, const std::st
             int not_done = job_descriptor_.map_total() - completed;
             map_dismiss_minion_num_ = job_descriptor_.map_capacity() - (int)
                 ::ceil( std::max(not_done, 5) * FLAGS_left_percent / 100.0);
+            AccumulateCounters(counters);
 
             LOG(INFO, "complete a map task(%d/%d): %s",
                     completed, map_manager_->SumOfItem(), job_id_.c_str());
@@ -652,7 +655,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state, const std::st
     return kOk;
 }
 
-Status JobTracker::FinishReduce(int no, int attempt, TaskState state, const std::string& err_msg) {
+Status JobTracker::FinishReduce(int no, int attempt, TaskState state, 
+                                const std::string& err_msg,
+                                const std::map<std::string, int64_t>& counters) {
     if (map_manager_ && map_manager_->Done() < job_descriptor_.map_total()) {
         LOG(WARNING, "reduce finish too early, wait a moment");
         return kSuspend;
@@ -706,6 +711,8 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state, const std:
             int completed = reduce_manager_->Done();
             reduce_dismiss_minion_num_ = job_descriptor_.reduce_capacity() - (int)
                 ::ceil((job_descriptor_.reduce_total() - completed) * FLAGS_left_percent / 100.0);
+            AccumulateCounters(counters);
+
             LOG(INFO, "complete a reduce task(%d/%d): %s",
                     completed, reduce_manager_->SumOfItem(), job_id_.c_str());
             if (completed == reduce_manager_->SumOfItem()) {
@@ -1057,6 +1064,17 @@ void JobTracker::KeepMonitoring(bool map_now) {
     monitor_->DelayTask(sleep_time * 1000,
             boost::bind(&JobTracker::KeepMonitoring, this, map_now));
     LOG(INFO, "[monitor] will now rest for %ds: %s", sleep_time, job_id_.c_str());
+}
+
+bool JobTracker::AccumulateCounters(const std::map<std::string, int64_t>& counters){
+    mu_.AssertHeld();
+    std::map<std::string, int64_t>::const_iterator it;
+    for (it = counters.begin(); it != counters.end(); it++) {
+        const std::string& key = it->first;
+        int64_t value = it->second;
+        counters_[key] += value;
+    }
+    return true;
 }
 
 }

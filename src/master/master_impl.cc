@@ -293,16 +293,21 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
     }
     if (jobtracker != NULL) {
         Status status = kOk;
+        std::map<std::string, int64_t> counters;
+        ParseJobCounters(request->counters(), &counters);
+
         if (request->work_mode() == kReduce) {
             status = jobtracker->FinishReduce(request->task_id(),
                                               request->attempt_id(),
                                               request->task_state(),
-                                              request->error_msg());
+                                              request->error_msg(),
+                                              counters);
         } else {
             status = jobtracker->FinishMap(request->task_id(),
                                            request->attempt_id(),
                                            request->task_state(),
-                                           request->error_msg());
+                                           request->error_msg(),
+                                           counters);
         }
         response->set_status(status);
     } else {
@@ -595,6 +600,15 @@ std::string MasterImpl::SerialJobData(const JobState state,
     std::string compressed_str;
     snappy::Compress(ss.str().data(), ss.str().size(), &compressed_str);
     return compressed_str;
+}
+
+void MasterImpl::ParseJobCounters(const google::protobuf::RepeatedPtrField<baidu::shuttle::TaskCounter>& rpc_counters,
+                                  std::map<std::string, int64_t>* counters) {
+    assert(counters);
+    google::protobuf::RepeatedPtrField<baidu::shuttle::TaskCounter>::const_iterator it;
+    for (it = rpc_counters.begin(); it != rpc_counters.end(); it++) {
+        (*counters)[it->key()] = it->value();
+    }
 }
 
 }

@@ -218,6 +218,12 @@ void MinionImpl::Loop() {
         if (task_state == kTaskFailed) {
             error_msg = executor_->GetErrorMsg(task, (work_mode_ != kReduce));
         }
+
+        std::map<std::string, int64_t> counters;
+        if (task.job().has_check_counters() && task.job().check_counters()) {
+            executor_->ParseCounters(task, &counters, (work_mode_ != kReduce));
+        }
+
         ::baidu::shuttle::FinishTaskRequest fn_request;
         ::baidu::shuttle::FinishTaskResponse fn_response;
         fn_request.set_jobid(jobid_);
@@ -227,6 +233,16 @@ void MinionImpl::Loop() {
         fn_request.set_endpoint(endpoint_);
         fn_request.set_work_mode(work_mode_);
         fn_request.set_error_msg(error_msg);
+
+        std::map<std::string, int64_t>::iterator it;
+        for (it = counters.begin(); it != counters.end(); it++) {
+            const std::string& key = it->first;
+            int64_t value = it->second;
+            ::baidu::shuttle::TaskCounter* ct = fn_request.add_counters();
+            ct->set_key(key);
+            ct->set_value(value);
+        }
+
         while (!stop_) {
             bool ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
                                          &fn_request, &fn_response, 5, 1);

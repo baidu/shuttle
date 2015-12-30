@@ -106,6 +106,7 @@ message JobDescriptor {
     optional int32 map_retry = 27;
     optional int32 reduce_retry = 28;
     optional int64 split_size = 29;
+    optional bool check_counters = 30 [default = false];
 }
 
 message TaskInput {

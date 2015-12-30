@@ -113,6 +113,7 @@ struct JobDescription {
     int32_t map_retry;
     int32_t reduce_retry;
     int64_t split_size;
+    bool check_counters;
 };
 
 struct TaskInstance {

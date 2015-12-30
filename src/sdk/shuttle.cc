@@ -99,6 +99,7 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_pipe_style((PipeStyle)job_desc.pipe_style);
     job->set_map_allow_duplicates(job_desc.map_allow_duplicates);
     job->set_reduce_allow_duplicates(job_desc.reduce_allow_duplicates);
+    job->set_check_counters(job_desc.check_counters);
     job->set_map_retry(job_desc.map_retry);
     job->set_reduce_retry(job_desc.reduce_retry);
     job->set_split_size(job_desc.split_size);
@@ -236,6 +237,7 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
     job.desc.pipe_style = (sdk::PipeStyle)desc.pipe_style();
     job.desc.map_allow_duplicates = desc.map_allow_duplicates();
     job.desc.reduce_allow_duplicates = desc.reduce_allow_duplicates();
+    job.desc.check_counters = desc.check_counters();
     job.desc.map_retry = desc.map_retry();
     job.desc.reduce_retry = desc.reduce_retry();
     job.desc.split_size = desc.split_size();

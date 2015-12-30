@@ -34,6 +34,9 @@ public:
     std::string GetErrorMsg(const TaskInfo& task, bool is_map);
     void UploadErrorMsg(const TaskInfo& task, bool is_map, const std::string& error_msg);
     static void FillParam(FileSystem::Param& param, const TaskInfo& task);
+    bool ParseCounters(const TaskInfo& task,
+                       std::map<std::string, int64_t>* counters,
+                       bool is_map);
 protected:
     Executor() ;
     bool ShouldStop(int32_t task_id);
@@ -56,6 +59,7 @@ protected:
     TaskState TransMultipleTextOutput(FILE* user_app, const std::string& temp_file_name,
                                       FileSystem::Param param, const TaskInfo& task);
     bool MoveMultipleTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_map);
+
 protected:
     char* line_buf_;
 

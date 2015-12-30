@@ -67,6 +67,7 @@ int map_retry = 3;
 int reduce_retry = 3;
 int64_t split_size = 500l * 1024 * 1024;
 std::string err_msg;
+bool check_counters = false;
 }
 
 const std::string error_message = "shuttle client - A fast computing framework base on Galaxy\n"
@@ -106,6 +107,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.output.user\tSpecify the user, ditto\n"
         "\t  mapred.job.output.password\tSpecify the password, ditto\n"
         "\t  mapred.map.max.attempts\t\tSpecify the number of map tasks\n"
+        "\t  mapred.job.check.counters\t\tEnable checking job counters\n"
         "\t  mapred.reduce.max.attempts\t\tSpecify the number of reduce tasks\n"
         "\t  mapred.map.tasks\t\tSpecify the number of map tasks\n"
         "\t  mapred.reduce.tasks\t\tSpecify the number of reduce tasks\n"
@@ -436,6 +438,9 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.reduce.tasks.speculative.execution=")) {
             config::reduce_speculative_exec =
                 ParseBooleanValue(it->substr(strlen("mapred.reduce.tasks.speculative.execution=")));
+        } else if(boost::starts_with(*it, "mapred.job.check.counters=")) {
+            config::check_counters = 
+                ParseBooleanValue(it->substr(strlen("mapred.job.check.counters=")));
         }
     }
 }
@@ -724,6 +729,7 @@ static int SubmitJob() {
     job_desc.output_format = config::output_format;
     job_desc.pipe_style = config::pipe_style;
     job_desc.map_allow_duplicates = config::map_speculative_exec;
+    job_desc.check_counters = config::check_counters;
     job_desc.reduce_allow_duplicates = config::reduce_speculative_exec;
     job_desc.map_retry = config::map_retry;
     job_desc.reduce_retry = config::reduce_retry;

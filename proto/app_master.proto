@@ -124,6 +124,11 @@ message AssignTaskResponse {
     optional TaskInfo task = 2;
 }
 
+message TaskCounter {
+    optional string key = 1;
+    optional int64 value = 2;
+}
+
 message FinishTaskRequest {
     required string jobid = 1;
     required int32 task_id = 2;
@@ -132,6 +137,7 @@ message FinishTaskRequest {
     optional string endpoint = 5;
     optional WorkMode work_mode = 6;
     optional string error_msg = 7;
+    repeated TaskCounter counters = 8;
 }
 
 message FinishTaskResponse {

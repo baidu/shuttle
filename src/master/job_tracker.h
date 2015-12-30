@@ -53,8 +53,13 @@ public:
     Status Kill(JobState end_state);
     ResourceItem* AssignMap(const std::string& endpoint, Status* status);
     IdItem* AssignReduce(const std::string& endpoint, Status* status);
-    Status FinishMap(int no, int attempt, TaskState state, const std::string& err_msg);
-    Status FinishReduce(int no, int attempt, TaskState state, const std::string& err_msg);
+    Status FinishMap(int no, int attempt, TaskState state, 
+                     const std::string& err_msg,
+                     const std::map<std::string, int64_t>& counters);
+    Status FinishReduce(int no, int attempt, TaskState state, 
+                        const std::string& err_msg,
+                        const std::map<std::string, int64_t>& counters);
+    bool AccumulateCounters(const std::map<std::string, int64_t>& counters);
 
     std::string GetJobId() {
         MutexLock lock(&mu_);
@@ -169,6 +174,7 @@ private:
     std::map<int, std::map<int, AllocateItem*> > map_index_;
     std::map<int, std::map<int, AllocateItem*> > reduce_index_;
     std::string error_msg_;
+    std::map<std::string, int64_t> counters_;
 };
 
 }
