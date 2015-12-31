@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <time.h>
+#include <map>
 #include <vector>
 #include <string>
 
@@ -159,7 +160,8 @@ public:
                          std::vector<sdk::TaskInstance>& tasks,
                          bool display_all,
                          bool show_detail,
-                         std::string& error_msg) = 0;
+                         std::string& error_msg,
+                         std::map<std::string, int64_t>& counters) = 0;
     virtual bool ListJobs(std::vector<sdk::JobInstance>& jobs,
                           bool display_all = true) = 0;
     virtual void SetRpcTimeout(int timeout) = 0;

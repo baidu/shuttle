@@ -111,6 +111,7 @@ message ShowJobResponse {
     optional JobOverview job = 2;
     repeated TaskOverview tasks = 3;
     optional string error_msg = 4;
+    repeated TaskCounter counters = 5;
 }
 
 message AssignTaskRequest {

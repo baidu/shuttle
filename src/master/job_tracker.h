@@ -60,7 +60,8 @@ public:
                         const std::string& err_msg,
                         const std::map<std::string, int64_t>& counters);
     bool AccumulateCounters(const std::map<std::string, int64_t>& counters);
-
+    void FillCounters(ShowJobResponse* response);
+    
     std::string GetJobId() {
         MutexLock lock(&mu_);
         return job_id_;

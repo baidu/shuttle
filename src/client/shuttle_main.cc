@@ -574,7 +574,9 @@ static int MonitorJob() {
         std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
         const std::string timestamp = FromatLongTime(time(NULL));
         std::string error_msg;
-        bool ok = shuttle->ShowJob(config::params[0], job, tasks, true, false, error_msg);
+        std::map<std::string, int64_t> counters;
+        bool ok = shuttle->ShowJob(config::params[0], job, tasks, 
+                                   true, false, error_msg, counters);
         if (!ok) {
             fprintf(stderr, "lost connection with master\n");
             if (error_tolerance-- <= 0) {
@@ -838,6 +840,21 @@ static int ListJobs() {
     return 0;
 }
 
+static void PrintJobCounters(const std::map<std::string, int64_t>& counters) {
+    if (counters.size() == 0) {
+        return;
+    }
+    ::baidu::common::TPrinter tp(2);
+    printf("\n");
+    tp.AddRow(2, "Counter-Name", "Value");
+    std::map<std::string, int64_t>::const_iterator it;
+    for (it = counters.begin(); it != counters.end(); it++) {
+        tp.AddRow(2, it->first.c_str(),
+                  boost::lexical_cast<std::string>(it->second).c_str());
+    }
+    printf("%s\n", tp.ToString().c_str());
+}
+
 static int ShowJob() {
     std::string master_endpoint = GetMasterAddr();
     if (master_endpoint.empty()) {
@@ -853,7 +870,9 @@ static int ShowJob() {
     ::baidu::shuttle::sdk::JobInstance job;
     std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
     std::string error_msg;
-    bool ok = shuttle->ShowJob(config::params[0], job, tasks, config::display_all, true, error_msg);
+    std::map<std::string, int64_t> counters;
+    bool ok = shuttle->ShowJob(config::params[0], job, tasks, 
+                               config::display_all, true, error_msg, counters);
     delete shuttle;
     done = true;
     if (!ok) {
@@ -862,6 +881,7 @@ static int ShowJob() {
     }
     std::sort(tasks.begin(), tasks.end(), TaskComparator());
     PrintJobDetails(job);
+    PrintJobCounters(counters);
     PrintTasksInfo(tasks);
     if (!error_msg.empty()) {
         printf("===== error message =====\n");

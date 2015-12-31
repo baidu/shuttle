@@ -220,7 +220,8 @@ void MinionImpl::Loop() {
         }
 
         std::map<std::string, int64_t> counters;
-        if (task.job().has_check_counters() && task.job().check_counters()) {
+        if (task_state == kTaskCompleted
+            && task.job().has_check_counters() && task.job().check_counters()) {
             executor_->ParseCounters(task, &counters, (work_mode_ != kReduce));
         }
 

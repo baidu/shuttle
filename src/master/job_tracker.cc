@@ -30,6 +30,7 @@ DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
 DECLARE_int32(retry_bound);
 DECLARE_int32(left_percent);
+DECLARE_int32(max_counters_per_job);
 
 namespace baidu {
 namespace shuttle {
@@ -1068,6 +1069,10 @@ void JobTracker::KeepMonitoring(bool map_now) {
 
 bool JobTracker::AccumulateCounters(const std::map<std::string, int64_t>& counters){
     mu_.AssertHeld();
+    if (counters_.size() > (size_t)FLAGS_max_counters_per_job) {
+        LOG(WARNING, "too many counters: %d", counters_.size());
+        return false;
+    }
     std::map<std::string, int64_t>::const_iterator it;
     for (it = counters.begin(); it != counters.end(); it++) {
         const std::string& key = it->first;
@@ -1075,6 +1080,17 @@ bool JobTracker::AccumulateCounters(const std::map<std::string, int64_t>& counte
         counters_[key] += value;
     }
     return true;
+}
+
+void JobTracker::FillCounters(ShowJobResponse* response) {
+    assert(response);
+    MutexLock lock(&mu_);
+    std::map<std::string, int64_t>::iterator it;
+    for (it = counters_.begin(); it != counters_.end(); it++) {
+        TaskCounter* counter = response->add_counters();
+        counter->set_key(it->first);
+        counter->set_value(it->second);
+    }
 }
 
 }

@@ -204,6 +204,7 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
         response->set_error_msg(jobtracker->GetErrorMsg());
         if (request->show_detail()) {
             jobtracker->Check(response);
+            jobtracker->FillCounters(response);
         }
         // TODO Query progress here
     } else {

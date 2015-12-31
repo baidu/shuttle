@@ -22,5 +22,7 @@ DEFINE_int32(backup_interval, 60000, "millisecond time interval for master backu
 DEFINE_int32(retry_bound, 3, "retry times when a certain task failed before the job is considered failed");
 DEFINE_bool(recovery, false, "whether fallen into recovery process at the beginning");
 DEFINE_int32(master_rpc_thread_num, 12, "rpc thread num of master");
+DEFINE_int32(max_counters_per_job, 10000, "max counters per job");
+
 
 

@@ -29,7 +29,8 @@ public:
                  std::vector<sdk::TaskInstance>& tasks,
                  bool display_all,
                  bool show_detail,
-                 std::string& error_msg);
+                 std::string& error_msg,
+                 std::map<std::string, int64_t>& counters);
     bool ListJobs(std::vector<sdk::JobInstance>& jobs,
                   bool display_all);
     void SetRpcTimeout(int second);
@@ -185,7 +186,8 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
                           std::vector<sdk::TaskInstance>& tasks,
                           bool display_all,
                           bool show_detail,
-                          std::string& error_msg) {
+                          std::string& error_msg,
+                          std::map<std::string, int64_t>& counters) {
     ::baidu::shuttle::ShowJobRequest request;
     ::baidu::shuttle::ShowJobResponse response;
     request.set_jobid(job_id);
@@ -281,6 +283,10 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
         tasks.push_back(task);
     }
     error_msg = response.error_msg();
+    ::google::protobuf::RepeatedPtrField<TaskCounter>::const_iterator jt;
+    for (jt = response.counters().begin(); jt != response.counters().end(); jt++) {
+        counters[jt->key()] = jt->value();
+    }
     return true;
 }
 

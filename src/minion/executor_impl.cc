@@ -609,7 +609,7 @@ bool Executor::ParseCounters(const TaskInfo& task,
             continue;
         }
         size_t value_idx = line.rfind(",");
-        size_t key_idx = line.find(":");
+        size_t key_idx = line.rfind(":");
         int64_t value;
         std::string key;
         if (value_idx == std::string::npos || 
@@ -623,7 +623,7 @@ bool Executor::ParseCounters(const TaskInfo& task,
         }
         std::string s_value = line.substr(value_idx+1);
         sscanf(s_value.c_str(), "%lld", (long long int*)&value);
-        (*counters)[key] = value;
+        (*counters)[key] += value;
     }
     fclose(task_stderr_file);
     return true;
