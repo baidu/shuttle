@@ -23,6 +23,10 @@ std::vector<int> DagScheduler::AvailableNodes() {
     return available;
 }
 
+std::vector<int> DagScheduler::NextNodes(int node) {
+    return dependency_map_[node].next;
+}
+
 bool DagScheduler::RemoveFinishedNode(int node) {
     size_t cur = static_cast<size_t>(node);
     // size of indegree is inchangable so there's no need to lock
@@ -35,6 +39,7 @@ bool DagScheduler::RemoveFinishedNode(int node) {
             it != dependency_map_[cur].next.end(); ++it) {
         --indegree_[*it];
     }
+    --left_;
     return true;
 }
 

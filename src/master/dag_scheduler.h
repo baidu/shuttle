@@ -20,6 +20,7 @@ public:
     virtual ~DagScheduler();
 
     std::vector<int> AvailableNodes();
+    std::vector<int> NextNodes(int node);
     bool RemoveFinishedNode(int node);
     int UnfinishedNodes() {
         MutexLock lock(&mu_);
