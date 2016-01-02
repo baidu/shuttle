@@ -6,12 +6,17 @@
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <gflags/gflags.h>
 #include "galaxy_handler.h"
 #include "resource_manager.h"
 #include "common/rpc_client.h"
 #include "common/tools_util.h"
 #include "thread_pool.h"
 #include "logging.h"
+
+DECLARE_int32(replica_begin);
+DECLARE_int32(replica_begin_percent);
+DECLARE_int32(replica_num);
 
 namespace baidu {
 namespace shuttle {
@@ -28,6 +33,7 @@ public:
             allow_duplicates_(true), nearly_finish_callback_(0), finished_callback_(0), monitor_(1) {
         rpc_client_ = new RpcClient();
         cur_node_ = job_.mutable_nodes(node_);
+        allow_duplicates_ = cur_node_->allow_duplicates();
         monitor_.AddTask(boost::bind(&BasicGru<Resource>::KeepMonitoring, this));
     }
     virtual ~BasicGru() {
@@ -102,7 +108,7 @@ protected:
     int failed_;
     // Initialized to 0 since it depends on resource sum
     int end_game_begin_;
-    // Initialized to true since it depends on job descriptor
+    // Carefully initialized
     bool allow_duplicates_;
     boost::function<void ()> nearly_finish_callback_;
     boost::function<void ()> finished_callback_;
@@ -110,7 +116,7 @@ protected:
     Mutex alloc_mu_;
     ThreadPool monitor_;
     std::queue<int> slugs_;
-    std::vector<int> failed_count;
+    std::vector<int> failed_count_;
     std::vector< std::vector<AllocateItem*> > allocation_table_;
     std::priority_queue<AllocateItem*, std::vector<AllocateItem*>,
                         AllocateItemComparator> time_heap_;
@@ -197,14 +203,112 @@ Status BasicGru<Resource>::Kill() {
 }
 
 template <class Resource>
-Resource* Assign(const std::string& endpoint, Status* status) {
-    // TODO Assign implemenation
-    return NULL;
+Resource* BasicGru<Resource>::Assign(const std::string& endpoint, Status* status) {
+    // This is a lock-free state access since in any case this statement
+    //    would not go wrong
+    if (state_ == kPending) {
+        state_ = kRunning;
+    }
+    Resource* cur = manager_->GetItem();
+    alloc_mu_.Lock();
+
+    // For end game duplication
+    if (allow_duplicates_ && cur != NULL && cur->no >= end_game_begin_) {
+        for (int i = 0; i < FLAGS_replica_num; ++i) {
+            slugs_.push(cur->no);
+        }
+    }
+
+    // Check slugs queue to duplicate long-tail tasks
+    while (cur == NULL) {
+        while (!slugs_.empty() && manager_->IsAllocated(slugs_.front())) {
+            LOG(DEBUG, "node %d slug pop %d: %s", node_, slugs_.front(), job_id_.c_str());
+            slugs_.pop();
+        }
+        if (slugs_.empty()) {
+            alloc_mu_.Unlock();
+            // TODO Suspend vs NoMore
+            return NULL;
+        }
+        LOG(INFO, "node %d duplicates %d task: %s", node_, slugs_.front(), job_id_.c_str());
+        cur = manager_->GetCertainItem(slugs_.front());
+        slugs_.pop();
+    }
+    alloc_mu_.Unlock();
+    // TODO Pull up monitor
+
+    // Prepare allocation record block and insert
+    AllocateItem* alloc = new AllocateItem();
+    alloc->no = cur->no;
+    alloc->attempt = cur->attempt;
+    alloc->endpoint = endpoint;
+    alloc->state = kTaskRunning;
+    alloc->alloc_time = std::time(NULL);
+    alloc->period = -1;
+
+    MutexLock lock(&alloc_mu_);
+    allocation_table_[cur->no].push_back(alloc);
+    time_heap_.push(alloc);
+    LOG(INFO, "node %d assign map: < no - %d, attempt - %d >, to %s: %s",
+            node_, cur->no, cur->attempt, endpoint.c_str(), job_id_.c_str());
+    if (status != NULL) {
+        *status = kOk;
+    }
+    return cur;
 }
 
 template <class Resource>
-Status Finish(int no, int attempt, TaskState state) {
-    // TODO Finish implementation
+Status BasicGru<Resource>::Finish(int no, int attempt, TaskState state) {
+    AllocateItem* cur = NULL;
+    try {
+        cur = allocation_table_[no][attempt];
+    } catch (const std::out_of_range&) {
+        LOG(WARNING, "node %d try to finish an inexist task: < no - %d, attempt - %d >: %s",
+                node_, no, attempt, job_id_.c_str());
+        return kNoMore;
+    }
+    if (state == kTaskMoveOutputFailed) {
+        if (!manager_->IsDone(cur->no)) {
+            state = kTaskFailed;
+        } else {
+            state = kTaskCanceled;
+        }
+    }
+
+    switch (state) {
+    case kTaskCompleted:
+        // TODO More implement here
+        break;
+    case kTaskFailed:
+        manager_->ReturnBackItem(cur->no);
+        ++failed_count_[cur->no]; ++failed_;
+        if (failed_count_[cur->no] >= cur_node_->retry()) {
+            LOG(INFO, "node %d failed, kill job: %s", node_, job_id_.c_str());
+            // TODO Retract job
+            // need mu_
+            state_ = kFailed;
+        }
+        break;
+    case kTaskKilled:
+        manager_->ReturnBackItem(cur->no);
+        ++killed_;
+        break;
+    case kTaskCanceled: break;
+    default:
+        LOG(WARNING, "node %d got unfamiliar task finish status %d: %s",
+                node_, state, job_id_.c_str());
+        return kNoMore;
+    }
+
+    {
+        MutexLock lock(&alloc_mu_);
+        cur->state = state;
+        cur->period = std::time(NULL) - cur->alloc_time;
+    }
+    if (state != kTaskCompleted || !allow_duplicates_) {
+        return kOk;
+    }
+    // TODO Cancel tasks
     return kOk;
 }
 
@@ -287,7 +391,12 @@ void BasicGru<Resource>::BuildEndGameCounters() {
     if (manager_ == NULL) {
         return;
     }
-    // TODO Build end game counters here
+    int items = manager_->SumOfItem();
+    end_game_begin_ = items - FLAGS_replica_begin;
+    int temp = items - items * FLAGS_replica_begin_percent / 100;
+    if (end_game_begin_ > temp) {
+        end_game_begin_ = temp;
+    }
 }
 
 AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id, int node) :
