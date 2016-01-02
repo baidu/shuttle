@@ -1,8 +1,10 @@
 #ifndef _BAIDU_SHUTTLE_JOB_TRACKER_H_
 #define _BAIDU_SHUTTLE_JOB_TRACKER_H_
 #include <string>
+#include <vector>
 #include <ctime>
 #include "gru.h"
+#include "dag_scheduler.h"
 #include "proto/shuttle.pb.h"
 
 namespace baidu {
@@ -42,8 +44,9 @@ public:
 private:
     std::string GenerateJobId();
     // For gru callback
-    void ScheduleNextPhase();
-    void FinishPhase();
+    void ScheduleNextPhase(int node);
+    void FinishPhase(int node);
+    void FinishWholeJob();
 
 private:
     JobDescriptor job_;
@@ -54,6 +57,7 @@ private:
     time_t start_time_;
     time_t finish_time_;
 
+    DagScheduler scheduler_;
 };
 
 }
