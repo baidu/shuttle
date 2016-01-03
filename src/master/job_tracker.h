@@ -21,7 +21,7 @@ public:
     Status Update(...);
     Status Kill();
     
-    IdItem* Assign(int node, const std::string& endpoint, Status* status);
+    ResourceItem* Assign(int node, const std::string& endpoint, Status* status);
     Status Finish(int node, int no, int attempt, TaskState state);
 
     std::string GetJobId() {
@@ -58,6 +58,7 @@ private:
     time_t finish_time_;
 
     DagScheduler scheduler_;
+    std::vector<Gru*> grus_;
 };
 
 }

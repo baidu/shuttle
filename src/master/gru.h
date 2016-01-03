@@ -9,10 +9,8 @@
 namespace baidu {
 namespace shuttle {
 
-// For AlphaGru to manage inputs
+// Item returned from resource manager
 class ResourceItem;
-// For BetaGru and OmegaGru to manage task-id
-class IdItem;
 
 struct AllocateItem {
     int no;
@@ -32,17 +30,16 @@ struct AllocateItemComparator {
 
 class RpcClient;
 
-template <class Resource>
 class Gru {
 public:
     // Operations
     virtual Status Start() = 0;
     virtual Status Kill() = 0;
-    virtual Resource* Assign(const std::string& endpoint, Status* status) = 0;
+    virtual ResourceItem* Assign(const std::string& endpoint, Status* status) = 0;
     virtual Status Finish(int no, int attempt, TaskState state) = 0;
 
     // Data getters
-    virtual Status GetHistory(const std::vector<AllocateItem>& buf) = 0;
+    virtual Status GetHistory(std::vector<AllocateItem>& buf) = 0;
     virtual time_t GetStartTime() = 0;
     virtual time_t GetFinishTime() = 0;
     virtual TaskStatistics GetStatistics() = 0;
@@ -62,9 +59,9 @@ public:
     
     // Factory methods
     // TODO Give appropriate parameters for initialization
-    static Gru<ResourceItem>* GetAlphaGru(JobDescriptor& job, const std::string& job_id, int node);
-    static Gru<IdItem>* GetBetaGru(JobDescriptor& job, const std::string& job_id, int node);
-    static Gru<IdItem>* GetOmegaGru(JobDescriptor& job, const std::string& job_id, int node);
+    static Gru* GetAlphaGru(JobDescriptor& job, const std::string& job_id, int node);
+    static Gru* GetBetaGru(JobDescriptor& job, const std::string& job_id, int node);
+    static Gru* GetOmegaGru(JobDescriptor& job, const std::string& job_id, int node);
 };
 
 

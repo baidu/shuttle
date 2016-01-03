@@ -22,8 +22,7 @@ namespace baidu {
 namespace shuttle {
 
 // Interface Gru
-template <class Resource>
-class BasicGru : Gru<Resource> {
+class BasicGru : public Gru {
 public:
     // General initialization
     BasicGru(JobDescriptor& job, const std::string& job_id, int node) :
@@ -34,7 +33,7 @@ public:
         rpc_client_ = new RpcClient();
         cur_node_ = job_.mutable_nodes(node_);
         allow_duplicates_ = cur_node_->allow_duplicates();
-        monitor_.AddTask(boost::bind(&BasicGru<Resource>::KeepMonitoring, this));
+        monitor_.AddTask(boost::bind(&BasicGru::KeepMonitoring, this));
     }
     virtual ~BasicGru() {
         if (rpc_client_ != NULL) {
@@ -45,9 +44,10 @@ public:
 
     virtual Status Start();
     virtual Status Kill();
-    virtual Resource* Assign(const std::string& endpoint, Status* status);
+    virtual ResourceItem* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
 
+    virtual Status GetHistory(std::vector<AllocateItem>& buf);
     virtual time_t GetStartTime() {
         // start_time_ generated at beginning and is read-only ever since
         return start_time_;
@@ -73,7 +73,7 @@ public:
 
 protected:
     // Inner Interface for every gru to implement
-    virtual BasicResourceManager<Resource>* BuildResourceManager() = 0;
+    virtual ResourceManager* BuildResourceManager() = 0;
 
     // Non-interface methods, which resemble in every gru
     void KeepMonitoring();
@@ -82,7 +82,7 @@ protected:
 
 protected:
     // Initialized to NULL since every gru differs
-    BasicResourceManager<Resource>* manager_;
+    ResourceManager* manager_;
     // Carefully initialized
     std::string job_id_;
     // Carefully initialized
@@ -122,52 +122,48 @@ protected:
                         AllocateItemComparator> time_heap_;
 };
 
-class AlphaGru : public BasicGru<ResourceItem> {
+// First level gru, handling input files and writing output data to temporary directory
+class AlphaGru : public BasicGru {
 public:
     AlphaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~AlphaGru();
 protected:
-    virtual BasicResourceManager<ResourceItem>* BuildResourceManager();
+    virtual ResourceManager* BuildResourceManager();
 };
 
-class BetaGru : public BasicGru<IdItem> {
+// Middle level gru, whose inputs and outputs are all kept in temporary directory
+class BetaGru : public BasicGru {
 public:
     BetaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~BetaGru();
 protected:
-    virtual BasicResourceManager<IdItem>* BuildResourceManager();
+    virtual ResourceManager* BuildResourceManager();
 };
 
-class OmegaGru : public BasicGru<IdItem> {
+// Last level gru, dealing with temporary stored inputs and directing outputs to final directory
+class OmegaGru : public BasicGru {
 public:
     OmegaGru(JobDescriptor& job, const std::string& job_id, int node);
     virtual ~OmegaGru();
 protected:
-    virtual BasicResourceManager<IdItem>* BuildResourceManager();
+    virtual ResourceManager* BuildResourceManager();
 };
 
 // ----- Implementations start now -----
 
-template <class Resource>
-Gru<ResourceItem>* Gru<Resource>::GetAlphaGru(JobDescriptor& job,
-        const std::string& job_id, int node) {
+Gru* Gru::GetAlphaGru(JobDescriptor& job, const std::string& job_id, int node) {
     return new AlphaGru(job, job_id, node);
 }
 
-template <class Resource>
-Gru<IdItem>* Gru<Resource>::GetBetaGru(JobDescriptor& job,
-        const std::string& job_id, int node) {
+Gru* Gru::GetBetaGru(JobDescriptor& job, const std::string& job_id, int node) {
     return new BetaGru(job, job_id, node);
 }
 
-template <class Resource>
-Gru<IdItem>* Gru<Resource>::GetOmegaGru(JobDescriptor& job,
-        const std::string& job_id, int node) {
+Gru* Gru::GetOmegaGru(JobDescriptor& job, const std::string& job_id, int node) {
     return new OmegaGru(job, job_id, node);
 }
 
-template <class Resource>
-Status BasicGru<Resource>::Start() {
+Status BasicGru::Start() {
     start_time_ = std::time(NULL);
     manager_ = BuildResourceManager();
     if (manager_ == NULL) {
@@ -183,8 +179,7 @@ Status BasicGru<Resource>::Start() {
     return kGalaxyError;
 }
 
-template <class Resource>
-Status BasicGru<Resource>::Kill() {
+Status BasicGru::Kill() {
     meta_mu_.Lock();
     if (galaxy_ != NULL) {
         LOG(INFO, "node %d phase finished, kill: %s", node_, job_id_.c_str());
@@ -202,14 +197,13 @@ Status BasicGru<Resource>::Kill() {
     return kOk;
 }
 
-template <class Resource>
-Resource* BasicGru<Resource>::Assign(const std::string& endpoint, Status* status) {
+ResourceItem* BasicGru::Assign(const std::string& endpoint, Status* status) {
     // This is a lock-free state access since in any case this statement
     //    would not go wrong
     if (state_ == kPending) {
         state_ = kRunning;
     }
-    Resource* cur = manager_->GetItem();
+    ResourceItem* cur = manager_->GetItem();
     alloc_mu_.Lock();
 
     // For end game duplication
@@ -257,8 +251,7 @@ Resource* BasicGru<Resource>::Assign(const std::string& endpoint, Status* status
     return cur;
 }
 
-template <class Resource>
-Status BasicGru<Resource>::Finish(int no, int attempt, TaskState state) {
+Status BasicGru::Finish(int no, int attempt, TaskState state) {
     AllocateItem* cur = NULL;
     try {
         cur = allocation_table_[no][attempt];
@@ -312,8 +305,20 @@ Status BasicGru<Resource>::Finish(int no, int attempt, TaskState state) {
     return kOk;
 }
 
-template <class Resource>
-TaskStatistics BasicGru<Resource>::GetStatistics() {
+Status BasicGru::GetHistory(std::vector<AllocateItem>& buf) {
+    buf.clear();
+    MutexLock lock(&alloc_mu_);
+    for (std::vector< std::vector<AllocateItem*> >::iterator it = allocation_table_.begin();
+            it != allocation_table_.end(); ++it) {
+        for (std::vector<AllocateItem*>::iterator jt = it->begin();
+                jt != it->end(); ++it) {
+            buf.push_back(*(*jt));
+        }
+    }
+    return kOk;
+}
+
+TaskStatistics BasicGru::GetStatistics() {
     int pending = 0, running = 0, completed = 0;
     if (manager_ != NULL) {
         pending = manager_->Pending();
@@ -331,8 +336,7 @@ TaskStatistics BasicGru<Resource>::GetStatistics() {
     return task;
 }
 
-template <class Resource>
-Status BasicGru<Resource>::SetCapacity(int capacity) {
+Status BasicGru::SetCapacity(int capacity) {
     if (galaxy_ == NULL) {
         return kGalaxyError;
     }
@@ -343,8 +347,7 @@ Status BasicGru<Resource>::SetCapacity(int capacity) {
     return kOk;
 }
 
-template <class Resource>
-Status BasicGru<Resource>::SetPriority(const std::string& priority) {
+Status BasicGru::SetPriority(const std::string& priority) {
     if (galaxy_ == NULL) {
         return kGalaxyError;
     }
@@ -354,8 +357,7 @@ Status BasicGru<Resource>::SetPriority(const std::string& priority) {
     return kOk;
 }
 
-template <class Resource>
-void BasicGru<Resource>::KeepMonitoring() {
+void BasicGru::KeepMonitoring() {
     // Dynamic determination of delay check
     LOG(INFO, "[monitor] node %d monitor starts to check timeout: %s",
             node_, job_id_.c_str());
@@ -374,8 +376,7 @@ void BasicGru<Resource>::KeepMonitoring() {
     // TODO More implementation here
 }
 
-template <class Resource>
-void BasicGru<Resource>::SerializeAllocationTable(std::vector<AllocateItem>& buf) {
+void BasicGru::SerializeAllocationTable(std::vector<AllocateItem>& buf) {
     std::vector< std::vector<AllocateItem*> >::iterator it;
     MutexLock lock(&alloc_mu_);
     for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
@@ -386,8 +387,7 @@ void BasicGru<Resource>::SerializeAllocationTable(std::vector<AllocateItem>& buf
     }
 }
 
-template <class Resource>
-void BasicGru<Resource>::BuildEndGameCounters() {
+void BasicGru::BuildEndGameCounters() {
     if (manager_ == NULL) {
         return;
     }
@@ -400,12 +400,12 @@ void BasicGru<Resource>::BuildEndGameCounters() {
 }
 
 AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru<ResourceItem>(job, job_id, node) {
+        BasicGru(job, job_id, node) {
     // TODO Initialize AlphaGru
     //   Generate temp output dir
 }
 
-BasicResourceManager<ResourceItem>* AlphaGru::BuildResourceManager() {
+ResourceManager* AlphaGru::BuildResourceManager() {
     std::vector<std::string> inputs;
     const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames
         = cur_node_->inputs();
@@ -433,9 +433,9 @@ BasicResourceManager<ResourceItem>* AlphaGru::BuildResourceManager() {
 
     ResourceManager* manager = NULL;
     if (cur_node_->input_format() == kNLineInput) {
-        manager = new NLineResourceManager(inputs,input_param);
+        manager = ResourceManager::GetNLineManager(inputs,input_param);
     } else {
-        manager = new ResourceManager(inputs, input_param, job_.split_size());
+        manager = ResourceManager::GetBlockManager(inputs, input_param, job_.split_size());
     }
     if (manager == NULL || manager->SumOfItem() < 1) {
         LOG(INFO, "node %d phase cannot divide input, which may not exist: %s",
@@ -452,22 +452,22 @@ BasicResourceManager<ResourceItem>* AlphaGru::BuildResourceManager() {
 }
 
 BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru<IdItem>(job, job_id, node) {
+        BasicGru(job, job_id, node) {
     // TODO Initialize BetaGru
     //   Generate temp output dir
 }
 
-BasicResourceManager<IdItem>* BetaGru::BuildResourceManager() {
-    return new IdManager(cur_node_->total());
+ResourceManager* BetaGru::BuildResourceManager() {
+    return ResourceManager::GetIdManager(cur_node_->total());
 }
 
 OmegaGru::OmegaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru<IdItem>(job, job_id, node) {
+        BasicGru(job, job_id, node) {
     // TODO Initialize BetaGru
 }
 
-BasicResourceManager<IdItem>* OmegaGru::BuildResourceManager() {
-    return new IdManager(cur_node_->total());
+ResourceManager* OmegaGru::BuildResourceManager() {
+    return ResourceManager::GetIdManager(cur_node_->total());
 }
 
 } // namespace shuttle
