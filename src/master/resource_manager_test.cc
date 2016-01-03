@@ -12,24 +12,24 @@ int sum_of_items = 0;
 
 TEST(ResManTest, SetInputFilesTest) {
     FileSystem::Param p;
-    ResourceManager resman(input_files, p, split_size);
-    EXPECT_EQ(resman.SumOfItem(), sum_of_items);
+    ResourceManager* resman = ResourceManager::GetBlockManager(input_files, p, split_size);
+    EXPECT_EQ(resman->SumOfItem(), sum_of_items);
 }
 
 /*TEST(ResManTest, NLineFileTest) {
     FileSystem::Param p;
-    NLineResourceManager resman(input_files, p, split_size);
-    EXPECT_EQ(resman.SumOfItem(), sum_of_items);
+    ResourceManager* resman = GetNLineManager(input_files, p);
+    EXPECT_EQ(resman->SumOfItem(), sum_of_items);
 }*/
 
 TEST(ResManTest, GetItemTest) {
     FileSystem::Param p;
-    ResourceManager resman(input_files, p, split_size);
-    int sum = resman.SumOfItem();
+    ResourceManager* resman = ResourceManager::GetBlockManager(input_files, p, split_size);
+    int sum = resman->SumOfItem();
     int64_t last_offset = 0;
     std::string last_input_file;
     for (int i = 0; i < sum; ++i) {
-        ResourceItem* cur = resman.GetItem();
+        ResourceItem* cur = resman->GetItem();
         if (last_input_file != cur->input_file) {
             last_input_file = cur->input_file;
             last_offset = 0;
@@ -44,12 +44,11 @@ TEST(ResManTest, GetItemTest) {
 
 TEST(ResManTest, GetCertainItemTest) {
     FileSystem::Param p;
-    ResourceManager resman(input_files, p, split_size);
-    int sum = resman.SumOfItem();
+    ResourceManager* resman = ResourceManager::GetBlockManager(input_files, p, split_size);
     int64_t last_size = 0;
-    delete resman.GetItem();
-    for (int i = 2; i < sum + 2; ++i) {
-        ResourceItem* cur = resman.GetCertainItem(0);
+    delete resman->GetItem();
+    for (int i = 2; i < 5; ++i) {
+        ResourceItem* cur = resman->GetCertainItem(0);
         EXPECT_EQ(cur->no, 0);
         EXPECT_EQ(cur->attempt, i);
         EXPECT_EQ(cur->offset, 0);
@@ -61,17 +60,17 @@ TEST(ResManTest, GetCertainItemTest) {
 
 TEST(ResManTest, ReturnBackItemTest) {
     FileSystem::Param p;
-    ResourceManager resman(input_files, p, split_size);
+    ResourceManager* resman = ResourceManager::GetBlockManager(input_files, p, split_size);
     int64_t last_end = 0;
     std::string last_input_file;
-    ResourceItem* cur = resman.GetItem();
+    ResourceItem* cur = resman->GetItem();
     EXPECT_EQ(cur->no, 0);
     EXPECT_EQ(cur->attempt, 1);
     EXPECT_EQ(cur->offset, 0);
     last_end = cur->size;
     last_input_file = cur->input_file;
     delete cur;
-    cur = resman.GetItem();
+    cur = resman->GetItem();
     if (cur->input_file != last_input_file) {
         last_end = 0;
     }
@@ -79,8 +78,8 @@ TEST(ResManTest, ReturnBackItemTest) {
     EXPECT_EQ(cur->attempt, 1);
     EXPECT_EQ(cur->offset, last_end);
     delete cur;
-    resman.ReturnBackItem(0);
-    cur = resman.GetItem();
+    resman->ReturnBackItem(0);
+    cur = resman->GetItem();
     EXPECT_EQ(cur->no, 0);
     EXPECT_EQ(cur->attempt, 2);
     EXPECT_EQ(cur->offset, 0);

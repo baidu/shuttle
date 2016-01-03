@@ -52,11 +52,11 @@ public:
     virtual void Load(const std::vector<ResourceItem>& data) = 0;
     virtual std::vector<ResourceItem> Dump() = 0;
 
-    static inline ResourceManager* GetIdManager(int n);
-    static inline ResourceManager* GetBlockManager(
+    static ResourceManager* GetIdManager(int n);
+    static ResourceManager* GetBlockManager(
             const std::vector<std::string>& input_files,
             FileSystem::Param& param, int64_t split_size);
-    static inline ResourceManager* GetNLineManager(
+    static ResourceManager* GetNLineManager(
             const std::vector<std::string>& input_files, FileSystem::Param& param);
 };
 
