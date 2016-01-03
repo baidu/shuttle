@@ -8,6 +8,7 @@
 #include <assert.h>
 #include "logging.h"
 #include "thread_pool.h"
+#include "mutex.h"
 #include "sort/input_reader.h"
 #include "common/tools_util.h"
 
@@ -19,43 +20,101 @@ namespace shuttle {
 
 static const int parallel_level = 10;
 
-IdItem::IdItem(const IdItem& res) {
-    CopyFrom(res);
-}
+class ResourceManagerImpl : public ResourceManager {
+public:
+    virtual ~ResourceManagerImpl();
 
-IdItem* IdItem::operator=(const IdItem& res) {
-    return CopyFrom(res);
-}
+    virtual ResourceItem* GetItem();
+    virtual ResourceItem* GetCertainItem(int no);
+    virtual ResourceItem* CheckCertainItem(int no);
+    virtual void ReturnBackItem(int no);
+    virtual bool FinishItem(int no);
 
-IdItem* IdItem::CopyFrom(const IdItem& res) {
-    no = res.no;
-    attempt = res.attempt;
-    status = res.status;
-    allocated = res.allocated;
-    return this;
-}
+    virtual bool IsAllocated(int no);
+    virtual bool IsDone(int no);
 
-IdManager::IdManager(int n) : pending_(n), allocated_(0), done_(0) {
-    for (int i = 0; i < n; ++i) {
-        IdItem* item = new IdItem();
-        item->no = i;
-        item->attempt = 0;
-        item->status = kResPending;
-        item->allocated = 0;
-        resource_pool_.push_back(item);
-        pending_res_.push_back(item);
+    virtual int SumOfItem() {
+        MutexLock lock(&mu_);
+        return resource_pool_.size();
     }
+    virtual int Pending() {
+        MutexLock lock(&mu_);
+        return pending_;
+    }
+    virtual int Allocated() {
+        MutexLock lock(&mu_);
+        return allocated_;
+    }
+    virtual int Done() {
+        MutexLock lock(&mu_);
+        return done_;
+    }
+    virtual void Load(const std::vector<ResourceItem>& data);
+    virtual std::vector<ResourceItem> Dump();
+protected:
+    // Sorry this class is abstract level for common operations in different manager
+    ResourceManagerImpl() : pending_(0), allocated_(0), done_(0) { }
+
+protected:
+    // All members need a careful initialization due to the absence of constructor
+    // Customer constructor should add proper item in resource pool and pending queue,
+    //   and set counters properly
+    Mutex mu_;
+    std::vector<ResourceItem*> resource_pool_;
+    std::deque<ResourceItem*> pending_res_;
+    int pending_;
+    int allocated_;
+    int done_;
+};
+
+class IdManager : public ResourceManagerImpl {
+public:
+    IdManager(int size);
+    virtual ~IdManager() { }
+};
+
+class BlockManager : public ResourceManagerImpl {
+public:
+    BlockManager(const std::vector<std::string>& input_files,
+                 FileSystem::Param& param, int64_t split_size);
+    virtual ~BlockManager() { }
+};
+
+class NLineManager : public ResourceManagerImpl {
+public:
+    NLineManager(const std::vector<std::string>& input_files,
+                 FileSystem::Param& param);
+    virtual ~NLineManager() { }
+};
+
+// Factory Functions
+
+ResourceManager* ResourceManager::GetIdManager(int size) {
+    return new IdManager(size);
 }
 
-IdManager::~IdManager() {
+ResourceManager* ResourceManager::GetBlockManager(
+        const std::vector<std::string>& input_files,
+        FileSystem::Param& param, int64_t split_size) {
+    return new BlockManager(input_files, param, split_size);
+}
+
+ResourceManager* ResourceManager::GetNLineManager(
+        const std::vector<std::string>& input_files, FileSystem::Param& param) {
+    return new NLineManager(input_files, param);
+}
+
+// Implementations here
+
+ResourceManagerImpl::~ResourceManagerImpl() {
     MutexLock lock(&mu_);
-    for (std::vector<IdItem*>::iterator it = resource_pool_.begin();
+    for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
             it != resource_pool_.end(); ++it) {
         delete *it;
     }
 }
 
-IdItem* IdManager::GetItem() {
+ResourceItem* ResourceManagerImpl::GetItem() {
     MutexLock lock(&mu_);
     while (!pending_res_.empty() && pending_res_.front()->status != kResPending) {
         pending_res_.pop_front();
@@ -63,23 +122,23 @@ IdItem* IdManager::GetItem() {
     if (pending_res_.empty()) {
         return NULL;
     }
-    IdItem* cur = pending_res_.front();
+    ResourceItem* cur = pending_res_.front();
     pending_res_.pop_front();
     cur->attempt ++;
     cur->status = kResAllocated;
     cur->allocated ++;
     -- pending_; ++ allocated_;
-    return new IdItem(*cur);
+    return new ResourceItem(*cur);
 }
 
-IdItem* IdManager::GetCertainItem(int no) {
+ResourceItem* ResourceManagerImpl::GetCertainItem(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
         LOG(WARNING, "this resource is not valid for duplication: %d", no);
         return NULL;
     }
-    IdItem* cur = resource_pool_[n];
+    ResourceItem* cur = resource_pool_[n];
     if (cur->allocated > FLAGS_parallel_attempts) {
         LOG(INFO, "resource distribution has reached limitation: %d", cur->no);
         return NULL;
@@ -91,7 +150,7 @@ IdItem* IdManager::GetCertainItem(int no) {
     if (cur->status == kResAllocated) {
         cur->attempt ++;
         cur->allocated ++;
-        return new IdItem(*cur);
+        return new ResourceItem(*cur);
     }
     if (cur->status == kResDone) {
         LOG(INFO, "this resource has been done: %d", no);
@@ -101,24 +160,24 @@ IdItem* IdManager::GetCertainItem(int no) {
     return NULL;
 }
 
-IdItem* IdManager::CheckCertainItem(int no) {
+ResourceItem* ResourceManagerImpl::CheckCertainItem(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
         LOG(WARNING, "this resource is not valid for checking: %d", no);
         return NULL;
     }
-    return new IdItem(*(resource_pool_[n]));
+    return new ResourceItem(*(resource_pool_[n]));
 }
 
-void IdManager::ReturnBackItem(int no) {
+void ResourceManagerImpl::ReturnBackItem(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
         LOG(WARNING, "this resource is not valid for returning: %d", no);
         return;
     }
-    IdItem* cur = resource_pool_[n];
+    ResourceItem* cur = resource_pool_[n];
     if (cur->status == kResAllocated) {
         if (-- cur->allocated <= 0) {
             cur->status = kResPending;
@@ -130,14 +189,14 @@ void IdManager::ReturnBackItem(int no) {
     }
 }
 
-bool IdManager::FinishItem(int no) {
+bool ResourceManagerImpl::FinishItem(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
         LOG(WARNING, "this resource is not valid for finishing: %d", no);
         return false;
     }
-    IdItem* cur = resource_pool_[n];
+    ResourceItem* cur = resource_pool_[n];
     if (cur->status == kResAllocated) {
         cur->status = kResDone;
         cur->allocated = 0;
@@ -148,7 +207,7 @@ bool IdManager::FinishItem(int no) {
     return false;
 }
 
-bool IdManager::IsAllocated(int no) {
+bool ResourceManagerImpl::IsAllocated(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
@@ -158,7 +217,7 @@ bool IdManager::IsAllocated(int no) {
     return resource_pool_[n]->status == kResAllocated;
 }
 
-bool IdManager::IsDone(int no) {
+bool ResourceManagerImpl::IsDone(int no) {
     size_t n = static_cast<size_t>(no);
     MutexLock lock(&mu_);
     if (n > resource_pool_.size()) {
@@ -168,18 +227,18 @@ bool IdManager::IsDone(int no) {
     return resource_pool_[n]->status == kResDone;
 }
 
-void IdManager::Load(const std::vector<IdItem>& data) {
+void ResourceManagerImpl::Load(const std::vector<ResourceItem>& data) {
     assert(data.size() == resource_pool_.size());
-    std::vector<IdItem*>::iterator dst = resource_pool_.begin();
-    for (std::vector<IdItem>::const_iterator src = data.begin();
+    std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
+    for (std::vector<ResourceItem>::const_iterator src = data.begin();
             src != data.end(); ++src,++dst) {
-        (*dst)->CopyFrom(*src);
+        *(*dst) = *src;
     }
     pending_ = 0;
     allocated_ = 0;
     done_ = 0;
     pending_res_.clear();
-    for (std::vector<IdItem*>::iterator it = resource_pool_.begin();
+    for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
             it != resource_pool_.end(); ++it) {
         switch((*it)->status) {
         case kResPending:
@@ -193,19 +252,32 @@ void IdManager::Load(const std::vector<IdItem>& data) {
     }
 }
 
-std::vector<IdItem> IdManager::Dump() {
-    std::vector<IdItem> copy;
+std::vector<ResourceItem> ResourceManagerImpl::Dump() {
+    std::vector<ResourceItem> copy;
     MutexLock lock(&mu_);
-    for (std::vector<IdItem*>::iterator it = resource_pool_.begin();
+    for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
             it != resource_pool_.end(); ++it) {
         copy.push_back(*(*it));
     }
     return copy;
 }
 
-ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
-                                 FileSystem::Param& param,
-                                 int64_t split_size) : fs_(NULL), manager_(NULL) {
+IdManager::IdManager(int size) {
+    pending_ = size;
+    for (int i = 0; i < size; ++i) {
+        ResourceItem* item = new ResourceItem();
+        item->no = i;
+        item->attempt = 0;
+        item->status = kResPending;
+        item->allocated = 0;
+        resource_pool_.push_back(item);
+        pending_res_.push_back(item);
+    }
+}
+
+BlockManager::BlockManager(const std::vector<std::string>& input_files,
+                           FileSystem::Param& param,
+                           int64_t split_size) {
     if (input_files.size() == 0) {
         return;
     }
@@ -216,7 +288,7 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
         param["host"] = host;
         param["port"] = boost::lexical_cast<std::string>(port);
     }
-    fs_ = FileSystem::CreateInfHdfs(param);
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::vector<FileInfo> files;
     ::baidu::common::ThreadPool tp(parallel_level);
     std::vector<FileInfo> sub_files[parallel_level];
@@ -229,7 +301,7 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             const std::string& prefix = file_name.substr(0, prefix_pos);
             const std::string& suffix = file_name.substr(prefix_pos + 3);
             std::vector<FileInfo> children;
-            bool ok = fs_->List(prefix, &children);
+            bool ok = fs->List(prefix, &children);
             if (!ok) {
                 expand_input_files.push_back(file_name);
             } else {
@@ -251,9 +323,9 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             path = *it;
         }
         if (path.find('*') == std::string::npos) {
-            tp.AddTask(boost::bind(&FileSystem::List, fs_, path, &sub_files[i]));
+            tp.AddTask(boost::bind(&FileSystem::List, fs, path, &sub_files[i]));
         } else {
-            tp.AddTask(boost::bind(&FileSystem::Glob, fs_, path, &sub_files[i]));
+            tp.AddTask(boost::bind(&FileSystem::Glob, fs, path, &sub_files[i]));
         }
         i = (i + 1) % parallel_level;
     }
@@ -277,6 +349,7 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             item->offset = i * block_size;
             item->size = block_size;
             resource_pool_.push_back(item);
+            pending_res_.push_back(item);
         }
         int rest = it->size - blocks * block_size;
         ResourceItem* item = new ResourceItem();
@@ -288,153 +361,14 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
         item->offset = blocks * block_size;
         item->size = rest;
         resource_pool_.push_back(item);
+        pending_res_.push_back(item);
     }
-    manager_ = new IdManager(resource_pool_.size());
+    pending_ = static_cast<int>(resource_pool_.size());
+    delete fs;
 }
 
-ResourceManager::~ResourceManager() {
-    MutexLock lock(&mu_);
-    for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
-            it != resource_pool_.end(); ++it) {
-        delete *it;
-    }
-    delete manager_;
-    delete fs_;
-}
-
-ResourceItem* ResourceManager::GetItem() {
-    IdItem* item = manager_->GetItem();
-    if (item == NULL) {
-        return NULL;
-    }
-    MutexLock lock(&mu_);
-    ResourceItem* resource = resource_pool_[item->no];
-    resource->CopyFrom(*item);
-    delete item;
-    return new ResourceItem(*resource);
-}
-
-ResourceItem* ResourceManager::GetCertainItem(int no) {
-    IdItem* item = manager_->GetCertainItem(no);
-    if (item == NULL) {
-        return NULL;
-    }
-    MutexLock lock(&mu_);
-    ResourceItem* resource = resource_pool_[no];
-    resource->CopyFrom(*item);
-    delete item;
-    return new ResourceItem(*resource);
-}
-
-ResourceItem* ResourceManager::CheckCertainItem(int no) {
-    IdItem* item = manager_->CheckCertainItem(no);
-    if (item == NULL) {
-        return NULL;
-    }
-    MutexLock lock(&mu_);
-    ResourceItem* resource = resource_pool_[item->no];
-    resource->CopyFrom(*item);
-    delete item;
-    return new ResourceItem(*resource);
-}
-
-void ResourceManager::ReturnBackItem(int no) {
-    manager_->ReturnBackItem(no);
-    size_t n = static_cast<size_t>(no);
-    MutexLock lock(&mu_);
-    if (n > resource_pool_.size()) {
-        return;
-    }
-    ResourceItem* resource = resource_pool_[n];
-    if (resource->status == kResAllocated) {
-        if (-- resource->allocated <= 0) {
-            resource->status = kResPending;
-        }
-    }
-}
-
-bool ResourceManager::FinishItem(int no) {
-    size_t n = static_cast<size_t>(no);
-    MutexLock lock(&mu_);
-    if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for finishing: %d", no);
-        return false;
-    }
-    ResourceItem* resource = resource_pool_[n];
-    if (resource->status == kResAllocated) {
-        resource->status = kResDone;
-        resource->allocated = 0;
-    }
-    return manager_->FinishItem(n);
-}
-
-bool ResourceManager::IsAllocated(int no) {
-    size_t n = static_cast<size_t>(no);
-    MutexLock lock(&mu_);
-    if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for checking allocated: %d", no);
-        return false;
-    }
-    return resource_pool_[n]->status == kResAllocated;
-}
-
-bool ResourceManager::IsDone(int no) {
-    size_t n = static_cast<size_t>(no);
-    MutexLock lock(&mu_);
-    if (n > resource_pool_.size()) {
-        LOG(WARNING, "this resource is not valid for checking done: %d", no);
-        return false;
-    }
-    return resource_pool_[n]->status == kResDone;
-}
-
-void ResourceManager::Load(const std::vector<IdItem>& data) {
-    assert(data.size() == resource_pool_.size());
-    manager_->Load(data);
-    std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
-    for (std::vector<IdItem>::const_iterator src = data.begin();
-            src != data.end(); ++src, ++dst) {
-        (*dst)->CopyFrom(*src);
-    }
-}
-
-void ResourceManager::Load(const std::vector<ResourceItem>& data) {
-    assert(data.size() != 0);
-    if (manager_ == NULL) {
-        manager_ = new IdManager(data.size());
-    }
-    std::vector<IdItem> id_data;
-    id_data.resize(data.size());
-    std::copy(data.begin(), data.end(), id_data.begin());
-    manager_->Load(id_data);
-    if (resource_pool_.size() == 0) {
-        for (std::vector<ResourceItem>::const_iterator it = data.begin();
-                it != data.end(); ++it) {
-            ResourceItem* cur = new ResourceItem();
-            *cur = *it;
-            resource_pool_.push_back(cur);
-        }
-    } else {
-        std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
-        for (std::vector<ResourceItem>::const_iterator src = data.begin();
-                src != data.end(); ++src, ++dst) {
-            *(*dst) = *src;
-        }
-    }
-}
-
-std::vector<ResourceItem> ResourceManager::Dump() {
-    std::vector<ResourceItem> copy;
-    MutexLock lock(&mu_);
-    for (std::vector<ResourceItem*>::iterator it = resource_pool_.begin();
-            it != resource_pool_.end(); ++it) {
-        copy.push_back(*(*it));
-    }
-    return copy;
-}
-
-NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input_files,
-                                           FileSystem::Param& param) : ResourceManager() {
+NLineManager::NLineManager(const std::vector<std::string>& input_files,
+                           FileSystem::Param& param) {
     if (boost::starts_with(input_files[0], "hdfs://")) {
         std::string host;
         int port;
@@ -442,7 +376,7 @@ NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input
         param["host"] = host;
         param["port"] = boost::lexical_cast<std::string>(port);
     }
-    fs_ = FileSystem::CreateInfHdfs(param);
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::vector<FileInfo> files;
     std::string path;
     for (std::vector<std::string>::const_iterator it = input_files.begin();
@@ -453,9 +387,9 @@ NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input
             path = *it;
         }
         if (path.find('*') == std::string::npos) {
-            fs_->List(path, &files);
+            fs->List(path, &files);
         } else {
-            fs_->Glob(path, &files);
+            fs->Glob(path, &files);
         }
     }
     int counter = 0;
@@ -482,9 +416,10 @@ NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input
             item->size = line.size() + 1;
             offset += item->size;
             resource_pool_.push_back(item);
+            pending_res_.push_back(item);
         }
     }
-    manager_ = new IdManager(resource_pool_.size());
+    pending_ = static_cast<int>(resource_pool_.size());
 }
 
 }
