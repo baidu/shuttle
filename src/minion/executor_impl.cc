@@ -605,6 +605,9 @@ bool Executor::ParseCounters(const TaskInfo& task,
         if (feof(task_stderr_file)) {
             break;
         }
+        if (counters->size() >= sMaxCounters) {
+            break;
+        }
         if (!boost::starts_with(line, "reporter:counter:")) {
             continue;
         }

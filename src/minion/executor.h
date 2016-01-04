@@ -20,6 +20,7 @@ namespace shuttle {
 
 const int sLineBufferSize = 409600;
 const int sKeyLimit = 65536;
+const size_t sMaxCounters = 10000;
 
 class Partitioner;
 class Emitter;
