@@ -4,6 +4,7 @@
 #include <queue>
 #include <map>
 #include <boost/bind.hpp>
+#include <boost/scoped_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <gflags/gflags.h>
@@ -11,12 +12,14 @@
 #include "resource_manager.h"
 #include "common/rpc_client.h"
 #include "common/tools_util.h"
+#include "proto/minion.pb.h"
 #include "thread_pool.h"
 #include "logging.h"
 
 DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
 DECLARE_int32(replica_num);
+DECLARE_int32(first_sleeptime);
 
 namespace baidu {
 namespace shuttle {
@@ -79,6 +82,9 @@ protected:
     void KeepMonitoring();
     void SerializeAllocationTable(std::vector<AllocateItem>& buf);
     void BuildEndGameCounters();
+    void CancelOtherAttempts(int no, int finished_attempt);
+    void CancelCallback(const CancelTaskRequest* request,
+            CancelTaskResponse* response, bool fail, int eno);
 
 protected:
     // Initialized to NULL since every gru differs
@@ -106,14 +112,25 @@ protected:
     time_t finish_time_;
     int killed_;
     int failed_;
+    // Decide when the end game strategy is coming into effect
     // Initialized to 0 since it depends on resource sum
     int end_game_begin_;
     // Carefully initialized
     bool allow_duplicates_;
+    // Dismiss a few minions when there's not much left for minions
+    // Carefully initialized
+    int need_dismissed_;
+    // Carefully initialized
+    int dismissed_;
+    // When this many tasks is done, the next phase is supposed to be pulled up
+    // Carefully initialized
+    int next_phase_begin_;
     boost::function<void ()> nearly_finish_callback_;
     boost::function<void ()> finished_callback_;
 
+    // Allocation process is not relevant to derived class
     Mutex alloc_mu_;
+    bool monitoring_;
     ThreadPool monitor_;
     std::queue<int> slugs_;
     std::vector<int> failed_count_;
@@ -187,7 +204,7 @@ Status BasicGru::Kill() {
         galaxy_ = NULL;
     }
     monitor_.Stop(true);
-    if (state_ != kCompleted) {
+    if (state_ == kPending || state_ == kRunning) {
         state_ = kKilled;
     }
     meta_mu_.Unlock();
@@ -221,15 +238,33 @@ ResourceItem* BasicGru::Assign(const std::string& endpoint, Status* status) {
         }
         if (slugs_.empty()) {
             alloc_mu_.Unlock();
-            // TODO Suspend vs NoMore
+            meta_mu_.Lock();
+            if (dismissed_ > 0 && dismissed_ >= need_dismissed_) {
+                LOG(DEBUG, "node %d assign: suspend: %s", node_, job_id_.c_str());
+                if (status != NULL) {
+                    *status = kSuspend;
+                }
+            } else {
+                ++dismissed_;
+                LOG(DEBUG, "node %d assign: no more: %s", node_, job_id_.c_str());
+                if (status != NULL) {
+                    *status = kNoMore;
+                }
+            }
+            meta_mu_.Unlock();
             return NULL;
         }
         LOG(INFO, "node %d duplicates %d task: %s", node_, slugs_.front(), job_id_.c_str());
         cur = manager_->GetCertainItem(slugs_.front());
         slugs_.pop();
     }
+
+    // Pull up monitor
+    if (cur->no >= end_game_begin_ && !monitoring_) {
+        monitor_.AddTask(boost::bind(&BasicGru::KeepMonitoring, this));
+        monitoring_ = true;
+    }
     alloc_mu_.Unlock();
-    // TODO Pull up monitor
 
     // Prepare allocation record block and insert
     AllocateItem* alloc = new AllocateItem();
@@ -260,6 +295,8 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
                 node_, no, attempt, job_id_.c_str());
         return kNoMore;
     }
+    LOG(INFO, "node %d finish a task: < no - %d, attempt - %d >, state %s: %s",
+            node_, cur->no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     if (state == kTaskMoveOutputFailed) {
         if (!manager_->IsDone(cur->no)) {
             state = kTaskFailed;
@@ -270,16 +307,49 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
 
     switch (state) {
     case kTaskCompleted:
-        // TODO More implement here
+        if (!manager_->FinishItem(cur->no)) {
+            LOG(WARNING, "node %d ignores finish request < no - %d, attempt - %d >: %s",
+                    node_, cur->no, cur->attempt, job_id_.c_str());
+            state = kTaskCanceled;
+            break;
+        }
+        int completed = manager_->Done();
+        // TODO Change need_dismissed
+
+        LOG(INFO, "node %d complete No.%d task(%d/%d): %s", node_, cur->no,
+                completed, manager_->SumOfItem(), job_id_.c_str());
+        if (completed == next_phase_begin_) {
+            LOG(INFO, "node %d nearly ends, pull up next phase in advance: %s",
+                    node_, job_id_.c_str());
+            // TODO Note this operation is lock-free, so callback function is vulnerable
+            if (nearly_finish_callback_ != 0) {
+                nearly_finish_callback_();
+            }
+        } else if (completed == manager_->SumOfItem()) {
+            LOG(INFO, "node %d is finished, kill minions: %s", node_, job_id_.c_str());
+            state_ = kCompleted;
+            if (finished_callback_ != 0) {
+                finished_callback_();
+            }
+            if (galaxy_ != NULL) {
+                delete galaxy_;
+                galaxy_ = NULL;
+            }
+            // TODO Maybe do more cleaning up
+            // TODO Maybe free resource manager
+        }
         break;
     case kTaskFailed:
         manager_->ReturnBackItem(cur->no);
+        // XXX Data format and protocol here is not compatible with master branch
+        // XXX Needs attention
         ++failed_count_[cur->no]; ++failed_;
         if (failed_count_[cur->no] >= cur_node_->retry()) {
             LOG(INFO, "node %d failed, kill job: %s", node_, job_id_.c_str());
-            // TODO Retract job
-            // need mu_
             state_ = kFailed;
+            if (finished_callback_ != 0) {
+                finished_callback_();
+            }
         }
         break;
     case kTaskKilled:
@@ -373,6 +443,20 @@ void BasicGru::KeepMonitoring() {
         }
     }
     alloc_mu_.Unlock();
+    time_t timeout = 0;
+    if (!time_used.empty()) {
+        std::sort(time_used.begin(), time_used.end());
+        timeout = time_used[time_used.size() / 2];
+        // 20% time tolerance
+        timeout += timeout / 5; 
+        LOG(INFO, "[monitor] node %d calc timeout bound, timeout = %ld: %s",
+                node_, timeout, job_id_.c_str());
+    } else {
+        monitor_.DelayTask(FLAGS_first_sleeptime * 1000,
+                boost::bind(&BasicGru::KeepMonitoring, this));
+        LOG(INFO, "[monitor] node %d will now rest for %ds: %s",
+                node_, FLAGS_first_sleeptime, job_id_.c_str());
+    }
     // TODO More implementation here
 }
 
@@ -396,6 +480,47 @@ void BasicGru::BuildEndGameCounters() {
     int temp = items - items * FLAGS_replica_begin_percent / 100;
     if (end_game_begin_ > temp) {
         end_game_begin_ = temp;
+    }
+}
+
+void BasicGru::CancelCallback(const CancelTaskRequest* request,
+        CancelTaskResponse* response, bool fail, int eno) {
+    if (fail) {
+        LOG(WARNING, "node %d failed to cancel < no - %d, attempt - %d >, err %d: %s",
+                node_, request->task_id(), request->attempt_id(), eno, job_id_.c_str());
+    }
+    delete request;
+    delete response;
+}
+
+void BasicGru::CancelOtherAttempts(int no, int finished_attempt) {
+    if (static_cast<size_t>(no) > allocation_table_.size()) {
+        return;
+    }
+    Minion_Stub* stub = NULL;
+    MutexLock lock(&alloc_mu_);
+    const std::vector<AllocateItem*>& cur_attempts = allocation_table_[no];
+    for (std::vector<AllocateItem*>::const_iterator it = cur_attempts.begin();
+            it != cur_attempts.end(); ++it) {
+        AllocateItem* candidate = *it;
+        if (candidate->attempt == finished_attempt) {
+            continue;
+        }
+        candidate->state = kTaskCanceled;
+        candidate->period = std::time(NULL) - candidate->alloc_time;
+        rpc_client_->GetStub(candidate->endpoint, &stub);
+        boost::scoped_ptr<Minion_Stub> stub_guard(stub);
+        LOG(INFO, "node %d cancels < no - %d, attempt - %d > task: %s",
+                node_, candidate->no, candidate->attempt, job_id_.c_str());
+        CancelTaskRequest* request = new CancelTaskRequest();
+        CancelTaskResponse* response = new CancelTaskResponse();
+        request->set_job_id(job_id_);
+        request->set_task_id(candidate->no);
+        request->set_attempt_id(candidate->attempt);
+        boost::function<void (const CancelTaskRequest*, CancelTaskResponse*, bool, int) > callback;
+        callback = boost::bind(&BasicGru::CancelCallback, this, _1, _2, _3, _4);
+        rpc_client_->AsyncRequest(stub, &Minion_Stub::CancelTask,
+                request, response, callback, 2, 1);
     }
 }
 
