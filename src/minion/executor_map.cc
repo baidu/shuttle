@@ -218,6 +218,9 @@ TaskState MapExecutor::StreamingShuffle(FILE* user_app, const TaskInfo& task,
         if (record.size() > 0 && record[record.size() - 1] == '\n') {
             record.erase(record.size() - 1);
         }
+        if (record.empty()) {
+            continue;
+        }
         reduce_no = partitioner->Calc(record, &key);
         Status em_status = emitter->Emit(reduce_no, key, record);
         if (em_status != kOk) {

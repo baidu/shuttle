@@ -147,7 +147,10 @@ void MergeAndPrint(const std::vector<std::string>& file_names) {
     }
     while (!scan_it->Done()) {
         if (FLAGS_pipe == "streaming") {
-            std::cout << scan_it->Value() << std::endl;
+            const std::string& line = scan_it->Value();
+            if (!line.empty()) {
+                std::cout << line << std::endl;
+            }
         } else {
             std::cout << scan_it->Value();
         }
