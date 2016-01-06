@@ -34,7 +34,7 @@ LIBS('../../libshuttle.a')
 LDFLAGS('-lpthread -lcrypto -lrt')
 
 
-client_sources='shuttle_main.cc'
+client_sources='shuttle_main.cc ../common/table_printer.cc'
 
 #可执行文件
 Application('shuttle',Sources(client_sources), OutputPath('../../output/bin'))

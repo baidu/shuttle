@@ -13,7 +13,7 @@
 
 #include "sdk/shuttle.h"
 #include "ins_sdk.h"
-#include "tprinter.h"
+#include "common/table_printer.h"
 
 namespace config {
 
@@ -495,7 +495,7 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
     printf("Map Capacity: %d\n", job.desc.map_capacity);
     printf("Reduce Capacity: %d\n", job.desc.reduce_capacity);
     printf("\n====================\n");
-    ::baidu::common::TPrinter tp(7);
+    ::baidu::shuttle::TPrinter tp(7);
     tp.AddRow(7, "", "total", "pending", "running", "failed", "killed", "completed");
     tp.AddRow(7, "Map", boost::lexical_cast<std::string>(job.map_stat.total).c_str(),
               boost::lexical_cast<std::string>(job.map_stat.pending).c_str(),
@@ -514,7 +514,7 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
 
 static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
     const int column = 6;
-    ::baidu::common::TPrinter tp(column);
+    ::baidu::shuttle::TPrinter tp(column);
     tp.AddRow(column, "tid", "aid", "state", "minion address", "start time", "end time");
     for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
             it != tasks.end(); ++it) {
@@ -532,7 +532,8 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
 
 static void PrintJobsInfo(std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
     const int column = 5;
-    ::baidu::common::TPrinter tp(column);
+    ::baidu::shuttle::TPrinter tp(column);
+    tp.SetMaxColWidth(80);
     tp.AddRow(column, "job id", "job name", "state", "map(r/p/c)", "reduce(r/p/c)");
     std::sort(jobs.begin(), jobs.end(), JobComparator());
     for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_iterator it = jobs.begin();
@@ -844,7 +845,8 @@ static void PrintJobCounters(const std::map<std::string, int64_t>& counters) {
     if (counters.size() == 0) {
         return;
     }
-    ::baidu::common::TPrinter tp(2);
+    ::baidu::shuttle::TPrinter tp(2);
+    tp.SetMaxColWidth(80);
     printf("\n");
     tp.AddRow(2, "Counter-Name", "Value");
     std::map<std::string, int64_t>::const_iterator it;
