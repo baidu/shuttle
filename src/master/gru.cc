@@ -8,6 +8,8 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <gflags/gflags.h>
+#include <cmath>
+
 #include "galaxy_handler.h"
 #include "resource_manager.h"
 #include "common/rpc_client.h"
@@ -20,6 +22,7 @@ DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
 DECLARE_int32(replica_num);
 DECLARE_int32(first_sleeptime);
+DECLARE_int32(time_tolerance);
 
 namespace baidu {
 namespace shuttle {
@@ -209,7 +212,20 @@ Status BasicGru::Kill() {
     }
     meta_mu_.Unlock();
 
-    // TODO Cancel every task
+    alloc_mu_.Lock();
+    for (std::vector< std::vector<AllocateItem*> >::iterator it = allocation_table_.begin();
+            it != allocation_table_.end(); ++it) {
+        for (std::vector<AllocateItem*>::iterator jt = it->begin();
+                jt != it->end(); ++jt) {
+            AllocateItem* cur = *jt;
+            if (cur->state == kTaskRunning) {
+                cur->state = kTaskKilled;
+                cur->period = std::time(NULL) - cur->alloc_time;
+                ++killed_;
+            }
+        }
+    }
+    alloc_mu_.Unlock();
     finish_time_ = std::time(NULL);
     return kOk;
 }
@@ -371,7 +387,8 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
     if (state != kTaskCompleted || !allow_duplicates_) {
         return kOk;
     }
-    // TODO Cancel tasks
+
+    CancelOtherAttempts(cur->no, cur->attempt);
     return kOk;
 }
 
@@ -457,7 +474,82 @@ void BasicGru::KeepMonitoring() {
         LOG(INFO, "[monitor] node %d will now rest for %ds: %s",
                 node_, FLAGS_first_sleeptime, job_id_.c_str());
     }
-    // TODO More implementation here
+    bool is_long_task = timeout >= FLAGS_time_tolerance;
+
+    // timeout will NOT be 0 since monitor will be terminated if no tasks is finished
+    time_t sleep_time = std::min((time_t)FLAGS_time_tolerance, timeout);
+    unsigned int counter = is_long_task ? -1 : 10;
+
+    std::vector<AllocateItem*> returned_item;
+    alloc_mu_.Lock();
+    time_t now = std::time(NULL);
+    while (counter-- != 0 && !time_heap_.empty()) {
+        AllocateItem* top = time_heap_.top();
+        // To soon to check status or duplicate
+        if (now - top->alloc_time < sleep_time) {
+            break;
+        }
+        time_heap_.pop();
+
+        if (top->state != kTaskRunning) {
+            ++counter;
+            continue;
+        }
+        // Check status in non-duplication mode or when it's not ready to duplicate
+        if (!allow_duplicates_ || (now - top->alloc_time < timeout)) {
+            QueryRequest request;
+            QueryResponse response;
+            Minion_Stub* stub = NULL;
+            rpc_client_->GetStub(top->endpoint, &stub);
+            boost::scoped_ptr<Minion_Stub> stub_guard(stub);
+            LOG(INFO, "[monitor] node %d will query %s with < no - %d, attempt - %d >: %s",
+                    node_, top->endpoint.c_str(), top->no, top->attempt, job_id_.c_str());
+            alloc_mu_.Unlock();
+            bool ok = rpc_client_->SendRequest(stub, &Minion_Stub::Query,
+                    &request, &response, 5, 1);
+            alloc_mu_.Lock();
+            if (ok && response.job_id() == job_id_ && response.task_id() == top->no &&
+                    response.attempt_id() == top->attempt) {
+                // Seems fine, return item to time heap
+                ++counter;
+                returned_item.push_back(top);
+                continue;
+            }
+            if (ok && !manager_->IsAllocated(top->no)) {
+                if (top->state == kTaskRunning) {
+                    top->state = kTaskKilled;
+                    top->period = std::time(NULL) - top->alloc_time;
+                    ++killed_;
+                }
+                ++counter;
+                continue;
+            }
+
+            LOG(INFO, "[monitor] node %d queried an error, returned %s, "
+                    "< no - %d, attempt - %d>: %s", node_, ok ? "ok" : "error",
+                    response.task_id(), response.attempt_id(), job_id_.c_str());
+            top->state = kTaskKilled;
+            top->period = std::time(NULL) - top->alloc_time;
+            ++killed_;
+            manager_->ReturnBackItem(top->no);
+        }
+
+        slugs_.push(top->no);
+        LOG(INFO, "[monitor] node %d reallocated a long no-response task: "
+                "< no - %d, attempt - %d >: %s", node_, top->no, top->attempt, job_id_.c_str());
+        LOG(DEBUG, "[monitor] node %d report, sizeof(slugs_) = %u: %s",
+                node_, slugs_.size(), job_id_.c_str());
+    }
+    // Return the well-working items
+    for (std::vector<AllocateItem*>::iterator it = returned_item.begin();
+            it != returned_item.end(); ++it) {
+        time_heap_.push(*it);
+    }
+    alloc_mu_.Unlock();
+
+    monitor_.DelayTask(sleep_time * 1000, boost::bind(&BasicGru::KeepMonitoring, this));
+    LOG(INFO, "[monitor] node %d will now rest for %ds: %s",
+            node_, FLAGS_first_sleeptime, job_id_.c_str());
 }
 
 void BasicGru::SerializeAllocationTable(std::vector<AllocateItem>& buf) {
