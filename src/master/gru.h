@@ -40,6 +40,7 @@ public:
 
     // Data getters
     virtual Status GetHistory(std::vector<AllocateItem>& buf) = 0;
+    virtual JobState GetState() = 0;
     virtual time_t GetStartTime() = 0;
     virtual time_t GetFinishTime() = 0;
     virtual TaskStatistics GetStatistics() = 0;

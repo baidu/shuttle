@@ -54,6 +54,10 @@ public:
     virtual Status Finish(int no, int attempt, TaskState state);
 
     virtual Status GetHistory(std::vector<AllocateItem>& buf);
+    virtual JobState GetState() {
+        MutexLock lock(&meta_mu_);
+        return state_;
+    }
     virtual time_t GetStartTime() {
         // start_time_ generated at beginning and is read-only ever since
         return start_time_;
