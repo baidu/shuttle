@@ -72,7 +72,11 @@ void DoRead() {
             if (FLAGS_is_nline) {
                 std::cout << record_no << "\t" << it->Record() << std::endl;
             } else {
-                std::cout << it->Record() << std::endl;
+                if (FLAGS_format == "text") {
+                    std::cout << it->Record() << std::endl;
+                } else if (FLAGS_format == "binary") {
+                    std::cout << it->Record();
+                }
             }
         } else {
             std::cout << it->Record();// no new line
