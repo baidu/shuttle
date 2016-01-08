@@ -241,7 +241,7 @@ Status JobTracker::Update(const std::string& priority,
         if (reduce_->Update(priority, reduce_capacity) != kOk) {
             return kGalaxyError;
         }
-        if (map_capacity != -1) {
+        if (reduce_capacity != -1) {
             job_descriptor_.set_reduce_capacity(reduce_capacity);
         }
         if (!priority.empty()) {
