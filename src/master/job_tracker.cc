@@ -665,7 +665,8 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
 Status JobTracker::FinishReduce(int no, int attempt, TaskState state, 
                                 const std::string& err_msg,
                                 const std::map<std::string, int64_t>& counters) {
-    if (map_manager_ && map_manager_->Done() < job_descriptor_.map_total()) {
+    if (map_manager_ && map_manager_->Done() < job_descriptor_.map_total()
+        && state != kTaskKilled) {
         LOG(WARNING, "reduce finish too early, wait a moment");
         return kSuspend;
     }
