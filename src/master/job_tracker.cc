@@ -555,6 +555,12 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
                 reduce_ = new Gru(galaxy_, &job_descriptor_, job_id_, kReduce);
                 if (reduce_->Start() != kOk) {
                     LOG(WARNING, "reduce failed due to galaxy issue: %s", job_id_.c_str());
+                    error_msg_ = "Failed to submit job on Galaxy\n";
+                    mu_.Unlock();
+                    master_->RetractJob(job_id_, kFailed);
+                    mu_.Lock();
+                    state_ = kFailed;
+                    break;
                 }
             }
             if (completed == map_manager_->SumOfItem()) {
