@@ -84,7 +84,7 @@ void MinionImpl::WatchDogTask() {
         LOG(WARNING, "load average: %f, cores: %d", minute_load, numCPU);
         LOG(WARNING, "machine may be overloaded, so froze the task");
         double rn = rand() / (RAND_MAX+0.0);
-        if (rn < 0.01) {
+        if (rn < 0.001) {
             _exit(0);
         }
         system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
