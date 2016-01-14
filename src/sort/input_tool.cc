@@ -87,6 +87,7 @@ void DoRead() {
             }
         } else {
             std::cout << it->Record();// no new line
+            //std::cerr << record_no << std::endl;
         }
         it->Next();
         record_no ++;

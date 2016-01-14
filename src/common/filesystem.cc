@@ -4,6 +4,7 @@
 #include <sys/stat.h> 
 #include <sys/types.h> 
 #include <unistd.h> 
+#include <boost/algorithm/string.hpp>
 
 #include "filesystem.h"
 #include "logging.h"
@@ -261,10 +262,11 @@ bool InfHdfs::List(const std::string& dir, std::vector<FileInfo>* children) {
     return true;
 }
 
-bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
+bool InfHdfs::Glob(const std::string& input_dir, std::vector<FileInfo>* children) {
     if (children == NULL) {
         return false;
     }
+    std::string dir = boost::replace_all_copy(input_dir, "//", "/");
     std::deque<std::string> prefixes;
     prefixes.push_back("");
     size_t start = 0;
@@ -461,10 +463,29 @@ bool InfSeqFile::WriteNextRecord(const std::string& key, const std::string& valu
 }
 
 bool InfSeqFile::Seek(int64_t offset) {
-    int64_t ret = syncSeqFile(sf_, offset);
-    if (ret < 0) {
+    int64_t start_point = syncSeqFile(sf_, offset);
+    if (start_point < 0) {
         LOG(WARNING, "fail to seek: %s, %ld", path_.c_str(), offset);
         return false;
+    }
+    int64_t prev_guess_point = start_point - (1<<20);
+    if (prev_guess_point < 0) {
+        prev_guess_point = 0;
+    }
+    if (syncSeqFile(sf_, prev_guess_point) < 0 ){
+        return false;
+    }
+    while (Tell() < start_point) {
+        //fprintf(stderr, "Tell: %ld\n", Tell());
+        int key_len;
+        int value_len;
+        void* raw_key;
+        void* raw_value;
+        int ret = readNextRecordFromSeqFile(fs_, sf_, &raw_key, &key_len, &raw_value, &value_len);        
+        if (ret != 0) {
+            LOG(WARNING, "fail to find seek pos %ld: %s", start_point, path_.c_str());
+            return false;
+        }
     }
     return true;
 }
