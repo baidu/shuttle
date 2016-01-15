@@ -124,6 +124,9 @@ private:
     int64_t len_;
     int64_t read_bytes_;
     bool reach_eof_;
+    std::string end_key_;
+    std::string end_value_;
+    int64_t end_offfset_;
 };
 
 void TextReader::IteratorImpl::Next() {
@@ -239,6 +242,13 @@ InputReader::Iterator* SeqFileReader::Read(int64_t offset, int64_t len) {
     offset_ = offset;
     len_ = len;
     IteratorImpl* it = new IteratorImpl(this);
+    if (offset_ + len_ >= sf_->GetSize()) {
+        end_offfset_ = 0;
+    } else if (sf_->Seek(offset_ + len_)) {
+        end_offfset_ = sf_->Tell();
+        bool eof;
+        sf_->ReadNextRecord(&end_key_, &end_value_, &eof);
+    }
     if (!sf_->Seek(offset)) {
         it->SetHasMore(false);
         it->SetError(kReadFileFail);
@@ -262,12 +272,14 @@ Status SeqFileReader::ReadNextKV(std::string* key, std::string* value) {
     if (cur_pos < 0) {
         return kReadFileFail;
     }
-    if ((cur_pos - offset_ ) >= len_) {
-        return kNoMore;
-    }
     if (sf_->ReadNextRecord(key, value, &eof) ) {
         if (eof) {
             return kNoMore;
+        }
+        if (cur_pos == end_offfset_) {
+            if (*key == end_key_ && *value == end_value_) {
+                return kNoMore;
+            }
         }
         return kOk;
     } else {

@@ -99,6 +99,7 @@ void DoRead() {
     delete it;
     reader->Close();
     delete reader;
+    std::cerr << "totoal records:" << record_no << std::endl;
 }
 
 int main(int argc, char* argv[]) {

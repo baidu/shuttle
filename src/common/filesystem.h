@@ -63,6 +63,7 @@ public:
     bool WriteNextRecord(const std::string& key, const std::string& value);
     bool Seek(int64_t offset);
     int64_t Tell();
+    int64_t GetSize();
 private:
     hdfsFS fs_;
     SeqFile sf_;

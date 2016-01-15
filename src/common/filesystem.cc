@@ -468,30 +468,24 @@ bool InfSeqFile::Seek(int64_t offset) {
         LOG(WARNING, "fail to seek: %s, %ld", path_.c_str(), offset);
         return false;
     }
-    int64_t prev_guess_point = start_point - (1<<20);
-    if (prev_guess_point < 0) {
-        prev_guess_point = 0;
-    }
-    if (syncSeqFile(sf_, prev_guess_point) < 0 ){
-        return false;
-    }
-    while (Tell() < start_point) {
-        //fprintf(stderr, "Tell: %ld\n", Tell());
-        int key_len;
-        int value_len;
-        void* raw_key;
-        void* raw_value;
-        int ret = readNextRecordFromSeqFile(fs_, sf_, &raw_key, &key_len, &raw_value, &value_len);        
-        if (ret != 0) {
-            LOG(WARNING, "fail to find seek pos %ld: %s", start_point, path_.c_str());
-            return false;
-        }
-    }
+    fprintf(stderr, "real offset: %ld\n", start_point);
     return true;
 }
 
 int64_t InfSeqFile::Tell() {
     return getSeqFilePos(sf_);
+}
+
+int64_t InfSeqFile::GetSize() {
+    hdfsFileInfo* info = NULL;
+    info = hdfsGetPathInfo(fs_, path_.c_str());
+    if (info == NULL) {
+        LOG(WARNING, "failed to get info of %s", path_.c_str());
+        return -1;
+    }
+    int64_t file_size = info->mSize;
+    hdfsFreeFileInfo(info, 1);
+    return file_size;
 }
 
 } //namespace shuttle
