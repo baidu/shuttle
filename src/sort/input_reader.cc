@@ -111,7 +111,8 @@ public:
 
     SeqFileReader(InfSeqFile* sf) : sf_(sf), offset_(0), len_(0),
                                     read_bytes_(0),
-                                    reach_eof_(false) {}
+                                    reach_eof_(false),
+                                    end_offfset_(0) {}
     virtual ~SeqFileReader() {delete sf_;}
     Status Open(const std::string& path, FileSystem::Param param);
     Iterator* Read(int64_t offset, int64_t len);
