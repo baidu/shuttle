@@ -248,7 +248,15 @@ InputReader::Iterator* SeqFileReader::Read(int64_t offset, int64_t len) {
     } else if (sf_->Seek(offset_ + len_)) {
         end_offfset_ = sf_->Tell();
         bool eof;
-        sf_->ReadNextRecord(&end_key_, &end_value_, &eof);
+        if (!sf_->ReadNextRecord(&end_key_, &end_value_, &eof)) {
+            it->SetHasMore(false);
+            it->SetError(kReadFileFail);
+            return it;
+        }
+    } else {
+        it->SetHasMore(false);
+        it->SetError(kReadFileFail);
+        return it;
     }
     if (!sf_->Seek(offset)) {
         it->SetHasMore(false);
@@ -268,14 +276,14 @@ Status SeqFileReader::Close() {
 
 Status SeqFileReader::ReadNextKV(std::string* key, std::string* value) {
     bool eof = false;
-    int64_t cur_pos = sf_->Tell();
-    //fprintf(stderr, "cur_pos:%ld, offset:%ld\n", cur_pos, offset_);
-    if (cur_pos < 0) {
-        return kReadFileFail;
-    }
     if (sf_->ReadNextRecord(key, value, &eof) ) {
         if (eof) {
             return kNoMore;
+        }
+        int64_t cur_pos = sf_->Tell();
+        //fprintf(stderr, "cur_pos:%ld, offset:%ld\n", cur_pos, offset_);
+        if (cur_pos < 0) {
+            return kReadFileFail;
         }
         if (cur_pos == end_offfset_) {
             if (*key == end_key_ && *value == end_value_) {
