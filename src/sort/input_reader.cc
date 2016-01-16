@@ -1,5 +1,6 @@
 #include "input_reader.h"
 #include <string.h>
+#include <limits>
 #include <algorithm>
 #include <string>
 #include "logging.h"
@@ -244,7 +245,7 @@ InputReader::Iterator* SeqFileReader::Read(int64_t offset, int64_t len) {
     len_ = len;
     IteratorImpl* it = new IteratorImpl(this);
     if (offset_ + len_ >= sf_->GetSize()) {
-        end_offfset_ = 0;
+        end_offfset_ = std::numeric_limits<int64_t>::max();
     } else if (sf_->Seek(offset_ + len_)) {
         end_offfset_ = sf_->Tell();
         bool eof;
@@ -289,6 +290,9 @@ Status SeqFileReader::ReadNextKV(std::string* key, std::string* value) {
             if (*key == end_key_ && *value == end_value_) {
                 return kNoMore;
             }
+        }
+        if (cur_pos > end_offfset_) {
+            return kNoMore;
         }
         return kOk;
     } else {
