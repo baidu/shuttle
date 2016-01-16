@@ -84,8 +84,8 @@ void MinionImpl::WatchDogTask() {
         LOG(WARNING, "load average: %f, cores: %d", minute_load, numCPU);
         LOG(WARNING, "machine may be overloaded, so froze the task");
         double rn = rand() / (RAND_MAX+0.0);
-        if (rn < 0.001) {
-            _exit(0);
+        if (rn < 0.005) {
+            _exit(1);
         }
         system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
         task_frozen_ = true;
@@ -113,6 +113,10 @@ void MinionImpl::Query(::google::protobuf::RpcController* controller,
     (void)controller;
     (void)request;
     MutexLock locker(&mu_);
+    if (task_frozen_) {
+        done->Run();
+        return;
+    }
     response->set_job_id(jobid_);
     response->set_task_id(cur_task_id_);
     response->set_attempt_id(cur_attempt_id_);
