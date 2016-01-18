@@ -21,6 +21,7 @@
 DECLARE_int32(replica_begin);
 DECLARE_int32(replica_begin_percent);
 DECLARE_int32(replica_num);
+DECLARE_int32(left_percent);
 DECLARE_int32(first_sleeptime);
 DECLARE_int32(time_tolerance);
 
@@ -35,7 +36,8 @@ public:
             manager_(NULL), job_id_(job_id),  rpc_client_(NULL), job_(job), state_(kPending),
             galaxy_(NULL), node_(node), cur_node_(NULL), total_tasks_(0),
             start_time_(0), finish_time_(0), killed_(0), failed_(0), end_game_begin_(0),
-            allow_duplicates_(true), nearly_finish_callback_(0), finished_callback_(0), monitor_(1) {
+            allow_duplicates_(true), need_dismissed_(0), dismissed_(0), next_phase_begin_(0),
+            nearly_finish_callback_(0), finished_callback_(0), monitor_(1) {
         rpc_client_ = new RpcClient();
         cur_node_ = job_.mutable_nodes(node_);
         allow_duplicates_ = cur_node_->allow_duplicates();
@@ -71,13 +73,12 @@ public:
     virtual Status SetCapacity(int capacity);
     virtual Status SetPriority(const std::string& priority);
 
+    // Notice: Be sure to use these callback registration before gru starts
     virtual void RegisterNearlyFinishCallback(boost::function<void ()> callback) {
-        MutexLock lock(&meta_mu_);
         nearly_finish_callback_ = callback;
     }
 
     virtual void RegisterFinishedCallback(boost::function<void ()> callback) {
-        MutexLock lock(&meta_mu_);
         finished_callback_ = callback;
     }
 
@@ -92,6 +93,7 @@ protected:
     void CancelOtherAttempts(int no, int finished_attempt);
     void CancelCallback(const CancelTaskRequest* request,
             CancelTaskResponse* response, bool fail, int eno);
+    void ShutDown(JobState state);
 
 protected:
     // Initialized to NULL since every gru differs
@@ -149,8 +151,9 @@ protected:
 // First level gru, handling input files and writing output data to temporary directory
 class AlphaGru : public BasicGru {
 public:
-    AlphaGru(JobDescriptor& job, const std::string& job_id, int node);
-    virtual ~AlphaGru();
+    AlphaGru(JobDescriptor& job, const std::string& job_id, int node) :
+        BasicGru(job, job_id, node) { }
+    virtual ~AlphaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
 };
@@ -158,8 +161,9 @@ protected:
 // Middle level gru, whose inputs and outputs are all kept in temporary directory
 class BetaGru : public BasicGru {
 public:
-    BetaGru(JobDescriptor& job, const std::string& job_id, int node);
-    virtual ~BetaGru();
+    BetaGru(JobDescriptor& job, const std::string& job_id, int node) :
+        BasicGru(job, job_id, node) { }
+    virtual ~BetaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
 };
@@ -167,8 +171,9 @@ protected:
 // Last level gru, dealing with temporary stored inputs and directing outputs to final directory
 class OmegaGru : public BasicGru {
 public:
-    OmegaGru(JobDescriptor& job, const std::string& job_id, int node);
-    virtual ~OmegaGru();
+    OmegaGru(JobDescriptor& job, const std::string& job_id, int node) :
+        BasicGru(job, job_id, node) { }
+    virtual ~OmegaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
 };
@@ -204,33 +209,14 @@ Status BasicGru::Start() {
 }
 
 Status BasicGru::Kill() {
+    JobState shutdown_state = kKilled;
     meta_mu_.Lock();
-    if (galaxy_ != NULL) {
-        LOG(INFO, "node %d phase finished, kill: %s", node_, job_id_.c_str());
-        delete galaxy_;
-        galaxy_ = NULL;
-    }
-    monitor_.Stop(true);
     if (state_ == kPending || state_ == kRunning) {
         state_ = kKilled;
     }
+    shutdown_state = state_;
     meta_mu_.Unlock();
-
-    alloc_mu_.Lock();
-    for (std::vector< std::vector<AllocateItem*> >::iterator it = allocation_table_.begin();
-            it != allocation_table_.end(); ++it) {
-        for (std::vector<AllocateItem*>::iterator jt = it->begin();
-                jt != it->end(); ++jt) {
-            AllocateItem* cur = *jt;
-            if (cur->state == kTaskRunning) {
-                cur->state = kTaskKilled;
-                cur->period = std::time(NULL) - cur->alloc_time;
-                ++killed_;
-            }
-        }
-    }
-    alloc_mu_.Unlock();
-    finish_time_ = std::time(NULL);
+    ShutDown(shutdown_state);
     return kOk;
 }
 
@@ -309,6 +295,7 @@ ResourceItem* BasicGru::Assign(const std::string& endpoint, Status* status) {
 Status BasicGru::Finish(int no, int attempt, TaskState state) {
     AllocateItem* cur = NULL;
     try {
+        MutexLock lock(&alloc_mu_);
         cur = allocation_table_[no][attempt];
     } catch (const std::out_of_range&) {
         LOG(WARNING, "node %d try to finish an inexist task: < no - %d, attempt - %d >: %s",
@@ -334,19 +321,22 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
             break;
         }
         int completed = manager_->Done();
-        // TODO Change need_dismissed
+        meta_mu_.Lock();
+        need_dismissed_ = cur_node_->capacity() - static_cast<int>(
+                ::ceil((cur_node_->total() - completed) * FLAGS_left_percent / 100.0));
+        meta_mu_.Unlock();
 
         LOG(INFO, "node %d complete No.%d task(%d/%d): %s", node_, cur->no,
                 completed, manager_->SumOfItem(), job_id_.c_str());
         if (completed == next_phase_begin_) {
             LOG(INFO, "node %d nearly ends, pull up next phase in advance: %s",
                     node_, job_id_.c_str());
-            // TODO Note this operation is lock-free, so callback function is vulnerable
             if (nearly_finish_callback_ != 0) {
                 nearly_finish_callback_();
             }
         } else if (completed == manager_->SumOfItem()) {
             LOG(INFO, "node %d is finished, kill minions: %s", node_, job_id_.c_str());
+            meta_mu_.Lock();
             state_ = kCompleted;
             if (finished_callback_ != 0) {
                 finished_callback_();
@@ -355,7 +345,8 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
                 delete galaxy_;
                 galaxy_ = NULL;
             }
-            // TODO Maybe do more cleaning up
+            meta_mu_.Unlock();
+            ShutDown(kCompleted);
             // TODO Maybe free resource manager
         }
         break;
@@ -577,6 +568,7 @@ void BasicGru::BuildEndGameCounters() {
     if (end_game_begin_ > temp) {
         end_game_begin_ = temp;
     }
+    next_phase_begin_ = end_game_begin_;
 }
 
 void BasicGru::CancelCallback(const CancelTaskRequest* request,
@@ -620,10 +612,34 @@ void BasicGru::CancelOtherAttempts(int no, int finished_attempt) {
     }
 }
 
-AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) {
-    // TODO Initialize AlphaGru
-    //   Generate temp output dir
+void BasicGru::ShutDown(JobState state) {
+    meta_mu_.Lock();
+    if (galaxy_ != NULL) {
+        LOG(INFO, "node %d phase finished, kill: %s", node_, job_id_.c_str());
+        delete galaxy_;
+        galaxy_ = NULL;
+    }
+    state_ = state;
+    monitor_.Stop(true);
+    meta_mu_.Unlock();
+
+    if (state != kCompleted) {
+        alloc_mu_.Lock();
+        for (std::vector< std::vector<AllocateItem*> >::iterator it = allocation_table_.begin();
+                it != allocation_table_.end(); ++it) {
+            for (std::vector<AllocateItem*>::iterator jt = it->begin();
+                    jt != it->end(); ++jt) {
+                AllocateItem* cur = *jt;
+                if (cur->state == kTaskRunning) {
+                    cur->state = kTaskKilled;
+                    cur->period = std::time(NULL) - cur->alloc_time;
+                    ++killed_;
+                }
+            }
+        }
+    }
+    alloc_mu_.Unlock();
+    finish_time_ = std::time(NULL);
 }
 
 ResourceManager* AlphaGru::BuildResourceManager() {
@@ -672,19 +688,8 @@ ResourceManager* AlphaGru::BuildResourceManager() {
     return manager;
 }
 
-BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) {
-    // TODO Initialize BetaGru
-    //   Generate temp output dir
-}
-
 ResourceManager* BetaGru::BuildResourceManager() {
     return ResourceManager::GetIdManager(cur_node_->total());
-}
-
-OmegaGru::OmegaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) {
-    // TODO Initialize BetaGru
 }
 
 ResourceManager* OmegaGru::BuildResourceManager() {
