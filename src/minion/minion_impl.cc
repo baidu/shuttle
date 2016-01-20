@@ -130,9 +130,10 @@ void MinionImpl::CancelTask(::google::protobuf::RpcController* controller,
                             ::google::protobuf::Closure* done) {
     (void)controller;
     int32_t task_id = request->task_id();
+    const std::string jobid = request->job_id();
     {
         MutexLock locker(&mu_);
-        if (task_id != cur_task_id_) {
+        if (task_id != cur_task_id_ || jobid_ != jobid) {
             response->set_status(kNoSuchTask);
         } else {
             executor_->Stop(task_id);
