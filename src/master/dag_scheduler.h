@@ -32,7 +32,7 @@ public:
         if (n > dependency_map_.size()) {
             return false;
         }
-        return dependency_map_[n].pre.size() == 0;
+        return dependency_map_[n].pre.empty();
     }
 
     bool HasSuccessors(int node) {
@@ -40,8 +40,10 @@ public:
         if (n > dependency_map_.size()) {
             return false;
         }
-        return dependency_map_[n].next.size() == 0;
+        return dependency_map_[n].next.empty();
     }
+
+    std::vector<int> ZeroOutdegreeNodes();
 
 protected:
     void ConvertMap(const JobDescriptor& job);

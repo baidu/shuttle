@@ -43,6 +43,16 @@ bool DagScheduler::RemoveFinishedNode(int node) {
     return true;
 }
 
+std::vector<int> DagScheduler::ZeroOutdegreeNodes() {
+    std::vector<int> dest;
+    for (size_t i = 0; i < dependency_map_.size(); ++i) {
+        if (dependency_map_[i].next.empty()) {
+            dest.push_back(static_cast<int>(i));
+        }
+    }
+    return dest;
+}
+
 void DagScheduler::ConvertMap(const JobDescriptor& job) {
     size_t nodes = job.map().size();
 
