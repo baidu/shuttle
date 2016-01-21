@@ -10,6 +10,16 @@
 namespace baidu {
 namespace shuttle {
 
+struct UpdateItem {
+    int node;
+    // -1 means no change
+    int capacity;
+    // Empty string means no change
+    std::string priority;
+};
+
+class FileSystem;
+
 class JobTracker {
 
 public:
@@ -17,8 +27,7 @@ public:
     virtual ~JobTracker();
 
     Status Start();
-    // TODO Update interface under construction
-    Status Update(...);
+    Status Update(const std::vector<UpdateItem>& nodes);
     Status Kill();
     
     ResourceItem* Assign(int node, const std::string& endpoint, Status* status);
@@ -59,6 +68,7 @@ private:
 
     DagScheduler scheduler_;
     std::vector<Gru*> grus_;
+    FileSystem* fs_;
 };
 
 }

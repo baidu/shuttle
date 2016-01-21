@@ -5,6 +5,7 @@
 #include <boost/lexical_cast.hpp>
 #include <sys/time.h>
 
+#include "common/filesystem.h"
 #include "logging.h"
 
 namespace baidu {
@@ -12,7 +13,7 @@ namespace shuttle {
 
 JobTracker::JobTracker(const JobDescriptor& job_descriptor) :
         job_(job_descriptor), state_(kPending), start_time_(0), finish_time_(0),
-        scheduler_(job_descriptor) {
+        scheduler_(job_descriptor), fs_(NULL) {
     job_id_ = GenerateJobId();
     grus_.resize(job_.nodes().size(), 0);
 }
@@ -29,6 +30,7 @@ Status JobTracker::Start() {
             it != first.end(); ++it) {
         int node = *it;
         Gru*& cur = grus_[node];
+        // TODO Create temp dir
         cur = Gru::GetAlphaGru(job_, job_id_, node);
         cur->RegisterNearlyFinishCallback(
                 boost::bind(&JobTracker::ScheduleNextPhase, this, node));
@@ -41,6 +43,32 @@ Status JobTracker::Start() {
         }
     }
     return ret_val;
+}
+
+Status JobTracker::Update(const std::vector<UpdateItem>& nodes) {
+    int error_times = 0;
+    for (std::vector<UpdateItem>::const_iterator it = nodes.begin();
+            it != nodes.end(); ++it) {
+        if (static_cast<size_t>(it->node) > grus_.size() || grus_[it->node] == NULL) {
+            continue;
+        }
+        Gru* cur = grus_[it->node];
+        JobState state = cur->GetState();
+        if (state != kRunning || state != kPending) {
+            continue;
+        }
+        if (it->capacity != -1) {
+            if (cur->SetCapacity(it->capacity) != kOk) {
+                ++error_times;
+            }
+        }
+        if (!it->priority.empty()) {
+            if (cur->SetPriority(it->priority)) {
+                ++error_times;
+            }
+        }
+    }
+    return error_times ? kGalaxyError : kOk;
 }
 
 Status JobTracker::Kill() {

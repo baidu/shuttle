@@ -420,11 +420,17 @@ TaskStatistics BasicGru::GetStatistics() {
 
 Status BasicGru::SetCapacity(int capacity) {
     if (galaxy_ == NULL) {
+        MutexLock lock(&meta_mu_);
+        if (state_ == kRunning || state_ == kPending) {
+            cur_node_->set_capacity(capacity);
+            return kOk;
+        }
         return kGalaxyError;
     }
     if (galaxy_->SetCapacity(capacity) != kOk) {
         return kGalaxyError;
     }
+    MutexLock lock(&meta_mu_);
     cur_node_->set_capacity(capacity);
     return kOk;
 }
