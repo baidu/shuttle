@@ -967,6 +967,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
     LOG(INFO, "[monitor] %s monitor starts to check timeout: %s",
             map_now ? "map" : "reduce", job_id_.c_str());
     std::vector<int> time_used;
+    bool need_random_query = false;
     {
         MutexLock lock(&alloc_mu_);
         for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
@@ -975,6 +976,11 @@ void JobTracker::KeepMonitoring(bool map_now) {
                 time_used.push_back((*it)->period);
             }
         }
+        double rn = rand() / (RAND_MAX+0.0);
+        if (rn < 0.05) {
+            need_random_query = true;
+            LOG(INFO, "need random query");
+        }
     }
     time_t timeout = 0;
     if (!time_used.empty()) {
@@ -982,7 +988,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
         timeout = time_used[time_used.size() / 2];
         timeout += timeout / 5;
         LOG(INFO, "[monitor] calc timeout bound, %ld: %s", timeout, job_id_.c_str());
-    } else {
+    } else if (!need_random_query){
         monitor_->DelayTask(FLAGS_first_sleeptime * 1000,
                 boost::bind(&JobTracker::KeepMonitoring, this, map_now));
         LOG(INFO, "[monitor] will now rest for %ds: %s", FLAGS_first_sleeptime, job_id_.c_str());
@@ -1013,7 +1019,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
             returned_item.push_back(top);
             continue;
         }
-        if (not_allow_duplicates || (now - top->alloc_time < timeout) ) {
+        if (not_allow_duplicates || (now - top->alloc_time < timeout) || need_random_query) {
             QueryRequest request;
             QueryResponse response;
             Minion_Stub* stub = NULL;
