@@ -6,6 +6,9 @@ the_dir=`cd "$the_dir"; pwd`
 nfs_dir=/disk/shuttle
 nfs_path=~/Documents
 
+declare -a input_files=( )
+declare -a expand_inputs=( )
+
 if [[ $1 == *streaming ]]; then
     files=()
     file_detected=0
@@ -39,13 +42,22 @@ if [[ $1 == *streaming ]]; then
     $nfs_path/NfsShell put --override $packname $nfs_dir/$timestamp
 
     params=( "$@" )
-    for i in `seq $#`; do
-        if [ "${params[i]}" = "-file" -o "${params[i]}" = "--file" ]; then
-            unset params[i]
+    for i in `seq $#`
+    do
+        if [ "${params[i]}" = "-input" ]; then
+            hdfs_file_path="${params[$((i+1))]}"
+            input_files=( "${input_files[@]}" $hdfs_file_path )
+            unset params[$i]
             unset params[$((i+1))]
         fi
     done
-
+    for i in `seq $#`; do
+        if [ "${params[i]}" = "-file" -o "${params[i]}" = "--file" ]; then
+            unset params[$i]
+            unset params[$((i+1))]
+        fi
+    done
+    
     set -- "${params[@]}"
     file_param=-file\ $timestamp/$packname
 
@@ -66,6 +78,15 @@ if [ "$nexus_root" ]; then
     nexus_root=-nexus-root\ $nexus_root
 fi
 
+for file_path in "${input_files[@]}" 
+do
+    declare -a exp_path=( $(eval "echo $file_path") )
+    for epp in "${exp_path[@]}"
+    do
+        expand_inputs=( "${expand_inputs[@]}" "-input ${epp}" )
+    done
+done
+
 $the_dir/shuttle $nexus_param $nexus_root $file_param \
     -jobconf mapred.job.input.host=$input_host \
     -jobconf mapred.job.input.port=$input_port \
@@ -75,5 +96,6 @@ $the_dir/shuttle $nexus_param $nexus_root $file_param \
     -jobconf mapred.job.output.port=$output_port \
     -jobconf mapred.job.output.user=$output_user \
     -jobconf mapred.job.output.password=$output_password \
-    "$@"
+    "$@" \
+    ${expand_inputs[@]}
 

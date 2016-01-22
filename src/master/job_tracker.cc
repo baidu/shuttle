@@ -71,7 +71,12 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
     if (!job_descriptor_.has_reduce_retry()) {
         job_descriptor_.set_reduce_retry(FLAGS_retry_bound);
     }
-
+    if (job_descriptor_.has_reduce_total() && job_descriptor_.has_reduce_capacity()) {
+        if (job_descriptor_.reduce_capacity() > job_descriptor_.reduce_total() * 2) {
+            int scale_down_cap = std::max(job_descriptor_.reduce_total() * 2, 60);
+            job_descriptor_.set_reduce_capacity(scale_down_cap);
+        }
+    }
     monitor_ = new ThreadPool(1);
 
     map_allow_duplicates_ = job_descriptor_.map_allow_duplicates();
