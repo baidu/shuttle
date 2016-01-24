@@ -25,7 +25,7 @@ InputRun() {
 	eval $input_cmd
 	local ret=$?
 	if [ $ret -ne 0 ]; then
-		kill -9 $PPID
+		kill -9 $(PsTree $PPID)
 		return $ret
 	fi
 	return 0
@@ -36,7 +36,7 @@ ShuffleRun() {
 	eval $shuffle_cmd
 	local ret=$?
 	if [ $ret -ne 0 ]; then
-		kill -9 $PPID
+		kill -9 $(PsTree $PPID)
 		return $ret
 	fi
 	return 0
