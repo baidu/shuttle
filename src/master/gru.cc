@@ -74,11 +74,11 @@ public:
     virtual Status SetPriority(const std::string& priority);
 
     // Notice: Be sure to use these callback registration before gru starts
-    virtual void RegisterNearlyFinishCallback(boost::function<void ()> callback) {
+    virtual void RegisterNearlyFinishCallback(const boost::function<void ()>& callback) {
         nearly_finish_callback_ = callback;
     }
 
-    virtual void RegisterFinishedCallback(boost::function<void ()> callback) {
+    virtual void RegisterFinishedCallback(const boost::function<void (JobState)>& callback) {
         finished_callback_ = callback;
     }
 
@@ -135,7 +135,7 @@ protected:
     // Carefully initialized
     int next_phase_begin_;
     boost::function<void ()> nearly_finish_callback_;
-    boost::function<void ()> finished_callback_;
+    boost::function<void (JobState)> finished_callback_;
 
     // Allocation process is not relevant to derived class
     Mutex alloc_mu_;
@@ -327,20 +327,22 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
         meta_mu_.Unlock();
 
         LOG(INFO, "node %d complete No.%d task(%d/%d): %s", node_, cur->no,
-                completed, manager_->SumOfItem(), job_id_.c_str());
+                completed, total_tasks_, job_id_.c_str());
         if (completed == next_phase_begin_) {
             LOG(INFO, "node %d nearly ends, pull up next phase in advance: %s",
                     node_, job_id_.c_str());
             if (nearly_finish_callback_ != 0) {
                 nearly_finish_callback_();
             }
-        } else if (completed == manager_->SumOfItem()) {
+        } else if (completed == total_tasks_) {
             LOG(INFO, "node %d is finished, kill minions: %s", node_, job_id_.c_str());
             meta_mu_.Lock();
             state_ = kCompleted;
+            meta_mu_.Unlock();
             if (finished_callback_ != 0) {
-                finished_callback_();
+                finished_callback_(kCompleted);
             }
+            meta_mu_.Lock();
             if (galaxy_ != NULL) {
                 delete galaxy_;
                 galaxy_ = NULL;
@@ -350,17 +352,28 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
             // TODO Maybe free resource manager
         }
         break;
-    case kTaskFailed:
+    case kTaskFailed: {
         manager_->ReturnBackItem(cur->no);
         // XXX Data format and protocol here is not compatible with master branch
         // XXX Needs attention
-        ++failed_count_[cur->no]; ++failed_;
-        if (failed_count_[cur->no] >= cur_node_->retry()) {
+        int current_failed = 0;
+        {
+            MutexLock lock(&meta_mu_);
+            ++failed_;
+        }
+        {
+            MutexLock lock(&alloc_mu_);
+            current_failed = ++failed_count_[cur->no];
+        }
+        if (current_failed >= cur_node_->retry()) {
             LOG(INFO, "node %d failed, kill job: %s", node_, job_id_.c_str());
+            meta_mu_.Lock();
             state_ = kFailed;
+            meta_mu_.Unlock();
             if (finished_callback_ != 0) {
-                finished_callback_();
+                finished_callback_(kFailed);
             }
+        }
         }
         break;
     case kTaskKilled:
@@ -568,9 +581,9 @@ void BasicGru::BuildEndGameCounters() {
     if (manager_ == NULL) {
         return;
     }
-    int items = manager_->SumOfItem();
-    end_game_begin_ = items - FLAGS_replica_begin;
-    int temp = items - items * FLAGS_replica_begin_percent / 100;
+    total_tasks_ = manager_->SumOfItem();
+    end_game_begin_ = total_tasks_ - FLAGS_replica_begin;
+    int temp = total_tasks_ - total_tasks_ * FLAGS_replica_begin_percent / 100;
     if (end_game_begin_ > temp) {
         end_game_begin_ = temp;
     }
@@ -686,7 +699,7 @@ ResourceManager* AlphaGru::BuildResourceManager() {
         cur_node_->set_total(0);
         state_ = kFailed;
         if (!finished_callback_) {
-            finished_callback_();
+            finished_callback_(kFailed);
         }
         return NULL;
     }

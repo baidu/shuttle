@@ -51,8 +51,8 @@ public:
 
     // Notify upper job tracker the nearly finish and finish state,
     // so that the job tracker could pull up next phrase or change some states
-    virtual void RegisterNearlyFinishCallback(boost::function<void ()> callback) = 0;
-    virtual void RegisterFinishedCallback(boost::function<void ()> callback) = 0;
+    virtual void RegisterNearlyFinishCallback(const boost::function<void ()>& callback) = 0;
+    virtual void RegisterFinishedCallback(const boost::function<void (JobState)>& callback) = 0;
 
     // For backup and recovery
     // Load()

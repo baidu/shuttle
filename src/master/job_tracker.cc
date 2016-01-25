@@ -3,6 +3,7 @@
 #include <sstream>
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
+#include <assert.h>
 #include <sys/time.h>
 
 #include "common/filesystem.h"
@@ -13,12 +14,16 @@ namespace shuttle {
 
 JobTracker::JobTracker(const JobDescriptor& job_descriptor) :
         job_(job_descriptor), state_(kPending), start_time_(0), finish_time_(0),
-        scheduler_(job_descriptor), fs_(NULL) {
+        scheduler_(job_descriptor) {
     job_id_ = GenerateJobId();
     grus_.resize(job_.nodes().size(), 0);
 }
 
 JobTracker::~JobTracker() {
+    for (std::vector<Gru*>::iterator it = grus_.begin();
+            it != grus_.end(); ++it) {
+        delete *it;
+    }
 }
 
 Status JobTracker::Start() {
@@ -30,12 +35,11 @@ Status JobTracker::Start() {
             it != first.end(); ++it) {
         int node = *it;
         Gru*& cur = grus_[node];
-        // TODO Create temp dir
         cur = Gru::GetAlphaGru(job_, job_id_, node);
         cur->RegisterNearlyFinishCallback(
                 boost::bind(&JobTracker::ScheduleNextPhase, this, node));
         cur->RegisterFinishedCallback(
-                boost::bind(&JobTracker::FinishPhase, this, node));
+                boost::bind(&JobTracker::FinishPhase, this, node, _1));
         Status ret = cur->Start();
         if (ret != kOk) {
             ret_val = ret;
@@ -72,8 +76,18 @@ Status JobTracker::Update(const std::vector<UpdateItem>& nodes) {
 }
 
 Status JobTracker::Kill() {
-    // TODO Implement here
-    return kUnKnown;
+    for (std::vector<Gru*>::iterator it = grus_.begin();
+            it != grus_.end(); ++it) {
+        if (*it == NULL) {
+            continue;
+        }
+        JobState state = (*it)->GetState();
+        if (state == kPending || state == kRunning) {
+            (*it)->Kill();
+        }
+    }
+    FinishWholeJob(kKilled);
+    return kOk;
 }
 
 ResourceItem* JobTracker::Assign(int node, const std::string& endpoint, Status* status) {
@@ -124,21 +138,31 @@ void JobTracker::ScheduleNextPhase(int node) {
         next->RegisterNearlyFinishCallback(
                 boost::bind(&JobTracker::ScheduleNextPhase, this, node));
         next->RegisterFinishedCallback(
-                boost::bind(&JobTracker::FinishPhase, this, node));
+                boost::bind(&JobTracker::FinishPhase, this, node, _1));
         next->Start();
     }
 }
 
-void JobTracker::FinishPhase(int node) {
+void JobTracker::FinishPhase(int node, JobState state) {
+    assert(state != kPending && state != kRunning);
     scheduler_.RemoveFinishedNode(node);
-    if (scheduler_.UnfinishedNodes() == 0) {
-        FinishWholeJob();
+    if (state != kCompleted || scheduler_.UnfinishedNodes() == 0) {
+        // XXX If retry is allowed, then re-loading it if it is failed
+        FinishWholeJob(state);
     }
 }
 
-void JobTracker::FinishWholeJob() {
+void JobTracker::FinishWholeJob(JobState state) {
     LOG(INFO, "finish a whole shuttle job: %s", job_id_.c_str());
-    // TODO Clean temp dir
+    {
+        MutexLock lock(&meta_mu_);
+        state_ = state;
+        finish_time_ = std::time(NULL);
+    }
+    if (finished_callback_ != 0) {
+        finished_callback_();
+    }
+    // TODO Notice gru to clean up the temporary dir
 }
 
 }

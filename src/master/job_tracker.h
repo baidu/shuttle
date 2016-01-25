@@ -50,12 +50,16 @@ public:
         return finish_time_;
     }
 
+    void RegisterFinishedCallback(boost::function<void ()> callback) {
+        finished_callback_ = callback;
+    }
+
 private:
     std::string GenerateJobId();
     // For gru callback
     void ScheduleNextPhase(int node);
-    void FinishPhase(int node);
-    void FinishWholeJob();
+    void FinishPhase(int node, JobState state);
+    void FinishWholeJob(JobState state);
 
 private:
     JobDescriptor job_;
@@ -65,10 +69,10 @@ private:
     JobState state_;
     time_t start_time_;
     time_t finish_time_;
+    boost::function<void ()> finished_callback_;
 
     DagScheduler scheduler_;
     std::vector<Gru*> grus_;
-    FileSystem* fs_;
 };
 
 }
