@@ -2,9 +2,12 @@
 set -x
 set -o pipefail
 user_cmd=$*
+minion_pid=`pgrep '^minion$'`
 
 PsTree() {
-    echo "$1"
+    if [ $1 -ne $minion_pid ]; then
+        echo "$1"
+    fi
     local children=$(ps -o pid= --ppid "$1") 
     for pid in $children
     do
@@ -25,7 +28,7 @@ InputRun() {
 	eval $input_cmd
 	local ret=$?
 	if [ $ret -ne 0 ]; then
-		kill -9 $(PsTree $PPID)
+		setsid kill -9 $(PsTree $PPID)
 		return $ret
 	fi
 	return 0
@@ -36,7 +39,7 @@ ShuffleRun() {
 	eval $shuffle_cmd
 	local ret=$?
 	if [ $ret -ne 0 ]; then
-		kill -9 $(PsTree $PPID)
+		setsid kill -9 $(PsTree $PPID)
 		return $ret
 	fi
 	return 0
