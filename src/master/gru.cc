@@ -216,6 +216,10 @@ Status BasicGru::Kill() {
     }
     shutdown_state = state_;
     meta_mu_.Unlock();
+    // Call registered callback function for killed gru
+    if (shutdown_state == kKilled && finished_callback_ != 0) {
+        finished_callback_(kKilled);
+    }
     ShutDown(shutdown_state);
     return kOk;
 }
@@ -342,12 +346,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
             if (finished_callback_ != 0) {
                 finished_callback_(kCompleted);
             }
-            meta_mu_.Lock();
-            if (galaxy_ != NULL) {
-                delete galaxy_;
-                galaxy_ = NULL;
-            }
-            meta_mu_.Unlock();
+            galaxy_->Kill();
             ShutDown(kCompleted);
             // TODO Maybe free resource manager
         }

@@ -1,6 +1,7 @@
 #include "master_impl.h"
 
-#include <string>
+#include <vector>
+#include <algorithm>
 #include <sstream>
 #include <stdlib.h>
 #include <time.h>
@@ -60,13 +61,12 @@ void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
                            ::baidu::shuttle::SubmitJobResponse* response,
                            ::google::protobuf::Closure* done) {
     const JobDescriptor& job = request->job();
-    LOG(INFO, "use dfs user: %s", job.input_dfs().user().c_str());
-    LOG(INFO, "use output dfs user: %s", job.output_dfs().user().c_str());
-    LOG(INFO, "pipe style: %s", PipeStyle_Name(job.pipe_style()).c_str());
+    LOG(INFO, "new job submitted");
     LOG(INFO, "=== job details ===");
     LOG(INFO, "%s", job.DebugString().c_str());
     LOG(INFO, "==== end of job details ==");
-    JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
+    JobTracker* jobtracker = new JobTracker(job);
+    // TODO Register callback
     Status status = jobtracker->Start();
     const std::string& job_id = jobtracker->GetJobId();
     if (status == kOk) {
@@ -92,14 +92,11 @@ void MasterImpl::UpdateJob(::google::protobuf::RpcController* /*controller*/,
         "kBestEffort"
     };
     const std::string& job_id = request->jobid();
-    int map_capacity = -1, reduce_capacity = -1;
-    if (request->has_map_capacity()) {
-        map_capacity = request->map_capacity();
-    }
-    if (request->has_reduce_capacity()) {
-        reduce_capacity = request->reduce_capacity();
-    }
     std::string priority = request->has_priority() ? galaxy_priority[request->priority()] : "";
+    std::vector<UpdateItem> nodes;
+    nodes.resize(request->capacities().size());
+    // TODO Check it
+    std::copy(request->capacities().begin(), request->capacities().end(), nodes.begin());
     JobTracker* jobtracker = NULL;
     {
         MutexLock lock(&(tracker_mu_));
@@ -109,7 +106,7 @@ void MasterImpl::UpdateJob(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status status = jobtracker->Update(priority, map_capacity, reduce_capacity);
+        Status status = jobtracker->Update(priority, nodes);
         response->set_status(status);
     } else {
         LOG(WARNING, "try to update an inexist job: %s", job_id.c_str());
@@ -132,7 +129,7 @@ void MasterImpl::KillJob(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status status = RetractJob(job_id);
+        Status status = jobtracker->Kill();
         response->set_status(status);
     } else {
         LOG(WARNING, "try to kill an inexist job: %s", job_id.c_str());
@@ -226,38 +223,25 @@ void MasterImpl::AssignTask(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status assign_status;
-        if (request->work_mode() == kReduce) {
-            IdItem* resource = jobtracker->AssignReduce(request->endpoint(), &assign_status);
-            response->set_status(assign_status);
-            if (resource == NULL) {
-                done->Run();
-                return;
-            }
-
-            TaskInfo* task = response->mutable_task();
-            task->set_task_id(resource->no);
-            task->set_attempt_id(resource->attempt);
-            task->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
-            delete resource;
-        } else {
-            ResourceItem* resource = jobtracker->AssignMap(request->endpoint(), &assign_status);
-            response->set_status(assign_status);
-            if (resource == NULL) {
-                done->Run();
-                return;
-            }
-
-            TaskInfo* task = response->mutable_task();
-            task->set_task_id(resource->no);
-            task->set_attempt_id(resource->attempt);
+        Status status = kOk;
+        ResourceItem* resource = jobtracker->Assign(request->node(), request->endpoint(), &status);
+        response->set_status(status);
+        if (resource == NULL) {
+            done->Run();
+            return;
+        }
+        response->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
+        TaskInfo* task = response->mutable_task();
+        task->set_task_id(resource->no);
+        task->set_attempt_id(resource->attempt);
+        if (resource->type == kFileItem) {
             TaskInput* input = task->mutable_input();
             input->set_input_file(resource->input_file);
             input->set_input_offset(resource->offset);
             input->set_input_size(resource->size);
-            task->mutable_job()->CopyFrom(jobtracker->GetJobDescriptor());
-            delete resource;
         }
+        task->set_node(request->node());
+        delete resource;
     } else {
         {
             MutexLock lock(&(dead_mu_));
@@ -290,16 +274,8 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status status = kOk;
-        if (request->work_mode() == kReduce) {
-            status = jobtracker->FinishReduce(request->task_id(),
-                                              request->attempt_id(),
-                                              request->task_state());
-        } else {
-            status = jobtracker->FinishMap(request->task_id(),
-                                           request->attempt_id(),
-                                           request->task_state());
-        }
+        Status status = jobtracker->Finish(request->node(),
+                request->task_id(), request->attempt_id(), request->task_state());
         response->set_status(status);
     } else {
         {
@@ -319,6 +295,7 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
     done->Run();
 }
 
+// TODO Need modified
 Status MasterImpl::RetractJob(const std::string& jobid) {
     MutexLock lock(&(tracker_mu_));
     MutexLock lock2(&(dead_mu_));

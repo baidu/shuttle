@@ -14,8 +14,6 @@ struct UpdateItem {
     int node;
     // -1 means no change
     int capacity;
-    // Empty string means no change
-    std::string priority;
 };
 
 class FileSystem;
@@ -27,7 +25,7 @@ public:
     virtual ~JobTracker();
 
     Status Start();
-    Status Update(const std::vector<UpdateItem>& nodes);
+    Status Update(const std::string& priority, const std::vector<UpdateItem>& nodes);
     Status Kill();
     
     ResourceItem* Assign(int node, const std::string& endpoint, Status* status);

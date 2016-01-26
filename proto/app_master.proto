@@ -114,8 +114,8 @@ message ShowJobResponse {
 }
 
 message AssignTaskRequest {
-    optional string jobid = 1;
-    optional int32 node = 2;
+    required string jobid = 1;
+    required int32 node = 2;
     optional string endpoint = 3;
 }
 
@@ -130,7 +130,7 @@ message FinishTaskRequest {
     required int32 node = 2;
     required int32 task_id = 3;
     required int32 attempt_id = 4;
-    optional TaskState task_state = 5;
+    required TaskState task_state = 5;
     optional string endpoint = 6;
 }
 
