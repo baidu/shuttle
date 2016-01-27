@@ -119,6 +119,51 @@ Status JobTracker::Finish(int node, int no, int attempt, TaskState state) {
     return grus_[n]->Finish(no, attempt, state);
 }
 
+Status JobTracker::GetStatistics(std::vector<TaskStatistics>& stats) {
+    stats.clear();
+    size_t size = grus_.size();
+    stats.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        if (grus_[i] == NULL) {
+            stats[i].set_total(0);
+            stats[i].set_pending(0);
+            stats[i].set_running(0);
+            stats[i].set_failed(0);
+            stats[i].set_killed(0);
+            stats[i].set_completed(0);
+        } else {
+            stats[i].CopyFrom(grus_[i]->GetStatistics());
+        }
+    }
+    return kOk;
+}
+
+Status JobTracker::GetTaskOverview(std::vector<TaskOverview>& tasks) {
+    tasks.clear();
+    for (size_t i = 0; i < grus_.size(); ++i) {
+        if (grus_[i] == NULL) {
+            continue;
+        }
+        std::vector<AllocateItem> cur_history;
+        grus_[i]->GetHistory(cur_history);
+        for (std::vector<AllocateItem>::iterator it = cur_history.begin();
+                it != cur_history.end(); ++it) {
+            TaskOverview task;
+            TaskInfo* info = task.mutable_info();
+            info->set_task_id(it->no);
+            info->set_attempt_id(it->attempt);
+            // TODO Fill input with proper information
+            info->set_node(i);
+            task.set_state(it->state);
+            task.set_minion_addr(it->endpoint);
+            task.set_start_time(it->alloc_time);
+            task.set_end_time(it->period == -1 ? 0 : it->alloc_time + it->period);
+            tasks.push_back(task);
+        }
+    }
+    return kOk;
+}
+
 std::string JobTracker::GenerateJobId() {
     struct timeval tv;
     gettimeofday(&tv, NULL);

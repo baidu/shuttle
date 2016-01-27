@@ -6,6 +6,7 @@
 #include "gru.h"
 #include "dag_scheduler.h"
 #include "proto/shuttle.pb.h"
+#include "proto/app_master.pb.h"
 
 namespace baidu {
 namespace shuttle {
@@ -47,6 +48,9 @@ public:
         MutexLock lock(&meta_mu_);
         return finish_time_;
     }
+    Status GetStatistics(std::vector<TaskStatistics>& stats);
+    // Notice: Currently input info is not included
+    Status GetTaskOverview(std::vector<TaskOverview>& tasks);
 
     void RegisterFinishedCallback(boost::function<void ()> callback) {
         finished_callback_ = callback;

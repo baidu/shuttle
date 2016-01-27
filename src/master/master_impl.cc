@@ -12,6 +12,7 @@
 #include <snappy.h>
 #include "timer.h"
 #include "logging.h"
+#include "resource_manager.h"
 
 DECLARE_string(galaxy_address);
 DECLARE_string(nexus_root_path);
@@ -147,25 +148,33 @@ void MasterImpl::ListJobs(::google::protobuf::RpcController* /*controller*/,
     {
         MutexLock lock1(&(tracker_mu_));
         for (it = job_trackers_.begin(); it != job_trackers_.end(); ++it) {
+            JobTracker* jobtracker = it->second;
             JobOverview* job = response->add_jobs();
-            job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
+            job->mutable_desc()->CopyFrom(jobtracker->GetJobDescriptor());
             job->set_jobid(it->first);
-            job->set_state(it->second->GetState());
-            // TODO Statistics
-            job->set_start_time(it->GetStartTime());
-            job->set_finish_time(it->GetFinishTime());
+            job->set_state(jobtracker->GetState());
+            std::vector<TaskStatistics> stats;
+            jobtracker->GetStatistics(stats);
+            job->mutable_stats()->Resize(stats.size());
+            std::copy(stats.begin(), stats.end(), job->mutable_stats()->begin());
+            job->set_start_time(jobtracker->GetStartTime());
+            job->set_finish_time(jobtracker->GetFinishTime());
         }
     }
     if (request->all()) {
         MutexLock lock2(&(dead_mu_));
         for (it = dead_trackers_.begin(); it != dead_trackers_.end(); ++it) {
+            JobTracker* jobtracker = it->second;
             JobOverview* job = response->add_jobs();
-            job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
+            job->mutable_desc()->CopyFrom(jobtracker->GetJobDescriptor());
             job->set_jobid(it->first);
-            job->set_state(it->second->GetState());
-            // TODO Statistics
-            job->set_start_time(it->GetStartTime());
-            job->set_finish_time(it->GetFinishTime());
+            job->set_state(jobtracker->GetState());
+            std::vector<TaskStatistics> stats;
+            jobtracker->GetStatistics(stats);
+            job->mutable_stats()->Resize(stats.size());
+            std::copy(stats.begin(), stats.end(), job->mutable_stats()->begin());
+            job->set_start_time(jobtracker->GetStartTime());
+            job->set_finish_time(jobtracker->GetFinishTime());
         }
     }
     done->Run();
@@ -197,11 +206,17 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
         job->mutable_desc()->CopyFrom(jobtracker->GetJobDescriptor());
         job->set_jobid(job_id);
         job->set_state(jobtracker->GetState());
-        // TODO Statistics
+        std::vector<TaskStatistics> stats;
+        jobtracker->GetStatistics(stats);
+        job->mutable_stats()->Resize(stats.size());
+        std::copy(stats.begin(), stats.end(), job->mutable_stats()->begin());
         job->set_start_time(jobtracker->GetStartTime());
         job->set_finish_time(jobtracker->GetFinishTime());
 
-        // TODO Task Information
+        std::vector<TaskOverview> tasks;
+        jobtracker->GetTaskOverview(tasks);
+        response->mutable_tasks()->Resize(tasks.size());
+        std::copy(tasks.begin(), tasks.end(), response->mutable_tasks()->begin());
         // TODO Query progress here
     } else {
         LOG(WARNING, "try to access an inexist job: %s", job_id.c_str());
@@ -303,7 +318,7 @@ void MasterImpl::RetractJob(const std::string& jobid) {
     std::map<std::string, JobTracker*>::iterator it = job_trackers_.find(jobid);
     if (it == job_trackers_.end()) {
         LOG(WARNING, "retract job failed: job inexist: %s", jobid.c_str());
-        return kNoSuchJob;
+        return;
     }
 
     JobTracker* jobtracker = it->second;
