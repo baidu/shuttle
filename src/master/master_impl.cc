@@ -66,7 +66,8 @@ void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
     LOG(INFO, "%s", job.DebugString().c_str());
     LOG(INFO, "==== end of job details ==");
     JobTracker* jobtracker = new JobTracker(job);
-    // TODO Register callback
+    jobtracker->RegisterFinishedCallback(
+            boost::bind(&MasterImpl::RetractJob, this, jobtracker->GetJobId()));
     Status status = jobtracker->Start();
     const std::string& job_id = jobtracker->GetJobId();
     if (status == kOk) {
@@ -150,8 +151,9 @@ void MasterImpl::ListJobs(::google::protobuf::RpcController* /*controller*/,
             job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
             job->set_jobid(it->first);
             job->set_state(it->second->GetState());
-            job->mutable_map_stat()->CopyFrom(it->second->GetMapStatistics());
-            job->mutable_reduce_stat()->CopyFrom(it->second->GetReduceStatistics());
+            // TODO Statistics
+            job->set_start_time(it->GetStartTime());
+            job->set_finish_time(it->GetFinishTime());
         }
     }
     if (request->all()) {
@@ -161,8 +163,9 @@ void MasterImpl::ListJobs(::google::protobuf::RpcController* /*controller*/,
             job->mutable_desc()->CopyFrom(it->second->GetJobDescriptor());
             job->set_jobid(it->first);
             job->set_state(it->second->GetState());
-            job->mutable_map_stat()->CopyFrom(it->second->GetMapStatistics());
-            job->mutable_reduce_stat()->CopyFrom(it->second->GetReduceStatistics());
+            // TODO Statistics
+            job->set_start_time(it->GetStartTime());
+            job->set_finish_time(it->GetFinishTime());
         }
     }
     done->Run();
@@ -194,12 +197,11 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
         job->mutable_desc()->CopyFrom(jobtracker->GetJobDescriptor());
         job->set_jobid(job_id);
         job->set_state(jobtracker->GetState());
-        job->mutable_map_stat()->CopyFrom(jobtracker->GetMapStatistics());
-        job->mutable_reduce_stat()->CopyFrom(jobtracker->GetReduceStatistics());
+        // TODO Statistics
         job->set_start_time(jobtracker->GetStartTime());
         job->set_finish_time(jobtracker->GetFinishTime());
 
-        jobtracker->Check(response);
+        // TODO Task Information
         // TODO Query progress here
     } else {
         LOG(WARNING, "try to access an inexist job: %s", job_id.c_str());
@@ -295,8 +297,7 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
     done->Run();
 }
 
-// TODO Need modified
-Status MasterImpl::RetractJob(const std::string& jobid) {
+void MasterImpl::RetractJob(const std::string& jobid) {
     MutexLock lock(&(tracker_mu_));
     MutexLock lock2(&(dead_mu_));
     std::map<std::string, JobTracker*>::iterator it = job_trackers_.find(jobid);
@@ -308,7 +309,6 @@ Status MasterImpl::RetractJob(const std::string& jobid) {
     JobTracker* jobtracker = it->second;
     job_trackers_.erase(it);
     dead_trackers_[jobid] = jobtracker;
-    return jobtracker->Kill();
 }
 
 void MasterImpl::AcquireMasterLock() {

@@ -51,8 +51,6 @@ public:
                     ::baidu::shuttle::FinishTaskResponse* response,
                     ::google::protobuf::Closure* done);
 
-    Status RetractJob(const std::string& jobid);
-
 private:
     void AcquireMasterLock();
     static void OnMasterSessionTimeout(void* ctx);
@@ -63,6 +61,7 @@ private:
     std::string SelfEndpoint();
     void KeepGarbageCollecting();
     void KeepDataPersistence();
+    void RetractJob(const std::string& jobid);
     void Reload();
     bool GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, JobState& state,
                              std::vector<AllocateItem>& history,
