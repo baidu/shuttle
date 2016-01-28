@@ -1,10 +1,12 @@
 #!/bin/bash
 set -x
 set -o pipefail
+./ionice -c 2 -n 7 -p $$
 
 CmdArgs=$*
 
 HADOOP_CLIENT_HOME=/tmp/hadoop-client
+CACHE_BASE=/home/disk2/mapred
 
 IsValidHadoop() {
 	if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/libhdfs/libhdfs.so ]; then
@@ -64,13 +66,21 @@ DownloadUserTar() {
 			if [ "$cache_archive_dir" == "" ]; then
 				return -1
 			fi
-			mkdir $cache_archive_dir
-			rm -f $cache_archive_dir/*.tar.gz
-			${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $cache_archive_dir
-			if [ $? -ne 0 ]; then
-				return -1
-			fi
-			(cd $cache_archive_dir && (tar -xzf *.tar.gz; tar -xf *.tar))
+            cache_key=`${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -ls $cache_archive_addr | tail -1 | md5sum | awk '{print \$1}'`
+            if [ ! -d $CACHE_BASE/$cache_key ]; then
+                tmp_dump_dir="$CACHE_BASE/${cache_key}_`date +%s`_$$"
+                mkdir -p $tmp_dump_dir/$cache_archive_dir
+                ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
+                if [ $? -ne 0 ]; then
+                    return -1
+                fi
+                (cd $tmp_dump_dir/$cache_archive_dir && (tar -xzf *.tar.gz; tar -xf *.tar))
+                mv $tmp_dump_dir "$CACHE_BASE/${cache_key}"
+            fi
+            for sub_dir in $( ls "${CACHE_BASE}/${cache_key}/" )
+            do
+                ln -s "${CACHE_BASE}/${cache_key}/$sub_dir" .
+            done
 		else
 			break
 		fi
