@@ -13,7 +13,6 @@ namespace shuttle {
 
 struct UpdateItem {
     int node;
-    // -1 means no change
     int capacity;
 };
 

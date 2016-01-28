@@ -1,8 +1,6 @@
 #include "master_impl.h"
 
 #include <vector>
-#include <algorithm>
-#include <iterator>
 #include <sstream>
 #include <stdlib.h>
 #include <time.h>
@@ -96,10 +94,13 @@ void MasterImpl::UpdateJob(::google::protobuf::RpcController* /*controller*/,
     };
     const std::string& job_id = request->jobid();
     std::string priority = request->has_priority() ? galaxy_priority[request->priority()] : "";
+    size_t size = request->capacities().size();
     std::vector<UpdateItem> nodes;
-    nodes.resize(request->capacities().size());
-    // TODO Check it
-    std::copy(request->capacities().begin(), request->capacities().end(), nodes.begin());
+    nodes.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        nodes[i].node = request->capacities(i).node();
+        nodes[i].capacity = request->capacities(i).capacity();
+    }
     JobTracker* jobtracker = NULL;
     {
         MutexLock lock(&(tracker_mu_));
