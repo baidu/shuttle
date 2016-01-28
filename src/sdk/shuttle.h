@@ -57,12 +57,6 @@ enum OutputFormat {
     kSuffixMultipleTextOutput = 2
 };
 
-enum TaskType {
-    kMap = 0,
-    kReduce = 1,
-    kMapOnly = 2
-};
-
 enum PipeStyle {
     kStreaming = 0,
     kBiStreaming = 1
@@ -84,44 +78,52 @@ struct DfsInfo {
     std::string password;
 };
 
+struct NodeConfig {
+    int32_t node;
+    WorkMode type;
+    int32_t capacity;
+    int32_t total;
+    int32_t millicores;
+    int64_t memory;
+    std::string command;
+    std::string inputs;
+    InputFormat input_format;
+    DfsInfo input_dfs;
+    std::string output;
+    OutputFormat output_format;
+    DfsInfo output_dfs;
+    Partition partition;
+    std::string key_separator;
+    int32_t key_fields_num;
+    int32_t partition_fields_num;
+    bool allow_duplicates;
+    int32_t retry;
+};
+
 struct JobDescription {
     std::string name;
     std::string user;
     JobPriority priority;
-    int32_t map_capacity;
-    int32_t reduce_capacity;
-    int32_t millicores;
-    int64_t memory;
     std::vector<std::string> files;
-    std::vector<std::string> inputs;
-    std::string output;
-    std::string map_command;
-    std::string reduce_command;
-    PartitionMethod partition;
-    int32_t map_total;
-    int32_t reduce_total;
-    std::string key_separator;
-    int32_t key_fields_num;
-    int32_t partition_fields_num;
-    DfsInfo input_dfs;
-    DfsInfo output_dfs;
-    InputFormat input_format;
-    OutputFormat output_format;
+    std::string cache_archive;
     PipeStyle pipe_style;
-    bool map_allow_duplicates;
-    bool reduce_allow_duplicates;
-    int32_t map_retry;
-    int32_t reduce_retry;
     int64_t split_size;
+    std::vector<NodeConfig> nodes;
+    std::vector< std::vector<int32_t> > map;
+};
+
+struct UpdateItem {
+    int32_t node;
+    int32_t capacity;
 };
 
 struct TaskInstance {
     std::string job_id;
+    int32_t node;
     int32_t task_id;
     int32_t attempt_id;
     std::string input_file;
     TaskState state;
-    TaskType type;
     std::string minion_addr;
     float progress;    
     time_t start_time;
@@ -132,8 +134,7 @@ struct JobInstance {
     JobDescription desc;
     std::string jobid;
     JobState state;
-    TaskStatistics map_stat;
-    TaskStatistics reduce_stat;
+    std::vector<TaskStatistics> stats;
     int32_t start_time;
     int32_t finish_time;
 };
@@ -148,8 +149,7 @@ public:
                            std::string& job_id) = 0;
     virtual bool UpdateJob(const std::string& job_id,
                            const sdk::JobPriority& priority,
-                           const int map_capacity,
-                           const int reduce_capacity) = 0;
+                           const std::vector<UpdateItem>& new_capacities) = 0;
     virtual bool KillJob(const std::string& job_id) = 0;
     virtual bool KillTask(const std::string& job_id, sdk::TaskType mode,
                           int task_id, int attempt_id) = 0;
