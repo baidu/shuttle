@@ -74,8 +74,13 @@ DownloadUserTar() {
                 if [ $? -ne 0 ]; then
                     return -1
                 fi
-                (cd $tmp_dump_dir/$cache_archive_dir && (tar -xzf *.tar.gz; tar -xf *.tar))
-                mv $tmp_dump_dir "$CACHE_BASE/${cache_key}"
+                (cd $tmp_dump_dir/$cache_archive_dir && (tar -xzf *.tar.gz || tar -xf *.tar))
+                if [ $? -eq 0 ]; then
+                    mv $tmp_dump_dir "$CACHE_BASE/${cache_key}"
+                else
+                    echo "extract failed"
+                    return -2
+                fi
             fi
             for sub_dir in $( ls "${CACHE_BASE}/${cache_key}/" )
             do
