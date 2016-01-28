@@ -3,6 +3,7 @@
 #include <vector>
 #include <queue>
 #include <map>
+#include <sstream>
 #include <boost/bind.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/lexical_cast.hpp>
@@ -15,6 +16,7 @@
 #include "common/rpc_client.h"
 #include "common/tools_util.h"
 #include "proto/minion.pb.h"
+#include "proto/serialize.pb.h"
 #include "thread_pool.h"
 #include "logging.h"
 
@@ -82,13 +84,17 @@ public:
         finished_callback_ = callback;
     }
 
+    virtual Status Load(const std::string& serialized);
+    virtual std::string Dump();
+
 protected:
     // Inner Interface for every gru to implement
     virtual ResourceManager* BuildResourceManager() = 0;
+    virtual void DumpResourceManager(GruCollection* backup) = 0;
+    // virtual void RecoverResourceManager() = 0;
 
     // Non-interface methods, which resemble in every gru
     void KeepMonitoring();
-    void SerializeAllocationTable(std::vector<AllocateItem>& buf);
     void BuildEndGameCounters();
     void CancelOtherAttempts(int no, int finished_attempt);
     void CancelCallback(const CancelTaskRequest* request,
@@ -156,6 +162,7 @@ public:
     virtual ~AlphaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
+    virtual void DumpResourceManager(GruCollection* backup);
 };
 
 // Middle level gru, whose inputs and outputs are all kept in temporary directory
@@ -166,6 +173,7 @@ public:
     virtual ~BetaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
+    virtual void DumpResourceManager(GruCollection*) { }
 };
 
 // Last level gru, dealing with temporary stored inputs and directing outputs to final directory
@@ -176,6 +184,7 @@ public:
     virtual ~OmegaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
+    virtual void DumpResourceManager(GruCollection*) { }
 };
 
 // ----- Implementations start now -----
@@ -457,6 +466,40 @@ Status BasicGru::SetPriority(const std::string& priority) {
     return kOk;
 }
 
+Status BasicGru::Load(const std::string& /*serialized*/) {
+    // TODO
+    return kUnKnown;
+}
+
+std::string BasicGru::Dump() {
+    GruCollection backup_gru;
+    MutexLock lock1(&meta_mu_);
+    MutexLock lock2(&alloc_mu_);
+    backup_gru.set_state(state_);
+    backup_gru.set_start_time(start_time_);
+    backup_gru.set_finish_time(finish_time_);
+    DumpResourceManager(&backup_gru);
+    for (std::vector< std::vector<AllocateItem*> >::iterator it = allocation_table_.begin();
+            it != allocation_table_.end(); ++it) {
+        GruCollection_Duplications* cur_no = backup_gru.add_nos();
+        for (std::vector<AllocateItem*>::iterator jt = it->begin();
+                jt != it->end(); ++jt) {
+            BackupAllocateItem* cur = cur_no->add_attempts();
+            AllocateItem* item = *jt;
+            cur->set_no(item->no);
+            cur->set_attempt(item->attempt);
+            cur->set_endpoint(item->endpoint);
+            cur->set_state(item->state);
+            cur->set_alloc_time(item->alloc_time);
+            cur->set_period(item->period);
+        }
+    }
+    // TODO Dump galaxy handler for kill galaxy job properly
+    std::stringstream ss;
+    backup_gru.SerializeToOstream(&ss);
+    return ss.str();
+}
+
 void BasicGru::KeepMonitoring() {
     // Dynamic determination of delay check
     LOG(INFO, "[monitor] node %d monitor starts to check timeout: %s",
@@ -563,17 +606,6 @@ void BasicGru::KeepMonitoring() {
     monitor_.DelayTask(sleep_time * 1000, boost::bind(&BasicGru::KeepMonitoring, this));
     LOG(INFO, "[monitor] node %d will now rest for %ds: %s",
             node_, FLAGS_first_sleeptime, job_id_.c_str());
-}
-
-void BasicGru::SerializeAllocationTable(std::vector<AllocateItem>& buf) {
-    std::vector< std::vector<AllocateItem*> >::iterator it;
-    MutexLock lock(&alloc_mu_);
-    for (it = allocation_table_.begin(); it != allocation_table_.end(); ++it) {
-        for (std::vector<AllocateItem*>::iterator jt = it->begin();
-                jt != it->end(); ++jt) {
-            buf.push_back(*(*jt));
-        }
-    }
 }
 
 void BasicGru::BuildEndGameCounters() {
@@ -704,6 +736,21 @@ ResourceManager* AlphaGru::BuildResourceManager() {
     }
     cur_node_->set_total(manager_->SumOfItem());
     return manager;
+}
+
+void AlphaGru::DumpResourceManager(GruCollection* backup) {
+    const std::vector<ResourceItem>& resources = manager_->Dump();
+    for (std::vector<ResourceItem>::const_iterator it = resources.begin();
+            it != resources.end(); ++it) {
+        BackupResourceItem* cur = backup->add_resources();
+        cur->set_no(it->no);
+        cur->set_attempt(it->attempt);
+        cur->set_status(it->status);
+        cur->set_input_file(it->input_file);
+        cur->set_offset(it->offset);
+        cur->set_size(it->size);
+        cur->set_allocated(it->allocated);
+    }
 }
 
 ResourceManager* BetaGru::BuildResourceManager() {

@@ -55,6 +55,7 @@ master_src = 'src/master/gru.cc \
               src/sort/input_reader.cc \
               proto/app_master.proto \
               proto/minion.proto \
+              proto/serialize.proto \
               proto/shuttle.proto'
 
 minion_src = 'src/minion/minion_main.cc \

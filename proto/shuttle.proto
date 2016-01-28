@@ -25,6 +25,14 @@ enum JobPriority {
     kLow = 3;
 }
 
+enum JobState {
+    kPending = 0;
+    kRunning = 1;
+    kFailed = 2;
+    kKilled = 3;
+    kCompleted = 4;
+}
+
 enum TaskState {
     kTaskPending = 0;
     kTaskRunning = 1;

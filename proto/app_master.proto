@@ -3,14 +3,6 @@ package baidu.shuttle;
 
 option cc_generic_services = true;
 
-enum JobState {
-    kPending = 0;
-    kRunning = 1;
-    kFailed = 2;
-    kKilled = 3;
-    kCompleted = 4;
-}
-
 message TaskStatistics {
     optional int32 total = 1;
     optional int32 pending = 2;
@@ -18,30 +10,6 @@ message TaskStatistics {
     optional int32 failed = 4;
     optional int32 killed = 5;
     optional int32 completed = 6;
-}
-
-message JobAllocation {
-    optional int32 resource_no = 1;
-    optional int32 attempt = 2;
-    optional string endpoint = 3;
-    optional TaskState state = 4;
-    optional int64 alloc_time = 5;
-    optional int64 period = 6 [default = -1];
-    optional bool is_map = 7;
-}
-
-message InputInfo {
-    optional string input_file = 1;
-    optional int64 offset = 2;
-    optional int64 size = 3;
-}
-
-message JobCollection {
-    repeated JobAllocation jobs = 1;
-    repeated InputInfo inputs = 2;
-    optional JobState state = 3;
-    optional int32 start_time = 4;
-    optional int32 finish_time = 5;
 }
 
 message SubmitJobRequest {

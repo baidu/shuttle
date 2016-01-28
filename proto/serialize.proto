@@ -1,0 +1,36 @@
+import "shuttle.proto";
+package baidu.shuttle;
+
+option cc_generic_services = true;
+
+message BackupResourceItem {
+    required int32 type = 1;
+    required int32 no = 2;
+    required int32 attempt = 3;
+    required int32 status = 4;
+    optional string input_file = 5;
+    optional int64 offset = 6;
+    optional int64 size = 7;
+    required int32 allocated = 8;
+}
+
+message BackupAllocateItem {
+    required int32 no = 1;
+    required int32 attempt = 2;
+    required string endpoint = 3;
+    required TaskState state = 4;
+    required int64 alloc_time = 5;
+    required int64 period = 6;
+}
+
+message GruCollection {
+    required JobState state = 1;
+    required int64 start_time = 2;
+    required int64 finish_time = 3;
+    repeated BackupResourceItem resources = 4;
+    message Duplications {
+        repeated BackupAllocateItem attempts = 1;
+    }
+    repeated Duplications nos = 5;
+}
+

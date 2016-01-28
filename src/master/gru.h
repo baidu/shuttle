@@ -55,8 +55,8 @@ public:
     virtual void RegisterFinishedCallback(const boost::function<void (JobState)>& callback) = 0;
 
     // For backup and recovery
-    // Load()
-    // Dump()
+    virtual Status Load(const std::string& serialized) = 0;
+    virtual std::string Dump() = 0;
     
     // Factory methods
     // TODO Give appropriate parameters for initialization
