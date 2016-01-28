@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <iterator>
 #include <sstream>
 #include <stdlib.h>
 #include <time.h>
@@ -155,8 +156,10 @@ void MasterImpl::ListJobs(::google::protobuf::RpcController* /*controller*/,
             job->set_state(jobtracker->GetState());
             std::vector<TaskStatistics> stats;
             jobtracker->GetStatistics(stats);
-            job->mutable_stats()->Resize(stats.size());
-            std::copy(stats.begin(), stats.end(), job->mutable_stats()->begin());
+            for (std::vector<TaskStatistics>::iterator jt = stats.begin();
+                    jt != stats.end(); ++jt) {
+                job->add_stats()->CopyFrom(*jt);
+            }
             job->set_start_time(jobtracker->GetStartTime());
             job->set_finish_time(jobtracker->GetFinishTime());
         }
@@ -171,8 +174,10 @@ void MasterImpl::ListJobs(::google::protobuf::RpcController* /*controller*/,
             job->set_state(jobtracker->GetState());
             std::vector<TaskStatistics> stats;
             jobtracker->GetStatistics(stats);
-            job->mutable_stats()->Resize(stats.size());
-            std::copy(stats.begin(), stats.end(), job->mutable_stats()->begin());
+            for (std::vector<TaskStatistics>::iterator jt = stats.begin();
+                    jt != stats.end(); ++jt) {
+                job->add_stats()->CopyFrom(*jt);
+            }
             job->set_start_time(jobtracker->GetStartTime());
             job->set_finish_time(jobtracker->GetFinishTime());
         }
@@ -208,15 +213,19 @@ void MasterImpl::ShowJob(::google::protobuf::RpcController* /*controller*/,
         job->set_state(jobtracker->GetState());
         std::vector<TaskStatistics> stats;
         jobtracker->GetStatistics(stats);
-        job->mutable_stats()->Resize(stats.size());
-        std::copy(stats.begin(), stats.end(), job->mutable_stats()->begin());
+        for (std::vector<TaskStatistics>::iterator it = stats.begin();
+                it != stats.end(); ++it) {
+            job->add_stats()->CopyFrom(*it);
+        }
         job->set_start_time(jobtracker->GetStartTime());
         job->set_finish_time(jobtracker->GetFinishTime());
 
         std::vector<TaskOverview> tasks;
         jobtracker->GetTaskOverview(tasks);
-        response->mutable_tasks()->Resize(tasks.size());
-        std::copy(tasks.begin(), tasks.end(), response->mutable_tasks()->begin());
+        for (std::vector<TaskOverview>::iterator it = tasks.begin();
+                it != tasks.end(); ++it) {
+            response->add_tasks()->CopyFrom(*it);
+        }
         // TODO Query progress here
     } else {
         LOG(WARNING, "try to access an inexist job: %s", job_id.c_str());
