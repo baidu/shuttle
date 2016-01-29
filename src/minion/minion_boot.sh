@@ -5,8 +5,21 @@ set -o pipefail
 
 CmdArgs=$*
 
+script_name=`readlink -f $0`
+dir_name=`dirname $script_name`
+
 HADOOP_CLIENT_HOME=/tmp/hadoop-client
-CACHE_BASE=/home/disk2/mapred
+CACHE_BASE=$dir_name/mapred
+SHARED_CACHE_PREFIX=/home/disk2/
+
+if [ -d $SHARED_CACHE_PREFIX/mapred ] ; then
+    CACHE_BASE=$SHARED_CACHE_PREFIX/mapred
+else
+    mkdir $SHARED_CACHE_PREFIX/mapred
+    if [ $? -eq 0 ]; then
+        CACHE_BASE=$SHARED_CACHE_PREFIX/mapred
+    fi 
+fi
 
 IsValidHadoop() {
 	if [ ! -f ${HADOOP_CLIENT_HOME}/hadoop/libhdfs/libhdfs.so ]; then
@@ -55,7 +68,7 @@ ExtractMinionTar() {
 DownloadUserTar() {
 	if [ "$app_package" == "" ]; then
 		echo "need app_pacakge"
-		return -1
+		return 1
 	fi
 	for ((i=0;i<5;i++))
 	do
@@ -64,7 +77,7 @@ DownloadUserTar() {
 			cache_archive_addr=`echo $cache_archive | cut -d"#" -f 1`
 			cache_archive_dir=`echo $cache_archive | cut -d"#" -f 2`
 			if [ "$cache_archive_dir" == "" ]; then
-				return -1
+				return 2
 			fi
             cache_key=`${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -ls $cache_archive_addr | tail -1 | md5sum | awk '{print \$1}'`
             if [ ! -d $CACHE_BASE/$cache_key ]; then
@@ -72,14 +85,14 @@ DownloadUserTar() {
                 mkdir -p $tmp_dump_dir/$cache_archive_dir
                 ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
                 if [ $? -ne 0 ]; then
-                    return -1
+                    return 3
                 fi
                 (cd $tmp_dump_dir/$cache_archive_dir && (tar -xzf *.tar.gz || tar -xf *.tar))
                 if [ $? -eq 0 ]; then
                     mv $tmp_dump_dir "$CACHE_BASE/${cache_key}"
                 else
                     echo "extract failed"
-                    return -2
+                    return 4
                 fi
             fi
             for sub_dir in $( ls "${CACHE_BASE}/${cache_key}/" )
