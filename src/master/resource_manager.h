@@ -58,6 +58,8 @@ public:
             FileSystem::Param& param, int64_t split_size);
     static ResourceManager* GetNLineManager(
             const std::vector<std::string>& input_files, FileSystem::Param& param);
+    static ResourceManager* BuildManagerFromBackup(
+            const std::vector<ResourceItem>& data);
 };
 
 }

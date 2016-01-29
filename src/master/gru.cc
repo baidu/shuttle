@@ -91,7 +91,7 @@ protected:
     // Inner Interface for every gru to implement
     virtual ResourceManager* BuildResourceManager() = 0;
     virtual void DumpResourceManager(GruCollection* backup) = 0;
-    // virtual void RecoverResourceManager() = 0;
+    virtual void LoadResourceManager(const GruCollection& backup) = 0;
 
     // Non-interface methods, which resemble in every gru
     void KeepMonitoring();
@@ -163,6 +163,7 @@ public:
 protected:
     virtual ResourceManager* BuildResourceManager();
     virtual void DumpResourceManager(GruCollection* backup);
+    virtual void LoadResourceManager(const GruCollection& backup);
 };
 
 // Middle level gru, whose inputs and outputs are all kept in temporary directory
@@ -174,6 +175,7 @@ public:
 protected:
     virtual ResourceManager* BuildResourceManager();
     virtual void DumpResourceManager(GruCollection*) { }
+    virtual void LoadResourceManager(const GruCollection& backup);
 };
 
 // Last level gru, dealing with temporary stored inputs and directing outputs to final directory
@@ -185,6 +187,7 @@ public:
 protected:
     virtual ResourceManager* BuildResourceManager();
     virtual void DumpResourceManager(GruCollection*) { }
+    virtual void LoadResourceManager(const GruCollection& backup);
 };
 
 // ----- Implementations start now -----
@@ -205,16 +208,18 @@ Status BasicGru::Start() {
     start_time_ = std::time(NULL);
     manager_ = BuildResourceManager();
     if (manager_ == NULL) {
+        state_ = kFailed;
         return kNoMore;
     }
     BuildEndGameCounters();
     galaxy_ = new GalaxyHandler(job_, job_id_, node_);
-    if (galaxy_->Start() == kOk) {
-        LOG(INFO, "start a new phase, node %d: %s", node_, job_id_.c_str());
-        return kOk;
+    if (galaxy_->Start() != kOk) {
+        state_ = kFailed;
+        LOG(WARNING, "galaxy report error when submitting a new job: %s", job_id_.c_str());
+        return kGalaxyError;
     }
-    LOG(WARNING, "galaxy report error when submitting a new job: %s", job_id_.c_str());
-    return kGalaxyError;
+    LOG(INFO, "start a new phase, node %d: %s", node_, job_id_.c_str());
+    return kOk;
 }
 
 Status BasicGru::Kill() {
@@ -466,9 +471,36 @@ Status BasicGru::SetPriority(const std::string& priority) {
     return kOk;
 }
 
-Status BasicGru::Load(const std::string& /*serialized*/) {
-    // TODO
-    return kUnKnown;
+Status BasicGru::Load(const std::string& serialized) {
+    GruCollection backup_gru;
+    std::stringstream ss(serialized);
+    backup_gru.ParseFromIstream(&ss);
+    state_ = backup_gru.state();
+    start_time_ = backup_gru.start_time();
+    finish_time_ = backup_gru.finish_time();
+    LoadResourceManager(backup_gru);
+    if (manager_ == NULL) {
+        state_ = kFailed;
+        return kNoMore;
+    }
+    ::google::protobuf::RepeatedPtrField<GruCollection_Duplications>::const_iterator it;
+    for (it = backup_gru.nos().begin(); it != backup_gru.nos().end(); ++it) {
+        allocation_table_.push_back(std::vector<AllocateItem*>());
+        std::vector<AllocateItem*>& cur_no = allocation_table_.back();
+        ::google::protobuf::RepeatedPtrField<BackupAllocateItem>::const_iterator jt;
+        for (jt = it->attempts().begin(); jt != it->attempts().end(); ++jt) {
+            AllocateItem* cur = new AllocateItem();
+            cur->no = jt->no();
+            cur->attempt = jt->attempt();
+            cur->endpoint = jt->endpoint();
+            cur->state = jt->state();
+            cur->alloc_time = jt->alloc_time();
+            cur->period = jt->period();
+            cur_no.push_back(cur);
+        }
+    }
+    BuildEndGameCounters();
+    return kOk;
 }
 
 std::string BasicGru::Dump() {
@@ -753,12 +785,38 @@ void AlphaGru::DumpResourceManager(GruCollection* backup) {
     }
 }
 
+void AlphaGru::LoadResourceManager(const GruCollection& backup) {
+    std::vector<ResourceItem> resources;
+    ::google::protobuf::RepeatedPtrField<BackupResourceItem>::const_iterator it;
+    for (it = backup.resources().begin(); it != backup.resources().end(); ++it) {
+        ResourceItem item;
+        item.type = kFileItem;
+        item.no = it->no();
+        item.attempt = it->attempt();
+        item.status = static_cast<ResourceStatus>(it->status());
+        item.input_file = it->input_file();
+        item.offset = it->offset();
+        item.size = it->size();
+        item.allocated = it->allocated();
+        resources.push_back(item);
+    }
+    manager_ = ResourceManager::BuildManagerFromBackup(resources);
+}
+
 ResourceManager* BetaGru::BuildResourceManager() {
     return ResourceManager::GetIdManager(cur_node_->total());
 }
 
+void BetaGru::LoadResourceManager(const GruCollection& /*backup*/) {
+    manager_ = ResourceManager::GetIdManager(cur_node_->total());
+}
+
 ResourceManager* OmegaGru::BuildResourceManager() {
     return ResourceManager::GetIdManager(cur_node_->total());
+}
+
+void OmegaGru::LoadResourceManager(const GruCollection& /*backup*/) {
+    manager_ = ResourceManager::GetIdManager(cur_node_->total());
 }
 
 } // namespace shuttle

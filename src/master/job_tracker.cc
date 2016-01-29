@@ -195,7 +195,10 @@ void JobTracker::ScheduleNextPhase(int node) {
                 boost::bind(&JobTracker::ScheduleNextPhase, this, node));
         next->RegisterFinishedCallback(
                 boost::bind(&JobTracker::FinishPhase, this, node, _1));
-        next->Start();
+        if (next->Start() != kOk) {
+            FinishWholeJob(kFailed);
+            return;
+        }
     }
 }
 

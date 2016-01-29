@@ -22,6 +22,9 @@ static const int parallel_level = 10;
 
 class ResourceManagerImpl : public ResourceManager {
 public:
+    // This class is abstract level for common operations in different manager
+    //   Constructor is only used for recovering from backup
+    ResourceManagerImpl() : pending_(0), allocated_(0), done_(0) { }
     virtual ~ResourceManagerImpl();
 
     virtual ResourceItem* GetItem();
@@ -51,9 +54,6 @@ public:
     }
     virtual void Load(const std::vector<ResourceItem>& data);
     virtual std::vector<ResourceItem> Dump();
-protected:
-    // Sorry this class is abstract level for common operations in different manager
-    ResourceManagerImpl() : pending_(0), allocated_(0), done_(0) { }
 
 protected:
     // All members need a careful initialization due to the absence of constructor
@@ -102,6 +102,16 @@ ResourceManager* ResourceManager::GetBlockManager(
 ResourceManager* ResourceManager::GetNLineManager(
         const std::vector<std::string>& input_files, FileSystem::Param& param) {
     return new NLineManager(input_files, param);
+}
+
+ResourceManager* ResourceManager::BuildManagerFromBackup(
+        const std::vector<ResourceItem>& data) {
+    if (data.empty()) {
+        return NULL;
+    }
+    ResourceManager* ret = new ResourceManagerImpl();
+    ret->Load(data);
+    return ret;
 }
 
 // Implementations here
@@ -228,10 +238,16 @@ bool ResourceManagerImpl::IsDone(int no) {
 }
 
 void ResourceManagerImpl::Load(const std::vector<ResourceItem>& data) {
-    assert(data.size() == resource_pool_.size());
+    if (data.size() > resource_pool_.size()) {
+        LOG(INFO, "data size differs in resource manager loading, resize");
+        resource_pool_.resize(data.size(), NULL);
+    }
     std::vector<ResourceItem*>::iterator dst = resource_pool_.begin();
     for (std::vector<ResourceItem>::const_iterator src = data.begin();
             src != data.end(); ++src,++dst) {
+        if (*dst == NULL) {
+            *dst = new ResourceItem();
+        }
         *(*dst) = *src;
     }
     pending_ = 0;
