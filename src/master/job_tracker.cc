@@ -186,6 +186,10 @@ Status JobTracker::Load(const std::string& serialized) {
                 state_ = kFailed;
                 return kInvalidArg;
             }
+            next->RegisterNearlyFinishCallback(
+                    boost::bind(&JobTracker::ScheduleNextPhase, this, node));
+            next->RegisterFinishedCallback(
+                    boost::bind(&JobTracker::FinishPhase, this, node, _1));
             grus_.push_back(cur);
         }
     }
