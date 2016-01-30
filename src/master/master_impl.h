@@ -9,6 +9,7 @@
 #include "mutex.h"
 #include "thread_pool.h"
 #include "proto/app_master.pb.h"
+#include "proto/serialize.pb.h"
 #include "job_tracker.h"
 
 namespace baidu {
@@ -59,25 +60,13 @@ private:
                                    ::galaxy::ins::sdk::SDKError err);
     void OnLockChange(const std::string& lock_session_id);
     std::string SelfEndpoint();
+    void RetractJob(const std::string& jobid);
     void KeepGarbageCollecting();
     void KeepDataPersistence();
-    void RetractJob(const std::string& jobid);
     void Reload();
-    bool GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, JobState& state,
-                             std::vector<AllocateItem>& history,
-                             std::vector<ResourceItem>& resources,
-                             int32_t& start_time,
-                             int32_t& finish_time);
-    void ParseJobData(const std::string& history_str, JobState& state,
-                      std::vector<AllocateItem>& history,
-                      std::vector<ResourceItem>& resources,
-                      int32_t& start_time,
-                      int32_t& finish_time);
-    std::string SerialJobData(const JobState state,
-                              const std::vector<AllocateItem>& history,
-                              const std::vector<ResourceItem>& resources,
-                              int32_t start_time,
-                              int32_t finish_time);
+    Status Load(const std::string& compressed, JobCollection& jc);
+    std::string Dump(const JobCollection& jc);
+    bool GetJobFromNexus(JobCollection& jc);
     bool SaveJobToNexus(JobTracker* jobtracker);
     bool RemoveJobFromNexus(const std::string& jobid);
 

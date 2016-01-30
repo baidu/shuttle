@@ -168,6 +168,7 @@ Status JobTracker::GetTaskOverview(std::vector<TaskOverview>& tasks) {
 Status JobTracker::Load(const std::string& serialized) {
     JobTrackerCollection backup_jtc;
     backup_jtc.ParseFromString(serialized);
+    job_id_ = backup_jtc.job_id();
     state_ = backup_jtc.state();
     start_time_ = backup_jtc.start_time();
     finish_time_ = backup_jtc.finish_time();
@@ -177,18 +178,19 @@ Status JobTracker::Load(const std::string& serialized) {
             grus_.push_back(NULL);
         } else {
             Gru* cur = NULL;
+            int node = static_cast<int>(grus_.size());
             switch (it->type()) {
-            case kAlphaGru: cur = Gru::GetAlphaGru(job_, job_id_, grus_.size()); break;
-            case kBetaGru: cur = Gru::GetBetaGru(job_, job_id_, grus_.size()); break;
-            case kOmegaGru: cur = Gru::GetOmegaGru(job_, job_id_, grus_.size()); break;
+            case kAlphaGru: cur = Gru::GetAlphaGru(job_, job_id_, node); break;
+            case kBetaGru: cur = Gru::GetBetaGru(job_, job_id_, node); break;
+            case kOmegaGru: cur = Gru::GetOmegaGru(job_, job_id_, node); break;
             }
             if (cur->Load(it->serialized()) == kInvalidArg) {
                 state_ = kFailed;
                 return kInvalidArg;
             }
-            next->RegisterNearlyFinishCallback(
+            cur->RegisterNearlyFinishCallback(
                     boost::bind(&JobTracker::ScheduleNextPhase, this, node));
-            next->RegisterFinishedCallback(
+            cur->RegisterFinishedCallback(
                     boost::bind(&JobTracker::FinishPhase, this, node, _1));
             grus_.push_back(cur);
         }
@@ -208,6 +210,7 @@ std::string JobTracker::Dump() {
         }
     }
     MutexLock lock(&meta_mu_);
+    backup_jtc.set_job_id(job_id_);
     backup_jtc.set_state(state_);
     backup_jtc.set_start_time(start_time_);
     backup_jtc.set_finish_time(finish_time_);;

@@ -35,12 +35,19 @@ message GruCollection {
 }
 
 message JobTrackerCollection {
-    required JobState state = 1;
-    required int64 start_time = 2;
-    required int64 finish_time = 3;
+    required string job_id = 1;
+    required JobState state = 2;
+    required int64 start_time = 3;
+    required int64 finish_time = 4;
     message GruInfo {
         required int32 type = 1;
         required string serialized = 2;
     }
-    repeated GruInfo grus = 4;
+    repeated GruInfo grus = 5;
 }
+
+message JobCollection {
+    required JobDescriptor job = 1;
+    required string tracker = 2;
+}
+
