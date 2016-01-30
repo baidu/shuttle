@@ -71,7 +71,6 @@ private:
     bool RemoveJobFromNexus(const std::string& jobid);
 
 private:
-    ::baidu::galaxy::Galaxy* galaxy_sdk_;
     Mutex tracker_mu_;
     std::map<std::string, JobTracker*> job_trackers_;
     Mutex dead_mu_;

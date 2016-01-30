@@ -13,22 +13,20 @@
 #include "logging.h"
 #include "resource_manager.h"
 
-DECLARE_string(galaxy_address);
+DECLARE_string(nexus_server_list);
+DECLARE_bool(recovery);
 DECLARE_string(nexus_root_path);
-DECLARE_string(master_port);
 DECLARE_string(master_lock_path);
 DECLARE_string(master_path);
-DECLARE_string(nexus_server_list);
+DECLARE_string(master_port);
 DECLARE_int32(gc_interval);
 DECLARE_int32(backup_interval);
-DECLARE_bool(recovery);
 
 namespace baidu {
 namespace shuttle {
 
 MasterImpl::MasterImpl() {
     srand(time(NULL));
-    galaxy_sdk_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
     nexus_ = new ::galaxy::ins::sdk::InsSDK(FLAGS_nexus_server_list);
     gc_.AddTask(boost::bind(&MasterImpl::KeepGarbageCollecting, this));
 }
@@ -42,7 +40,6 @@ MasterImpl::~MasterImpl() {
     for (it = dead_trackers_.begin(); it != dead_trackers_.end(); ++it) {
         delete it->second;
     }
-    delete galaxy_sdk_;
     delete nexus_;
 }
 
