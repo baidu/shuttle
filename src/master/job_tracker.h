@@ -51,6 +51,9 @@ public:
     // Notice: Currently input info is not included
     Status GetTaskOverview(std::vector<TaskOverview>& tasks);
 
+    Status Load(const std::string& serialized);
+    std::string Dump();
+
     void RegisterFinishedCallback(boost::function<void ()> callback) {
         finished_callback_ = callback;
     }

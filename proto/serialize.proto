@@ -34,3 +34,13 @@ message GruCollection {
     repeated Duplications nos = 5;
 }
 
+message JobTrackerCollection {
+    required JobState state = 1;
+    required int64 start_time = 2;
+    required int64 finish_time = 3;
+    message GruInfo {
+        required int32 type = 1;
+        required string serialized = 2;
+    }
+    repeated GruInfo grus = 4;
+}

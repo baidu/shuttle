@@ -3,7 +3,6 @@
 #include <vector>
 #include <queue>
 #include <map>
-#include <sstream>
 #include <boost/bind.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/lexical_cast.hpp>
@@ -71,6 +70,9 @@ public:
         return finish_time_;
     }
     virtual TaskStatistics GetStatistics();
+    virtual GruType GetType() {
+        return type_;
+    }
 
     virtual Status SetCapacity(int capacity);
     virtual Status SetPriority(const std::string& priority);
@@ -112,6 +114,8 @@ protected:
     // XXX Gru only modifies its own data, so no need to lock outside
     // TODO Need consideration
     JobDescriptor& job_;
+    // NOT initialized
+    GruType type_;
     Mutex meta_mu_;
     JobState state_;
     // Initialized to NULL since every gru differs in galaxy
@@ -158,7 +162,7 @@ protected:
 class AlphaGru : public BasicGru {
 public:
     AlphaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) { }
+        BasicGru(job, job_id, node) { type_ = kAlphaGru; }
     virtual ~AlphaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
@@ -170,7 +174,7 @@ protected:
 class BetaGru : public BasicGru {
 public:
     BetaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) { }
+        BasicGru(job, job_id, node) { type_ = kBetaGru; }
     virtual ~BetaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
@@ -182,7 +186,7 @@ protected:
 class OmegaGru : public BasicGru {
 public:
     OmegaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) { }
+        BasicGru(job, job_id, node) { type_ = kOmegaGru; }
     virtual ~OmegaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
@@ -473,8 +477,9 @@ Status BasicGru::SetPriority(const std::string& priority) {
 
 Status BasicGru::Load(const std::string& serialized) {
     GruCollection backup_gru;
-    std::stringstream ss(serialized);
-    backup_gru.ParseFromIstream(&ss);
+    if (!backup_gru.ParseFromString(serialized)) {
+        return kInvalidArg;
+    }
     state_ = backup_gru.state();
     start_time_ = backup_gru.start_time();
     finish_time_ = backup_gru.finish_time();
@@ -527,9 +532,9 @@ std::string BasicGru::Dump() {
         }
     }
     // TODO Dump galaxy handler for kill galaxy job properly
-    std::stringstream ss;
-    backup_gru.SerializeToOstream(&ss);
-    return ss.str();
+    std::string serialized;
+    backup_gru.SerializeToString(&serialized);
+    return serialized;
 }
 
 void BasicGru::KeepMonitoring() {

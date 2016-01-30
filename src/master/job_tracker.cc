@@ -7,6 +7,7 @@
 #include <sys/time.h>
 
 #include "common/filesystem.h"
+#include "proto/serialize.pb.h"
 #include "logging.h"
 
 namespace baidu {
@@ -162,6 +163,53 @@ Status JobTracker::GetTaskOverview(std::vector<TaskOverview>& tasks) {
         }
     }
     return kOk;
+}
+
+Status JobTracker::Load(const std::string& serialized) {
+    JobTrackerCollection backup_jtc;
+    backup_jtc.ParseFromString(serialized);
+    state_ = backup_jtc.state();
+    start_time_ = backup_jtc.start_time();
+    finish_time_ = backup_jtc.finish_time();
+    ::google::protobuf::RepeatedPtrField<JobTrackerCollection_GruInfo>::const_iterator it;
+    for (it = backup_jtc.grus().begin(); it != backup_jtc.grus().end(); ++it) {
+        if (!it->has_serialized()) {
+            grus_.push_back(NULL);
+        } else {
+            Gru* cur = NULL;
+            switch (it->type()) {
+            case kAlphaGru: cur = Gru::GetAlphaGru(job_, job_id_, grus_.size()); break;
+            case kBetaGru: cur = Gru::GetBetaGru(job_, job_id_, grus_.size()); break;
+            case kOmegaGru: cur = Gru::GetOmegaGru(job_, job_id_, grus_.size()); break;
+            }
+            if (cur->Load(it->serialized()) == kInvalidArg) {
+                state_ = kFailed;
+                return kInvalidArg;
+            }
+            grus_.push_back(cur);
+        }
+    }
+    return kOk;
+}
+
+std::string JobTracker::Dump() {
+    JobTrackerCollection backup_jtc;
+    // XXX May meet inconsistence due to late lock
+    for (std::vector<Gru*>::iterator it = grus_.begin();
+            it != grus_.end(); ++it) {
+        JobTrackerCollection_GruInfo* cur = backup_jtc.add_grus();
+        if (*it != NULL) {
+            cur->set_type((*it)->GetType());
+            cur->set_serialized((*it)->Dump());
+        }
+    }
+    MutexLock lock(&meta_mu_);
+    backup_jtc.set_state(state_);
+    backup_jtc.set_start_time(start_time_);
+    backup_jtc.set_finish_time(finish_time_);;
+    std::string serialized;
+    backup_jtc.SerializeToString(&serialized);
+    return serialized;
 }
 
 std::string JobTracker::GenerateJobId() {

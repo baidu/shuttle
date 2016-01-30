@@ -12,6 +12,12 @@ namespace shuttle {
 // Item returned from resource manager
 class ResourceItem;
 
+enum GruType {
+    kAlphaGru = 0,
+    kBetaGru = 1,
+    kOmegaGru = 2
+};
+
 struct AllocateItem {
     int no;
     int attempt;
@@ -44,6 +50,7 @@ public:
     virtual time_t GetStartTime() = 0;
     virtual time_t GetFinishTime() = 0;
     virtual TaskStatistics GetStatistics() = 0;
+    virtual GruType GetType() = 0;
     
     // Property setters
     virtual Status SetCapacity(int capacity) = 0;
