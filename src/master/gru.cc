@@ -166,6 +166,8 @@ class AlphaGru : public BasicGru {
 public:
     AlphaGru(JobDescriptor& job, const std::string& job_id, int node, DagScheduler* scheduler);
     virtual ~AlphaGru() { }
+
+    virtual bool CleanTempDir();
 protected:
     virtual ResourceManager* BuildResourceManager();
     virtual void DumpResourceManager(GruCollection* backup);
@@ -177,6 +179,8 @@ class BetaGru : public BasicGru {
 public:
     BetaGru(JobDescriptor& job, const std::string& job_id, int node, DagScheduler* scheduler);
     virtual ~BetaGru() { }
+
+    virtual bool CleanTempDir();
 protected:
     virtual ResourceManager* BuildResourceManager();
     virtual void DumpResourceManager(GruCollection*) { }
@@ -188,6 +192,8 @@ class OmegaGru : public BasicGru {
 public:
     OmegaGru(JobDescriptor& job, const std::string& job_id, int node, DagScheduler* scheduler);
     virtual ~OmegaGru() { }
+
+    virtual bool CleanTempDir();
 protected:
     virtual ResourceManager* BuildResourceManager();
     virtual void DumpResourceManager(GruCollection*) { }
@@ -369,7 +375,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
             }
             galaxy_->Kill();
             ShutDown(kCompleted);
-            // TODO Maybe free resource manager
+            // XXX Maybe free resource manager
         }
         break;
     case kTaskFailed: {
@@ -756,6 +762,10 @@ FileSystem::Param BasicGru::ParseFileParam(DfsInfo& info) {
 AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
         int node, DagScheduler* scheduler) : BasicGru(job, job_id, node) {
     type_ = kAlphaGru;
+    // For map-only job, use alpha gru without generate temp dir
+    if (!cur_node_->has_output()) {
+        return;
+    }
     const std::vector<int>& dest = scheduler->Destinations();
     // XXX Currently use the first output dfs info for all temporary directory
     //     May need a better way
@@ -770,6 +780,7 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
     // TODO Maybe no need of separator`/', check default value
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdirs(temp);
+    delete fs;
 
     cur_node_->mutable_output()->CopyFrom(*output);
     cur_node_->mutable_output()->set_url(temp);
@@ -780,6 +791,23 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
         cur->CopyFrom(*output);
         cur->set_url(temp);
     }
+}
+
+bool AlphaGru::CleanTempDir() {
+    if (!cur_node_->has_output()) {
+        return true;
+    }
+    // For map-only job, do not clean the output dir
+    if (!cur_node_->output().url().find(FLAGS_temporary_dir) == std::string::npos) {
+        return true;
+    }
+    FileSystem::Param param = ParseFileParam(*(cur_node_->mutable_output()));
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    bool ok = fs->Remove(cur_node_->output().url());
+    delete fs;
+
+    cur_node_->clear_output();
+    return ok;
 }
 
 ResourceManager* AlphaGru::BuildResourceManager() {
@@ -864,6 +892,7 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
     // TODO Maybe no need of separator`/', check default value
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdirs(temp);
+    delete fs;
 
     cur_node_->mutable_output()->CopyFrom(*output);
     cur_node_->mutable_output()->set_url(temp);
@@ -874,6 +903,20 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
         cur->CopyFrom(*output);
         cur->set_url(temp);
     }
+}
+
+bool BetaGru::CleanTempDir() {
+    cur_node_->clear_inputs();
+    if (!cur_node_->has_output()) {
+        return true;
+    }
+    FileSystem::Param param = ParseFileParam(*(cur_node_->mutable_output()));
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    bool ok = fs->Remove(cur_node_->output().url());
+    delete fs;
+
+    cur_node_->clear_output();
+    return ok;
 }
 
 ResourceManager* BetaGru::BuildResourceManager() {
@@ -887,6 +930,11 @@ void BetaGru::LoadResourceManager(const GruCollection& /*backup*/) {
 OmegaGru::OmegaGru(JobDescriptor& job, const std::string& job_id,
         int node, DagScheduler* /*scheduler*/) : BasicGru(job, job_id, node) {
     type_ = kOmegaGru;
+}
+
+bool OmegaGru::CleanTempDir() {
+    cur_node_->clear_inputs();
+    return true;
 }
 
 ResourceManager* OmegaGru::BuildResourceManager() {

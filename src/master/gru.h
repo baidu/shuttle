@@ -66,6 +66,9 @@ public:
     // For backup and recovery
     virtual Status Load(const std::string& serialized) = 0;
     virtual std::string Dump() = 0;
+
+    // For temporary dir cleaning. Will influence successors processing. Use with CAUTION
+    virtual bool CleanTempDir() = 0;
     
     // Factory methods
     static Gru* GetAlphaGru(JobDescriptor& job, const std::string& job_id,

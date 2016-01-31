@@ -28,7 +28,7 @@ JobTracker::~JobTracker() {
 }
 
 Status JobTracker::Start() {
-    // TODO Maybe set to running until some assignment is required
+    // XXX Maybe set to running until some assignment is required
     state_ = kRunning;
     Status ret_val = kOk;
     const std::vector<int>& first = scheduler_.AvailableNodes();
@@ -276,7 +276,11 @@ void JobTracker::FinishWholeJob(JobState state) {
     if (finished_callback_ != 0) {
         finished_callback_();
     }
-    // TODO Notice gru to clean up the temporary dir
+    // Notice gru to clean up the temporary dir
+    for (std::vector<Gru*>::iterator it = grus_.begin();
+            it != grus_.end(); ++it) {
+        (*it)->CleanTempDir();
+    }
 }
 
 }
