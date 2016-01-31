@@ -11,6 +11,8 @@ namespace shuttle {
 
 // Item returned from resource manager
 class ResourceItem;
+// Scheduler for temporary directory creation
+class DagScheduler;
 
 enum GruType {
     kAlphaGru = 0,
@@ -66,10 +68,12 @@ public:
     virtual std::string Dump() = 0;
     
     // Factory methods
-    // TODO Give appropriate parameters for initialization
-    static Gru* GetAlphaGru(JobDescriptor& job, const std::string& job_id, int node);
-    static Gru* GetBetaGru(JobDescriptor& job, const std::string& job_id, int node);
-    static Gru* GetOmegaGru(JobDescriptor& job, const std::string& job_id, int node);
+    static Gru* GetAlphaGru(JobDescriptor& job, const std::string& job_id,
+            int node, DagScheduler* scheduler);
+    static Gru* GetBetaGru(JobDescriptor& job, const std::string& job_id,
+            int node, DagScheduler* scheduler);
+    static Gru* GetOmegaGru(JobDescriptor& job, const std::string& job_id,
+            int node, DagScheduler* scheduler);
 };
 
 

@@ -55,10 +55,11 @@ enum WorkMode {
 }
 
 message DfsInfo {
-    optional string host = 1;
-    optional string port = 2;
-    optional string user = 3;
-    optional string password = 4;    
+    optional string url = 1;
+    optional string host = 2;
+    optional string port = 3;
+    optional string user = 4;
+    optional string password = 5;    
 }
 
 enum InputFormat {
@@ -86,18 +87,16 @@ message NodeConfig {
     optional int32 millicores = 5;
     optional int64 memory = 6;
     optional string command = 7;
-    repeated string inputs = 8;
+    repeated DfsInfo inputs = 8;
     optional InputFormat input_format = 9;
-    optional DfsInfo input_dfs = 10;
-    optional string output = 11;
-    optional OutputFormat output_format = 12;
-    optional DfsInfo output_dfs = 13;
-    optional Partition partition = 14;
-    optional string key_separator = 15;
-    optional int32 key_fields_num = 16;
-    optional int32 partition_fields_num = 17;
-    optional bool allow_duplicates = 18 [default = true];
-    optional int32 retry = 19;
+    optional DfsInfo output = 10;
+    optional OutputFormat output_format = 11;
+    optional Partition partition = 12;
+    optional string key_separator = 13;
+    optional int32 key_fields_num = 14;
+    optional int32 partition_fields_num = 15;
+    optional bool allow_duplicates = 16 [default = true];
+    optional int32 retry = 17;
 }
 
 message JobDescriptor {

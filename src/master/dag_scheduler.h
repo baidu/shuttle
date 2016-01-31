@@ -27,6 +27,9 @@ public:
         return left_;
     }
 
+    std::vector<int> Sources();
+    std::vector<int> Destinations();
+
     bool HasPredecessors(int node) {
         size_t n = static_cast<size_t>(node);
         if (n > dependency_map_.size()) {

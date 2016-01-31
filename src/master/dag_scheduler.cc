@@ -24,7 +24,14 @@ std::vector<int> DagScheduler::AvailableNodes() {
 }
 
 std::vector<int> DagScheduler::NextNodes(int node) {
-    return dependency_map_[node].next;
+    if (node == -1) {
+        return Sources();
+    }
+    size_t n = static_cast<int>(node);
+    if (n > dependency_map_.size()) {
+        return std::vector<int>();
+    }
+    return dependency_map_[n].next;
 }
 
 bool DagScheduler::RemoveFinishedNode(int node) {
@@ -43,11 +50,23 @@ bool DagScheduler::RemoveFinishedNode(int node) {
     return true;
 }
 
-std::vector<int> DagScheduler::ZeroOutdegreeNodes() {
+std::vector<int> DagScheduler::Sources() {
+    std::vector<int> src;
+    for (std::vector<DagNode>::iterator it = dependency_map_.begin();
+            it != dependency_map_.end(); ++it) {
+        if (it->pre.empty()) {
+            src.push_back(it->node);
+        }
+    }
+    return src;
+}
+
+std::vector<int> DagScheduler::Destinations() {
     std::vector<int> dest;
-    for (size_t i = 0; i < dependency_map_.size(); ++i) {
-        if (dependency_map_[i].next.empty()) {
-            dest.push_back(static_cast<int>(i));
+    for (std::vector<DagNode>::iterator it = dependency_map_.begin();
+            it != dependency_map_.end(); ++it) {
+        if (it->next.empty()) {
+            dest.push_back(it->node);
         }
     }
     return dest;

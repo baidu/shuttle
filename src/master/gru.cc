@@ -12,6 +12,7 @@
 
 #include "galaxy_handler.h"
 #include "resource_manager.h"
+#include "dag_scheduler.h"
 #include "common/rpc_client.h"
 #include "common/tools_util.h"
 #include "proto/minion.pb.h"
@@ -25,6 +26,7 @@ DECLARE_int32(replica_num);
 DECLARE_int32(left_percent);
 DECLARE_int32(first_sleeptime);
 DECLARE_int32(time_tolerance);
+DECLARE_string(temporary_dir);
 
 namespace baidu {
 namespace shuttle {
@@ -102,6 +104,7 @@ protected:
     void CancelCallback(const CancelTaskRequest* request,
             CancelTaskResponse* response, bool fail, int eno);
     void ShutDown(JobState state);
+    FileSystem::Param ParseFileParam(DfsInfo& info);
 
 protected:
     // Initialized to NULL since every gru differs
@@ -161,8 +164,7 @@ protected:
 // First level gru, handling input files and writing output data to temporary directory
 class AlphaGru : public BasicGru {
 public:
-    AlphaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) { type_ = kAlphaGru; }
+    AlphaGru(JobDescriptor& job, const std::string& job_id, int node, DagScheduler* scheduler);
     virtual ~AlphaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
@@ -173,8 +175,7 @@ protected:
 // Middle level gru, whose inputs and outputs are all kept in temporary directory
 class BetaGru : public BasicGru {
 public:
-    BetaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) { type_ = kBetaGru; }
+    BetaGru(JobDescriptor& job, const std::string& job_id, int node, DagScheduler* scheduler);
     virtual ~BetaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
@@ -185,8 +186,7 @@ protected:
 // Last level gru, dealing with temporary stored inputs and directing outputs to final directory
 class OmegaGru : public BasicGru {
 public:
-    OmegaGru(JobDescriptor& job, const std::string& job_id, int node) :
-        BasicGru(job, job_id, node) { type_ = kOmegaGru; }
+    OmegaGru(JobDescriptor& job, const std::string& job_id, int node, DagScheduler* scheduler);
     virtual ~OmegaGru() { }
 protected:
     virtual ResourceManager* BuildResourceManager();
@@ -196,16 +196,19 @@ protected:
 
 // ----- Implementations start now -----
 
-Gru* Gru::GetAlphaGru(JobDescriptor& job, const std::string& job_id, int node) {
-    return new AlphaGru(job, job_id, node);
+Gru* Gru::GetAlphaGru(JobDescriptor& job, const std::string& job_id,
+        int node, DagScheduler* scheduler) {
+    return new AlphaGru(job, job_id, node, scheduler);
 }
 
-Gru* Gru::GetBetaGru(JobDescriptor& job, const std::string& job_id, int node) {
-    return new BetaGru(job, job_id, node);
+Gru* Gru::GetBetaGru(JobDescriptor& job, const std::string& job_id,
+        int node, DagScheduler* scheduler) {
+    return new BetaGru(job, job_id, node, scheduler);
 }
 
-Gru* Gru::GetOmegaGru(JobDescriptor& job, const std::string& job_id, int node) {
-    return new OmegaGru(job, job_id, node);
+Gru* Gru::GetOmegaGru(JobDescriptor& job, const std::string& job_id,
+        int node, DagScheduler* scheduler) {
+    return new OmegaGru(job, job_id, node, scheduler);
 }
 
 Status BasicGru::Start() {
@@ -729,37 +732,73 @@ void BasicGru::ShutDown(JobState state) {
     finish_time_ = std::time(NULL);
 }
 
-ResourceManager* AlphaGru::BuildResourceManager() {
-    std::vector<std::string> inputs;
-    const ::google::protobuf::RepeatedPtrField<std::string>& input_filenames
-        = cur_node_->inputs();
-    inputs.reserve(input_filenames.size());
-    std::copy(input_filenames.begin(), input_filenames.end(), inputs.begin());
-
-    FileSystem::Param input_param;
-    const DfsInfo& input_dfs = cur_node_->input_dfs();
-    if(!input_dfs.user().empty() && !input_dfs.password().empty()) {
-        input_param["user"] = input_dfs.user();
-        input_param["password"] = input_dfs.password();
+FileSystem::Param BasicGru::ParseFileParam(DfsInfo& info) {
+    FileSystem::Param param;
+    if(!info.user().empty() && !info.password().empty()) {
+        param["user"] = info.user();
+        param["password"] = info.password();
     }
-    if (boost::starts_with(inputs[0], "hdfs://")) {
+    if (boost::starts_with(info.url(), "hdfs://")) {
         std::string host;
         int port;
-        ParseHdfsAddress(inputs[0], &host, &port, NULL);
-        input_param["host"] = host;
-        input_param["port"] = boost::lexical_cast<std::string>(port);
-        cur_node_->mutable_input_dfs()->set_host(host);
-        cur_node_->mutable_input_dfs()->set_port(boost::lexical_cast<std::string>(port));
-    } else if (!input_dfs.host().empty() && !input_dfs.port().empty()) {
-        input_param["host"] = input_dfs.host();
-        input_param["port"] = input_dfs.port();
+        ParseHdfsAddress(info.url(), &host, &port, NULL);
+        param["host"] = host;
+        param["port"] = boost::lexical_cast<std::string>(port);
+        info.set_host(host);
+        info.set_port(boost::lexical_cast<std::string>(port));
+    } else if (!info.host().empty() && !info.port().empty()) {
+        param["host"] = info.host();
+        param["port"] = info.port();
     }
+    return param;
+}
+
+AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
+        int node, DagScheduler* scheduler) : BasicGru(job, job_id, node) {
+    type_ = kAlphaGru;
+    const std::vector<int>& dest = scheduler->Destinations();
+    // XXX Currently use the first output dfs info for all temporary directory
+    //     May need a better way
+    if (!job.nodes(dest[0]).has_output()) {
+        return;
+    }
+    DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
+    FileSystem::Param param = ParseFileParam(*output);
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    std::string temp;
+    ParseHdfsAddress(output->url(), NULL, NULL, &temp);
+    // TODO Maybe no need of separator`/', check default value
+    temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
+    fs->Mkdirs(temp);
+
+    cur_node_->mutable_output()->CopyFrom(*output);
+    cur_node_->mutable_output()->set_url(temp);
+    const std::vector<int>& nexts = scheduler->NextNodes(node);
+    for (std::vector<int>::const_iterator it = nexts.begin();
+            it != nexts.end(); ++it) {
+        DfsInfo* cur = job.mutable_nodes(*it)->add_inputs();
+        cur->CopyFrom(*output);
+        cur->set_url(temp);
+    }
+}
+
+ResourceManager* AlphaGru::BuildResourceManager() {
+    std::vector<std::string> input_names;
+    const ::google::protobuf::RepeatedPtrField<DfsInfo>& inputs = cur_node_->inputs();
+    input_names.reserve(inputs.size());
+    ::google::protobuf::RepeatedPtrField<DfsInfo>::const_iterator it;
+    for (it = inputs.begin(); it != inputs.end(); ++it) {
+        input_names.push_back(it->url());
+    }
+
+    // TODO Wait for multifs
+    FileSystem::Param input_param = ParseFileParam(*(cur_node_->mutable_inputs(0)));
 
     ResourceManager* manager = NULL;
     if (cur_node_->input_format() == kNLineInput) {
-        manager = ResourceManager::GetNLineManager(inputs,input_param);
+        manager = ResourceManager::GetNLineManager(input_names, input_param);
     } else {
-        manager = ResourceManager::GetBlockManager(inputs, input_param, job_.split_size());
+        manager = ResourceManager::GetBlockManager(input_names, input_param, job_.split_size());
     }
     if (manager == NULL || manager->SumOfItem() < 1) {
         LOG(INFO, "node %d phase cannot divide input, which may not exist: %s",
@@ -808,12 +847,46 @@ void AlphaGru::LoadResourceManager(const GruCollection& backup) {
     manager_ = ResourceManager::BuildManagerFromBackup(resources);
 }
 
+BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
+        int node, DagScheduler* scheduler) : BasicGru(job, job_id, node) {
+    type_ = kBetaGru;
+    const std::vector<int>& dest = scheduler->Destinations();
+    // XXX Currently use the first output dfs info for all temporary directory
+    //     May need a better way
+    if (!job.nodes(dest[0]).has_output()) {
+        return;
+    }
+    DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
+    FileSystem::Param param = ParseFileParam(*output);
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    std::string temp;
+    ParseHdfsAddress(output->url(), NULL, NULL, &temp);
+    // TODO Maybe no need of separator`/', check default value
+    temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
+    fs->Mkdirs(temp);
+
+    cur_node_->mutable_output()->CopyFrom(*output);
+    cur_node_->mutable_output()->set_url(temp);
+    const std::vector<int>& nexts = scheduler->NextNodes(node);
+    for (std::vector<int>::const_iterator it = nexts.begin();
+            it != nexts.end(); ++it) {
+        DfsInfo* cur = job.mutable_nodes(*it)->add_inputs();
+        cur->CopyFrom(*output);
+        cur->set_url(temp);
+    }
+}
+
 ResourceManager* BetaGru::BuildResourceManager() {
     return ResourceManager::GetIdManager(cur_node_->total());
 }
 
 void BetaGru::LoadResourceManager(const GruCollection& /*backup*/) {
     manager_ = ResourceManager::GetIdManager(cur_node_->total());
+}
+
+OmegaGru::OmegaGru(JobDescriptor& job, const std::string& job_id,
+        int node, DagScheduler* /*scheduler*/) : BasicGru(job, job_id, node) {
+    type_ = kOmegaGru;
 }
 
 ResourceManager* OmegaGru::BuildResourceManager() {

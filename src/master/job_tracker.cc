@@ -36,7 +36,7 @@ Status JobTracker::Start() {
             it != first.end(); ++it) {
         int node = *it;
         Gru*& cur = grus_[node];
-        cur = Gru::GetAlphaGru(job_, job_id_, node);
+        cur = Gru::GetAlphaGru(job_, job_id_, node, &scheduler_);
         cur->RegisterNearlyFinishCallback(
                 boost::bind(&JobTracker::ScheduleNextPhase, this, node));
         cur->RegisterFinishedCallback(
@@ -180,9 +180,9 @@ Status JobTracker::Load(const std::string& serialized) {
             Gru* cur = NULL;
             int node = static_cast<int>(grus_.size());
             switch (it->type()) {
-            case kAlphaGru: cur = Gru::GetAlphaGru(job_, job_id_, node); break;
-            case kBetaGru: cur = Gru::GetBetaGru(job_, job_id_, node); break;
-            case kOmegaGru: cur = Gru::GetOmegaGru(job_, job_id_, node); break;
+            case kAlphaGru: cur = Gru::GetAlphaGru(job_, job_id_, node, &scheduler_); break;
+            case kBetaGru: cur = Gru::GetBetaGru(job_, job_id_, node, &scheduler_); break;
+            case kOmegaGru: cur = Gru::GetOmegaGru(job_, job_id_, node, &scheduler_); break;
             }
             if (cur->Load(it->serialized()) == kInvalidArg) {
                 state_ = kFailed;
@@ -242,9 +242,9 @@ void JobTracker::ScheduleNextPhase(int node) {
             continue;
         }
         if (scheduler_.HasSuccessors(node)) {
-            next = Gru::GetBetaGru(job_, job_id_, node);
+            next = Gru::GetBetaGru(job_, job_id_, node, &scheduler_);
         } else {
-            next = Gru::GetOmegaGru(job_, job_id_, node);
+            next = Gru::GetOmegaGru(job_, job_id_, node, &scheduler_);
         }
         next->RegisterNearlyFinishCallback(
                 boost::bind(&JobTracker::ScheduleNextPhase, this, node));
