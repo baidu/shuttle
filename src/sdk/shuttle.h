@@ -72,6 +72,7 @@ struct TaskStatistics {
 };
 
 struct DfsInfo {
+    std::string path;
     std::string host;
     std::string port;
     std::string user;
@@ -86,12 +87,10 @@ struct NodeConfig {
     int32_t millicores;
     int64_t memory;
     std::string command;
-    std::string inputs;
+    std::vector<DfsInfo> inputs;
     InputFormat input_format;
-    DfsInfo input_dfs;
-    std::string output;
+    DfsInfo output;
     OutputFormat output_format;
-    DfsInfo output_dfs;
     Partition partition;
     std::string key_separator;
     int32_t key_fields_num;

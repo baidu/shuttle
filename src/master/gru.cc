@@ -752,12 +752,14 @@ FileSystem::Param BasicGru::ParseFileParam(DfsInfo& info) {
         param["user"] = info.user();
         param["password"] = info.password();
     }
-    if (boost::starts_with(info.url(), "hdfs://")) {
+    if (boost::starts_with(info.path(), "hdfs://")) {
         std::string host;
         int port;
-        ParseHdfsAddress(info.url(), &host, &port, NULL);
+        std::string path;
+        ParseHdfsAddress(info.path(), &host, &port, &path);
         param["host"] = host;
         param["port"] = boost::lexical_cast<std::string>(port);
+        info.set_path(path);
         info.set_host(host);
         info.set_port(boost::lexical_cast<std::string>(port));
     } else if (!info.host().empty() && !info.port().empty()) {
@@ -784,20 +786,20 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
     FileSystem::Param param = ParseFileParam(*output);
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::string temp;
-    ParseHdfsAddress(output->url(), NULL, NULL, &temp);
+    ParseHdfsAddress(output->path(), NULL, NULL, &temp);
     // TODO Maybe no need of separator`/', check default value
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdirs(temp);
     delete fs;
 
     cur_node_->mutable_output()->CopyFrom(*output);
-    cur_node_->mutable_output()->set_url(temp);
+    cur_node_->mutable_output()->set_path(temp);
     const std::vector<int>& nexts = scheduler->NextNodes(node);
     for (std::vector<int>::const_iterator it = nexts.begin();
             it != nexts.end(); ++it) {
         DfsInfo* cur = job.mutable_nodes(*it)->add_inputs();
         cur->CopyFrom(*output);
-        cur->set_url(temp);
+        cur->set_path(temp);
     }
 }
 
@@ -806,12 +808,12 @@ bool AlphaGru::CleanTempDir() {
         return true;
     }
     // For map-only job, do not clean the output dir
-    if (!cur_node_->output().url().find(FLAGS_temporary_dir) == std::string::npos) {
+    if (!cur_node_->output().path().find(FLAGS_temporary_dir) == std::string::npos) {
         return true;
     }
     FileSystem::Param param = ParseFileParam(*(cur_node_->mutable_output()));
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
-    bool ok = fs->Remove(cur_node_->output().url());
+    bool ok = fs->Remove(cur_node_->output().path());
     delete fs;
 
     cur_node_->clear_output();
@@ -824,7 +826,7 @@ ResourceManager* AlphaGru::BuildResourceManager() {
     input_names.reserve(inputs.size());
     ::google::protobuf::RepeatedPtrField<DfsInfo>::const_iterator it;
     for (it = inputs.begin(); it != inputs.end(); ++it) {
-        input_names.push_back(it->url());
+        input_names.push_back(it->path());
     }
 
     // TODO Wait for multifs
@@ -896,20 +898,20 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
     FileSystem::Param param = ParseFileParam(*output);
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::string temp;
-    ParseHdfsAddress(output->url(), NULL, NULL, &temp);
+    ParseHdfsAddress(output->path(), NULL, NULL, &temp);
     // TODO Maybe no need of separator`/', check default value
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdirs(temp);
     delete fs;
 
     cur_node_->mutable_output()->CopyFrom(*output);
-    cur_node_->mutable_output()->set_url(temp);
+    cur_node_->mutable_output()->set_path(temp);
     const std::vector<int>& nexts = scheduler->NextNodes(node);
     for (std::vector<int>::const_iterator it = nexts.begin();
             it != nexts.end(); ++it) {
         DfsInfo* cur = job.mutable_nodes(*it)->add_inputs();
         cur->CopyFrom(*output);
-        cur->set_url(temp);
+        cur->set_path(temp);
     }
 }
 
@@ -920,7 +922,7 @@ bool BetaGru::CleanTempDir() {
     }
     FileSystem::Param param = ParseFileParam(*(cur_node_->mutable_output()));
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
-    bool ok = fs->Remove(cur_node_->output().url());
+    bool ok = fs->Remove(cur_node_->output().path());
     delete fs;
 
     cur_node_->clear_output();

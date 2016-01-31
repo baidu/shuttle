@@ -55,7 +55,7 @@ enum WorkMode {
 }
 
 message DfsInfo {
-    optional string url = 1;
+    optional string path = 1;
     optional string host = 2;
     optional string port = 3;
     optional string user = 4;
