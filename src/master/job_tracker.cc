@@ -158,7 +158,7 @@ Status JobTracker::GetTaskOverview(std::vector<TaskOverview>& tasks) {
             task.set_state(it->state);
             task.set_minion_addr(it->endpoint);
             task.set_start_time(it->alloc_time);
-            task.set_end_time(it->period == -1 ? 0 : it->alloc_time + it->period);
+            task.set_finish_time(it->period == -1 ? 0 : it->alloc_time + it->period);
             tasks.push_back(task);
         }
     }

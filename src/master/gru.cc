@@ -42,6 +42,7 @@ public:
             allow_duplicates_(true), need_dismissed_(0), dismissed_(0), next_phase_begin_(0),
             nearly_finish_callback_(0), finished_callback_(0), monitor_(1) {
         rpc_client_ = new RpcClient();
+        galaxy_ = new GalaxyHandler(job_, job_id_, node_);
         cur_node_ = job_.mutable_nodes(node_);
         allow_duplicates_ = cur_node_->allow_duplicates();
         monitor_.AddTask(boost::bind(&BasicGru::KeepMonitoring, this));
@@ -121,13 +122,13 @@ protected:
     GruType type_;
     Mutex meta_mu_;
     JobState state_;
-    // Initialized to NULL since every gru differs in galaxy
+    // Carefully initialized
     GalaxyHandler* galaxy_;
     // Carefully initialized
     int node_;
     // Carefully initialized
     NodeConfig* cur_node_;
-    // Initialized to 0 since it depends on the gru
+    // Initialized to 0 since it depends on the resource manager
     int total_tasks_;
     // Carefully initialized in Start()
     time_t start_time_;
@@ -225,7 +226,6 @@ Status BasicGru::Start() {
         return kNoMore;
     }
     BuildEndGameCounters();
-    galaxy_ = new GalaxyHandler(job_, job_id_, node_);
     if (galaxy_->Start() != kOk) {
         state_ = kFailed;
         LOG(WARNING, "galaxy report error when submitting a new job: %s", job_id_.c_str());
@@ -492,6 +492,12 @@ Status BasicGru::Load(const std::string& serialized) {
     state_ = backup_gru.state();
     start_time_ = backup_gru.start_time();
     finish_time_ = backup_gru.finish_time();
+    if (backup_gru.has_galaxy_handler()) {
+        galaxy_->Load(backup_gru.galaxy_handler());
+    } else {
+        delete galaxy_;
+        galaxy_ = NULL;
+    }
     LoadResourceManager(backup_gru);
     if (manager_ == NULL) {
         state_ = kFailed;
@@ -524,6 +530,9 @@ std::string BasicGru::Dump() {
     backup_gru.set_state(state_);
     backup_gru.set_start_time(start_time_);
     backup_gru.set_finish_time(finish_time_);
+    if (galaxy_ != NULL) {
+        backup_gru.set_galaxy_handler(galaxy_->Dump());
+    }
     DumpResourceManager(&backup_gru);
     for (std::vector< std::vector<AllocateItem*> >::iterator it = allocation_table_.begin();
             it != allocation_table_.end(); ++it) {
@@ -540,7 +549,6 @@ std::string BasicGru::Dump() {
             cur->set_period(item->period);
         }
     }
-    // TODO Dump galaxy handler for kill galaxy job properly
     std::string serialized;
     backup_gru.SerializeToString(&serialized);
     return serialized;

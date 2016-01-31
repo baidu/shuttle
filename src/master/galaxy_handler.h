@@ -28,8 +28,14 @@ public:
     Status SetPriority(const std::string& priority);
     Status SetCapacity(int capacity);
 
+    Status Load(const std::string& galaxy_jobid);
+    std::string Dump();
+
     static int additional_millicores;
     static int64_t additional_memory;
+
+private:
+    ::baidu::galaxy::JobDescription PrepareGalaxyJob(const NodeConfig& node);
 
 private:
     // For galaxy manangement

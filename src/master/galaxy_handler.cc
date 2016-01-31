@@ -30,45 +30,7 @@ GalaxyHandler::GalaxyHandler(JobDescriptor& job, const std::string& job_id, int 
 }
 
 Status GalaxyHandler::Start() {
-    const NodeConfig& cur_node = job_.nodes(node_);
-    ::baidu::galaxy::JobDescription galaxy_job;
-    galaxy_job.job_name = minion_name_ + "@minion";
-    galaxy_job.type = "kLongRun";
-    galaxy_job.priority = "kOnline";
-    galaxy_job.replica = cur_node.capacity();
-    galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
-    galaxy_job.pod.version = "1.0.0";
-    galaxy_job.pod.requirement.millicores = cur_node.millicores() + additional_millicores;
-    galaxy_job.pod.requirement.memory = cur_node.memory() + additional_memory;
-    // TODO Need to compatible with minion
-    // XXX Changed: app_package is separated by comma to store more values
-    std::string app_package, cache_archive;
-    ::google::protobuf::RepeatedPtrField<const std::string>::iterator it;
-    for (it = job_.files().begin(); it != job_.files().end(); ++it) {
-        app_package += (*it) + ",";
-    }
-    app_package.erase(app_package.end() - 1);
-    // XXX Changed: work_mode --> node
-    std::stringstream ss;
-    ss << "app_package=" << app_package << " cache_archive=" << job_.cache_archive()
-       << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
-       << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
-       << " -node=" << node_;
-    std::stringstream ss_stop;
-    ss_stop << "source hdfs_env.sh; ./minion -jobid=" << job_id_
-            << " -nexus_addr=" << FLAGS_nexus_server_list
-            << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
-            << " -node=" << node_ << " -kill_task";
-    ::baidu::galaxy::TaskDescription minion;
-    minion.offset = 1;
-    minion.binary = FLAGS_minion_path;
-    minion.source_type = "kSourceTypeFTP";
-    minion.start_cmd = ss.str().c_str();
-    minion.stop_cmd = ss_stop.str().c_str();
-    minion.requirement = galaxy_job.pod.requirement;
-    minion.mem_isolation_type = "kMemIsolationCgroup";
-    minion.cpu_isolation_type = "kCpuIsolationHard";
-    galaxy_job.pod.tasks.push_back(minion);
+    const ::baidu::galaxy::JobDescription& galaxy_job = PrepareGalaxyJob(job_.nodes(node_));
     std::string minion_id;
     if (galaxy_->SubmitJob(galaxy_job, &minion_id)) {
         minion_id_ = minion_id;
@@ -106,6 +68,58 @@ Status GalaxyHandler::SetCapacity(int capacity) {
     }
     galaxy_job_.replica = capacity;
     return kOk;
+}
+
+Status GalaxyHandler::Load(const std::string& galaxy_jobid) {
+    minion_id_ = galaxy_jobid;
+    galaxy_job_ = PrepareGalaxyJob(job_.nodes(node_));
+    return kOk;
+}
+
+std::string GalaxyHandler::Dump() {
+    return minion_id_;
+}
+
+::baidu::galaxy::JobDescription GalaxyHandler::PrepareGalaxyJob(const NodeConfig& node) {
+    ::baidu::galaxy::JobDescription galaxy_job;
+    galaxy_job.job_name = minion_name_ + "@minion";
+    galaxy_job.type = "kLongRun";
+    galaxy_job.priority = "kOnline";
+    galaxy_job.replica = node.capacity();
+    galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
+    galaxy_job.pod.version = "1.0.0";
+    galaxy_job.pod.requirement.millicores = node.millicores() + additional_millicores;
+    galaxy_job.pod.requirement.memory = node.memory() + additional_memory;
+    // TODO Need to compatible with minion
+    // XXX Changed: app_package is separated by comma to store more values
+    std::string app_package, cache_archive;
+    ::google::protobuf::RepeatedPtrField<const std::string>::iterator it;
+    for (it = job_.files().begin(); it != job_.files().end(); ++it) {
+        app_package += (*it) + ",";
+    }
+    app_package.erase(app_package.end() - 1);
+    // XXX Changed: work_mode --> node
+    std::stringstream ss;
+    ss << "app_package=" << app_package << " cache_archive=" << job_.cache_archive()
+       << " ./minion_boot.sh -jobid=" << job_id_ << " -nexus_addr=" << FLAGS_nexus_server_list
+       << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
+       << " -node=" << node_;
+    std::stringstream ss_stop;
+    ss_stop << "source hdfs_env.sh; ./minion -jobid=" << job_id_
+            << " -nexus_addr=" << FLAGS_nexus_server_list
+            << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
+            << " -node=" << node_ << " -kill_task";
+    ::baidu::galaxy::TaskDescription minion;
+    minion.offset = 1;
+    minion.binary = FLAGS_minion_path;
+    minion.source_type = "kSourceTypeFTP";
+    minion.start_cmd = ss.str().c_str();
+    minion.stop_cmd = ss_stop.str().c_str();
+    minion.requirement = galaxy_job.pod.requirement;
+    minion.mem_isolation_type = "kMemIsolationCgroup";
+    minion.cpu_isolation_type = "kCpuIsolationHard";
+    galaxy_job.pod.tasks.push_back(minion);
+    return galaxy_job;
 }
 
 }
