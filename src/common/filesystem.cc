@@ -1,4 +1,8 @@
 #include <deque>
+#include <map>
+#include <boost/shared_ptr.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
 #include <fcntl.h> 
 #include <stdio.h> 
 #include <sys/stat.h> 
@@ -7,6 +11,7 @@
 
 #include "filesystem.h"
 #include "logging.h"
+#include "mutex.h"
 #include "common/tools_util.h"
 
 using baidu::common::INFO;
@@ -84,6 +89,18 @@ public:
 private:
     int fd_;
     std::string path_;
+};
+
+class FileSystemHubImpl : public FileSystemHub {
+public:
+    FileSystemHubImpl() { }
+    virtual ~FileSystemHubImpl() { }
+
+    virtual FileSystem* GetFs(DfsInfo& info);
+
+private:
+    std::map< std::string, boost::shared_ptr<FileSystem> > fs_map_;
+    Mutex mu_;
 };
 
 FileSystem* FileSystem::CreateInfHdfs() {
@@ -392,6 +409,52 @@ int64_t LocalFs::GetSize() {
 
 bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
     return ::rename(old_name.c_str(), new_name.c_str()) == 0;
+}
+
+FileSystemHub* FileSystemHub::GetHub() {
+    return new FileSystemHubImpl();
+}
+
+FileSystem::Param FileSystemHub::BuildFileParam(DfsInfo& info) {
+    FileSystem::Param param;
+    if(!info.user().empty() && !info.password().empty()) {
+        param["user"] = info.user();
+        param["password"] = info.password();
+    }
+    if (boost::starts_with(info.path(), "hdfs://")) {
+        std::string host;
+        int port;
+        std::string path;
+        ParseHdfsAddress(info.path(), &host, &port, &path);
+        param["host"] = host;
+        param["port"] = boost::lexical_cast<std::string>(port);
+        info.set_path(path);
+        info.set_host(host);
+        info.set_port(boost::lexical_cast<std::string>(port));
+    } else if (!info.host().empty() && !info.port().empty()) {
+        param["host"] = info.host();
+        param["port"] = info.port();
+    }
+    return param;
+
+}
+
+FileSystem* FileSystemHubImpl::GetFs(DfsInfo& info) {
+    FileSystem::Param param = BuildFileParam(info);
+    const std::string& host = info.host();
+    if (host.empty() || info.port().empty()) {
+        return NULL;
+    }
+    std::string key = host + ":" + info.port();
+
+    MutexLock lock(&mu_);
+    if (fs_map_.find(key) == fs_map_.end()) {
+        LOG(DEBUG, "get fs, host: %s, param.size(): %d", host.c_str(), param.size());
+        FileSystem* fs = FileSystem::CreateInfHdfs(param);
+        fs_map_[key].reset(fs);
+        return fs;
+    }
+    return fs_map_[key].get();
 }
 
 InfSeqFile::InfSeqFile() : fs_(NULL), sf_(NULL) {

@@ -13,6 +13,7 @@
 #include "galaxy_handler.h"
 #include "resource_manager.h"
 #include "dag_scheduler.h"
+#include "common/filesystem.h"
 #include "common/rpc_client.h"
 #include "common/tools_util.h"
 #include "proto/minion.pb.h"
@@ -105,7 +106,6 @@ protected:
     void CancelCallback(const CancelTaskRequest* request,
             CancelTaskResponse* response, bool fail, int eno);
     void ShutDown(JobState state);
-    FileSystem::Param ParseFileParam(DfsInfo& info);
 
 protected:
     // Initialized to NULL since every gru differs
@@ -746,29 +746,6 @@ void BasicGru::ShutDown(JobState state) {
     finish_time_ = std::time(NULL);
 }
 
-FileSystem::Param BasicGru::ParseFileParam(DfsInfo& info) {
-    FileSystem::Param param;
-    if(!info.user().empty() && !info.password().empty()) {
-        param["user"] = info.user();
-        param["password"] = info.password();
-    }
-    if (boost::starts_with(info.path(), "hdfs://")) {
-        std::string host;
-        int port;
-        std::string path;
-        ParseHdfsAddress(info.path(), &host, &port, &path);
-        param["host"] = host;
-        param["port"] = boost::lexical_cast<std::string>(port);
-        info.set_path(path);
-        info.set_host(host);
-        info.set_port(boost::lexical_cast<std::string>(port));
-    } else if (!info.host().empty() && !info.port().empty()) {
-        param["host"] = info.host();
-        param["port"] = info.port();
-    }
-    return param;
-}
-
 AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
         int node, DagScheduler* scheduler) : BasicGru(job, job_id, node) {
     type_ = kAlphaGru;
@@ -783,7 +760,7 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
         return;
     }
     DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
-    FileSystem::Param param = ParseFileParam(*output);
+    FileSystem::Param param = FileSystemHub::BuildFileParam(*output);
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::string temp;
     ParseHdfsAddress(output->path(), NULL, NULL, &temp);
@@ -811,7 +788,7 @@ bool AlphaGru::CleanTempDir() {
     if (!cur_node_->output().path().find(FLAGS_temporary_dir) == std::string::npos) {
         return true;
     }
-    FileSystem::Param param = ParseFileParam(*(cur_node_->mutable_output()));
+    FileSystem::Param param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_output()));
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     bool ok = fs->Remove(cur_node_->output().path());
     delete fs;
@@ -830,7 +807,7 @@ ResourceManager* AlphaGru::BuildResourceManager() {
     }
 
     // TODO Wait for multifs
-    FileSystem::Param input_param = ParseFileParam(*(cur_node_->mutable_inputs(0)));
+    FileSystem::Param input_param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_inputs(0)));
 
     ResourceManager* manager = NULL;
     if (cur_node_->input_format() == kNLineInput) {
@@ -895,7 +872,7 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
         return;
     }
     DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
-    FileSystem::Param param = ParseFileParam(*output);
+    FileSystem::Param param = FileSystemHub::BuildFileParam(*output);
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::string temp;
     ParseHdfsAddress(output->path(), NULL, NULL, &temp);
@@ -920,7 +897,7 @@ bool BetaGru::CleanTempDir() {
     if (!cur_node_->has_output()) {
         return true;
     }
-    FileSystem::Param param = ParseFileParam(*(cur_node_->mutable_output()));
+    FileSystem::Param param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_output()));
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     bool ok = fs->Remove(cur_node_->output().path());
     delete fs;

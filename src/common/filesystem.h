@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include "proto/shuttle.pb.h"
 #include "hdfs.h" //for hdfs of inf
 
 namespace baidu {
@@ -52,6 +53,13 @@ public:
     virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Mkdirs(const std::string& dir) = 0;
     virtual bool Exist(const std::string& path) = 0;
+};
+
+class FileSystemHub {
+public:
+    virtual FileSystem* GetFs(DfsInfo& info) = 0;
+    static FileSystemHub* GetHub();
+    static FileSystem::Param BuildFileParam(DfsInfo& info);
 };
 
 class InfSeqFile {
