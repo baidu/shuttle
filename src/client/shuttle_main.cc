@@ -535,23 +535,28 @@ static void PrintJobPrediction(const ::baidu::shuttle::sdk::JobInstance& job,
         int32_t now = time(NULL);
         for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
                 it != tasks.end(); ++it) {
-            if (::baidu::shuttle::sdk::kTaskCompleted == it->state) {
-                c_time_sum += it->end_time - it->start_time;
-            } else if (::baidu::shuttle::sdk::kTaskRunning == it->state) {
-                r_time_sum += now - it->start_time;
+            if (::baidu::shuttle::sdk::kMap == it->type ||
+                    ::baidu::shuttle::sdk::kMapOnly == it->type) {
+                if (::baidu::shuttle::sdk::kTaskCompleted == it->state) {
+                    c_time_sum += it->end_time - it->start_time;
+                } else if (::baidu::shuttle::sdk::kTaskRunning == it->state) {
+                    r_time_sum += now - it->start_time;
+                }
             }
         }
         int32_t avg_time = c_time_sum / job.map_stat.completed;
         printf("Average map time by completed map : %s\n", 
                 FormatCostTime(avg_time).c_str());
         int32_t all_need_time = avg_time * job.map_stat.total;
-        int32_t more_need_time = all_need_time - r_time_sum;
-        float success_rate = (float)job.map_stat.completed / 
-            (job.map_stat.completed + job.map_stat.killed + job.map_stat.failed);
-        int more_cost_time = int(more_need_time / success_rate /
-            (job.map_stat.running ? job.map_stat.running : 1));
-        printf("need more %s to complete, ", FormatCostTime(more_cost_time).c_str());
-        printf("may complete @ %s\n", FromatLongTime(now + more_cost_time).c_str());
+        int32_t more_need_time = all_need_time - c_time_sum - r_time_sum;
+        if (more_need_time > 0) {
+            float success_rate = (float)job.map_stat.completed / 
+                (job.map_stat.completed + job.map_stat.killed + job.map_stat.failed);
+            int more_cost_time = int(more_need_time / success_rate /
+                (job.map_stat.running ? job.map_stat.running : 1));
+            printf("need more %s to complete map, ", FormatCostTime(more_cost_time).c_str());
+            printf("map may complete @ %s\n", FromatLongTime(now + more_cost_time).c_str());
+        }
         printf("\n====================\n");
     }
 }
