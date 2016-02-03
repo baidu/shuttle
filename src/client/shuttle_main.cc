@@ -480,6 +480,20 @@ static inline std::string FromatLongTime(const time_t& time) {
     return time_buf;
 }
 
+static inline std::string FormatCostTime(const uint32_t& time) {
+    std::stringstream ss;
+    if (time > 3600) {
+        ss << (time / 3600) << " hours, ";
+    }
+    if ((time % 3600) > 60) {
+        ss << ((time % 3600) / 60) << " mins, ";
+    }
+    if ((time % 60) > 0) {
+        ss << (time % 60) << " sec";
+    }
+    return ss.str();
+}
+
 static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
     printf("Job Name: %s\n", job.desc.name.c_str());
     printf("Job ID: %s\n", job.jobid.c_str());
@@ -510,6 +524,36 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
               boost::lexical_cast<std::string>(job.reduce_stat.killed).c_str(),
               boost::lexical_cast<std::string>(job.reduce_stat.completed).c_str());
     printf("%s\n", tp.ToString().c_str());
+}
+
+static void PrintJobPrediction(const ::baidu::shuttle::sdk::JobInstance& job,
+        const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
+    if (job.map_stat.completed > 0) {
+        printf("\n====================\nPrediction:\n");
+        int32_t c_time_sum = 0;
+        int32_t r_time_sum = 0;
+        int32_t now = time(NULL);
+        for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
+                it != tasks.end(); ++it) {
+            if (::baidu::shuttle::sdk::kTaskCompleted == it->state) {
+                c_time_sum += it->end_time - it->start_time;
+            } else if (::baidu::shuttle::sdk::kTaskRunning == it->state) {
+                r_time_sum += now - it->start_time;
+            }
+        }
+        int32_t avg_time = c_time_sum / job.map_stat.completed;
+        printf("Average map time by completed map : %s\n", 
+                FormatCostTime(avg_time).c_str());
+        int32_t all_need_time = avg_time * job.map_stat.total;
+        int32_t more_need_time = all_need_time - r_time_sum;
+        float success_rate = (float)job.map_stat.completed / 
+            (job.map_stat.completed + job.map_stat.killed + job.map_stat.failed);
+        int more_cost_time = int(more_need_time / success_rate /
+            (job.map_stat.running ? job.map_stat.running : 1));
+        printf("need more %s to complete, ", FormatCostTime(more_cost_time).c_str());
+        printf("may complete @ %s\n", FromatLongTime(now + more_cost_time).c_str());
+        printf("\n====================\n");
+    }
 }
 
 static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
@@ -883,6 +927,7 @@ static int ShowJob() {
     }
     std::sort(tasks.begin(), tasks.end(), TaskComparator());
     PrintJobDetails(job);
+    PrintJobPrediction(job, tasks);
     PrintJobCounters(counters);
     PrintTasksInfo(tasks);
     if (!error_msg.empty()) {
