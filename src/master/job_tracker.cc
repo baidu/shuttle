@@ -1005,7 +1005,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
     // timeout will NOT be 0 since monitor will be terminated if no tasks is finished
     // sleep_time is always no greater than timeout
     time_t sleep_time = std::min((time_t)FLAGS_time_tolerance, timeout);
-    unsigned int counter = is_long_task ? -1 : 10;
+    unsigned int counter = is_long_task ? 5 : 10;
     std::vector<AllocateItem*> returned_item;
     alloc_mu_.Lock();
     time_t now = std::time(NULL);
