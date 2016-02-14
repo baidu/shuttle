@@ -68,6 +68,8 @@ int reduce_retry = 3;
 int64_t split_size = 500l * 1024 * 1024;
 std::string err_msg;
 bool check_counters = false;
+int ignore_map_failures = 0;
+int ignore_reduce_failures = 0;
 }
 
 const std::string error_message = "shuttle client - A fast computing framework base on Galaxy\n"
@@ -106,9 +108,11 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.output.port\tSpecify the port, ditto\n"
         "\t  mapred.job.output.user\tSpecify the user, ditto\n"
         "\t  mapred.job.output.password\tSpecify the password, ditto\n"
-        "\t  mapred.map.max.attempts\t\tSpecify the number of map tasks\n"
+        "\t  mapred.ignore.map.failures \t\tSpecify the maximum number of failed-map ignored\n"
+        "\t  mapred.ignore.reduce.failures\t\tSpecify the maximum number of failed-reduce ignored\n"
+        "\t  mapred.map.max.attempts\t\tSpecify the maximum number of retries per each map task\n"
         "\t  mapred.job.check.counters\t\tEnable checking job counters\n"
-        "\t  mapred.reduce.max.attempts\t\tSpecify the number of reduce tasks\n"
+        "\t  mapred.reduce.max.attempts\t\tSpecify the maximum number of retries per each reduce tasks\n"
         "\t  mapred.map.tasks\t\tSpecify the number of map tasks\n"
         "\t  mapred.reduce.tasks\t\tSpecify the number of reduce tasks\n"
         "\t  mapred.map.tasks.speculative.execution\tAllow if shuttle can speculatively decide attempts of a map\n"
@@ -441,6 +445,12 @@ static void ParseJobConfig() {
         } else if(boost::starts_with(*it, "mapred.job.check.counters=")) {
             config::check_counters = 
                 ParseBooleanValue(it->substr(strlen("mapred.job.check.counters=")));
+        } else if(boost::starts_with(*it, "mapred.ignore.map.failures=")) {
+            config::ignore_map_failures =
+               boost::lexical_cast<int>(it->substr(strlen("mapred.ignore.map.failures=")));
+        } else if(boost::starts_with(*it, "mapred.ignore.reduce.failures=")) {
+            config::ignore_reduce_failures =
+               boost::lexical_cast<int>(it->substr(strlen("mapred.ignore.reduce.failures=")));
         }
     }
 }
@@ -737,6 +747,8 @@ static int SubmitJob() {
     job_desc.map_retry = config::map_retry;
     job_desc.reduce_retry = config::reduce_retry;
     job_desc.split_size = config::split_size;
+    job_desc.ignore_map_failures = config::ignore_map_failures;
+    job_desc.ignore_reduce_failures = config::ignore_reduce_failures;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);

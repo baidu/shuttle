@@ -104,6 +104,8 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_map_retry(job_desc.map_retry);
     job->set_reduce_retry(job_desc.reduce_retry);
     job->set_split_size(job_desc.split_size);
+    job->set_ignore_map_failures(job_desc.ignore_map_failures);
+    job->set_ignore_reduce_failures(job_desc.ignore_reduce_failures);
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, rpc_timeout_, 1);

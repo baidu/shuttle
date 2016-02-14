@@ -176,6 +176,11 @@ private:
     std::map<int, std::map<int, AllocateItem*> > reduce_index_;
     std::string error_msg_;
     std::map<std::string, int64_t> counters_;
+    std::set<int> ignore_failure_mappers_;
+    std::set<int> ignore_failure_reducers_;
+    int32_t ignored_map_failures_;
+    int32_t ignored_reduce_failures_;
+    FileSystem::Param output_param_;
 };
 
 }

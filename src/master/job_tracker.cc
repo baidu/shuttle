@@ -20,6 +20,7 @@
 #include "master_impl.h"
 #include "common/tools_util.h"
 #include "timer.h"
+#include "sort/sort_file.h"
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -60,7 +61,9 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       reduce_monitoring_(false),
                       fs_(NULL),
                       start_time_(0),
-                      finish_time_(0) {
+                      finish_time_(0),
+                      ignored_map_failures_(0),
+                      ignored_reduce_failures_(0) {
     job_descriptor_.CopyFrom(job);
     job_id_ = GenerateJobId();
     rpc_client_ = new RpcClient();
@@ -124,6 +127,7 @@ void JobTracker::BuildOutputFsPointer() {
     }
 
     fs_ = FileSystem::CreateInfHdfs(output_param);
+    output_param_ = output_param;
 }
 
 Status JobTracker::BuildResourceManagers() {
@@ -539,6 +543,30 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
     }
     {
         MutexLock lock(&mu_);
+        if (state == kTaskFailed && 
+            ignore_failure_mappers_.find(cur->resource_no) 
+               != ignore_failure_mappers_.end()) {
+            LOG(WARNING, "make %s,%d to be fake-completed", job_id_.c_str(), 
+                cur->resource_no);
+            state = kTaskCompleted;
+            if (job_descriptor_.job_type() != kMapOnlyJob) {//mapper of map-reduce
+                Status w_status;
+                SortFileWriter* writer = SortFileWriter::Create(kHdfsFile, &w_status);
+                if (w_status == kOk) {
+                    std::stringstream ss;
+                    ss << job_descriptor_.output()
+                       << "/_temporary/shuffle/" 
+                       << "map_" << cur->resource_no << "/0.sort";
+                    std::string fake_sort_file = ss.str();
+                    LOG(WARNING, "make a empty sort file: %s", fake_sort_file.c_str());
+                    writer->Open(fake_sort_file, output_param_);
+                    w_status = writer->Close();
+                    if (w_status != kOk) {
+                        state = kTaskFailed;
+                    }
+                }
+            }
+        }
         switch (state) {
         case kTaskCompleted:
             if (!map_manager_->FinishItem(cur->resource_no)) {
@@ -627,6 +655,12 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
             }
             ++ map_failed_;
             if (failed_count_[cur->resource_no] >= job_descriptor_.map_retry()) {
+                if (ignored_map_failures_ < job_descriptor_.ignore_map_failures()) {
+                    ignore_failure_mappers_.insert(cur->resource_no);
+                    ignored_map_failures_++;
+                    LOG(WARNING, "ignore failure of %s,%d", job_id_.c_str(), cur->resource_no);
+                    break;
+                }
                 LOG(INFO, "map failed, kill job: %s", job_id_.c_str());
                 LOG(WARNING, "=== error msg ===");
                 LOG(WARNING, "%s", err_msg.c_str());
@@ -713,6 +747,13 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
 
     {
         MutexLock lock(&mu_);
+        if (state == kTaskFailed && 
+            ignore_failure_reducers_.find(cur->resource_no) 
+               != ignore_failure_reducers_.end()) {
+            LOG(WARNING, "make %s,%d to be fake-completed", job_id_.c_str(), 
+                cur->resource_no);
+            state = kTaskCompleted;
+        }
         switch (state) {
         case kTaskCompleted:
             if (!reduce_manager_->FinishItem(cur->resource_no)) {
@@ -752,6 +793,12 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
             }
             ++ reduce_failed_;
             if (failed_count_[cur->resource_no] >= job_descriptor_.reduce_retry()) {
+                if (ignored_reduce_failures_ < job_descriptor_.ignore_reduce_failures()) {
+                    ignore_failure_reducers_.insert(cur->resource_no);
+                    ignored_reduce_failures_++;
+                    LOG(WARNING, "ignore failure of %s,%d", job_id_.c_str(), cur->resource_no);
+                    break;
+                }
                 LOG(INFO, "reduce failed, kill job: %s", job_id_.c_str());
                 LOG(WARNING, "=== error msg ===");
                 LOG(WARNING, "%s", err_msg.c_str());

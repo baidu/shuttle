@@ -51,8 +51,10 @@ master_src = 'src/master/master_main.cc \
               src/common/filesystem.cc \
               src/common/tools_util.cc \
               src/sort/input_reader.cc \
+              src/sort/sort_file_impl.cc \
               proto/app_master.proto \
               proto/minion.proto \
+              proto/sortfile.proto \
               proto/shuttle.proto'
 
 minion_src = 'src/minion/minion_main.cc \
