@@ -565,6 +565,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
                         state = kTaskFailed;
                     }
                 }
+                if (writer) {
+                    delete writer;
+                }
             }
         }
         switch (state) {
