@@ -678,7 +678,11 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
             map_manager_->ReturnBackItem(cur->resource_no);
             ++ map_killed_;
             break;
-        case kTaskCanceled: break;
+        case kTaskCanceled:
+            if (!map_manager_->IsDone(cur->resource_no)) {
+                map_manager_->ReturnBackItem(cur->resource_no);
+            }
+            break;
         default:
             LOG(WARNING, "unfamiliar task finish status: %d", state);
             return kNoMore;
@@ -816,7 +820,11 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
             reduce_manager_->ReturnBackItem(cur->resource_no);
             ++ reduce_killed_;
             break;
-        case kTaskCanceled: break;
+        case kTaskCanceled:
+            if (!reduce_manager_->IsDone(cur->resource_no)) {
+                reduce_manager_->ReturnBackItem(cur->resource_no);
+            }
+            break;
         default:
             LOG(WARNING, "unfamiliar task finish status: %d", state);
             return kNoMore;
