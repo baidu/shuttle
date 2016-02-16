@@ -49,6 +49,10 @@ Executor* Executor::GetExecutor(WorkMode mode) {
 }
 
 void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
+    {
+        MutexLock locker(&mu_);
+        stop_task_ids_.clear();
+    }
     ::setenv("mapred_job_id", jobid.c_str(), 1);
     ::setenv("mapred_job_name", task.job().name().c_str(), 1);
     ::setenv("mapred_output_dir", task.job().output().c_str(), 1);
