@@ -259,8 +259,11 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
     }
     tp.Stop(true);
     for (size_t i = 0; i < expand_input_files.size(); ++i) {
-        files.reserve(files.size() + sub_files[i].size());
-        files.insert(files.end(), sub_files[i].begin(), sub_files[i].end());
+        for (size_t j = 0; j < sub_files[i].size(); j++) {
+            if (sub_files[i][j].kind == 'F') {
+                files.push_back(sub_files[i][j]);
+            }
+        }
     }
     LOG(INFO, "files total: %d", files.size());
     delete[] sub_files;
