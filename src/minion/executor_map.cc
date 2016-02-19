@@ -28,7 +28,7 @@ struct EmitItem {
         record = l_record;
     }
     size_t Size() {
-        return sizeof(int) + key.size() + record.size();
+        return sizeof(int) + key.size() + record.size() + sizeof(EmitItem*);
     }
 };
 
