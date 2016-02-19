@@ -29,7 +29,7 @@ IsValidHadoop() {
 	if [ $lib_so_count -ne 19 ]; then
 		return 2
 	fi
-	${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -help
+	${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -help > /dev/null
 	if [ $? -ne 0 ]; then
 		return 3
 	fi
