@@ -189,6 +189,10 @@ bool MergeOneTuo(int map_from, int map_to, int tuo_now) {
     if (!g_fs->Rename(output_file, real_tuo_name)) {
         return false;
     }
+    std::vector<std::string>::iterator it;
+    for (it = file_names.begin(); it != file_names.end(); it++) {
+        g_fs->Remove(*it);
+    }
     return true;
 }
 
