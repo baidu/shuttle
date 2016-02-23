@@ -38,6 +38,7 @@ public:
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key) = 0;
     virtual Status Close() = 0;
     virtual std::string GetFileName() = 0;
+    virtual ~SortFileReader() {}
 };
 
 class SortFileWriter {
@@ -46,6 +47,7 @@ public:
     virtual Status Open(const std::string& path, FileSystem::Param param) = 0;
     virtual Status Put(const std::string& key, const std::string& value) = 0;
     virtual Status Close() = 0;
+    virtual ~SortFileWriter() {}
 };
 
 class MergeFileReader {

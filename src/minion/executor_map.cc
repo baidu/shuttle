@@ -28,7 +28,7 @@ struct EmitItem {
         record = l_record;
     }
     size_t Size() {
-        return sizeof(int) + key.size() + record.size() + sizeof(EmitItem*);
+        return sizeof(int) + key.capacity() + record.capacity() + sizeof(EmitItem*);
     }
 };
 
@@ -138,7 +138,7 @@ void Emitter::Reset() {
     for (it = mem_table_.begin(); it != mem_table_.end(); it++) {
         delete (*it);
     }
-    mem_table_.clear();   
+    std::vector<EmitItem*>().swap(mem_table_);
 }
 
 Status Emitter::Emit(int reduce_no, const std::string& key, const std::string& record) {

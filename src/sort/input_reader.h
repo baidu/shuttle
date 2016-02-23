@@ -23,6 +23,7 @@ public:
     virtual Status Open(const std::string& path, FileSystem::Param param) = 0;
     virtual Iterator* Read(int64_t offset, int64_t len) = 0;
     virtual Status Close() = 0;
+    virtual ~InputReader() {}
 };
 
 }
