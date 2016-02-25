@@ -102,11 +102,17 @@ bool MergeManyFilesToOne(const std::vector<std::string>& file_names,
         LOG(WARNING, "fail to open %s for write", output_file.c_str());
         return false;
     }
+    int64_t counter = 0;
     while (!scan_it->Done()) {
         status = writer->Put(scan_it->Key(), scan_it->Value());
         if (status != kOk) {
             LOG(WARNING, "fail to put: %s", output_file.c_str());
             return false;
+        }
+        counter++;
+        if (counter % 5000 == 0) {
+            LOG(INFO, "have written %lld records to %s",
+                counter, output_file.c_str());
         }
         scan_it->Next();
     }
@@ -126,6 +132,8 @@ bool MergeManyFilesToOne(const std::vector<std::string>& file_names,
         return false;
     }
     delete writer;
+    LOG(INFO, "totally written %lld records to %s",
+        counter, output_file.c_str());
     return true;
 }
 
@@ -245,18 +253,40 @@ int MergeTuo() {
                 LOG(INFO, "lucky, total #%d/%d tuo ready", ready_tuo_set.size(), n_tuo);
                 continue;
             }
-            if (FLAGS_reduce_no <= n_tuo) {
-                int map_from = tuo_now * FLAGS_tuo_size;
-                int map_to = std::min( (tuo_now + 1) * FLAGS_tuo_size - 1, FLAGS_total - 1);
-                LOG(INFO, "merge tuo from %d to %d", map_from, map_to);
-                if (MergeOneTuo(map_from, map_to, tuo_now)) {
-                    ready_tuo_set.insert(tuo_now);
-                    LOG(INFO, "total #%d/%d tuo ready", ready_tuo_set.size(), n_tuo);
+            if (FLAGS_reduce_no > n_tuo) {
+                continue;
+            }
+            std::stringstream ss_lock;
+            std::stringstream my_lock_flag;
+            ss_lock << FLAGS_work_dir << "/tuo_lock_" << tuo_now << "/";
+            std::vector<baidu::shuttle::FileInfo> lockers;
+            g_fs->List(ss_lock.str(), &lockers);
+            my_lock_flag << ss_lock.str() << FLAGS_reduce_no;
+            if (lockers.size() > 2 && !g_fs->Exist(my_lock_flag.str())) {
+                LOG(WARNING, "two many workers on this tuo!: %d", tuo_now);
+                double rn = rand() / (RAND_MAX+0.0);
+                if (rn < 0.99) {
+                    continue;
                 }
             }
-        }
+            if (!g_fs->Exist(my_lock_flag.str()) &&
+                g_fs->Exist(FLAGS_work_dir)) {
+                g_fs->Open(my_lock_flag.str(), kWriteFile);
+                g_fs->Close(); //create my lock
+            }
+            int map_from = tuo_now * FLAGS_tuo_size;
+            int map_to = std::min( (tuo_now + 1) * FLAGS_tuo_size - 1, FLAGS_total - 1);
+            LOG(INFO, "merge tuo from %d to %d", map_from, map_to);
+            if (MergeOneTuo(map_from, map_to, tuo_now)) {
+                ready_tuo_set.insert(tuo_now);
+                LOG(INFO, "total #%d/%d tuo ready", ready_tuo_set.size(), n_tuo);
+                g_fs->Remove(ss_lock.str());
+            } else {
+                g_fs->Remove(my_lock_flag.str());
+            }
+        } // end of for
         sleep(5);
-    }
+    }// end of while
     return n_tuo;
 }
 
