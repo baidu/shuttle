@@ -317,7 +317,7 @@ int main(int argc, char* argv[]) {
     }
     if (FLAGS_reduce_no > FLAGS_slow_start_no) {
         double rn = rand() / (RAND_MAX+0.0);
-        int random_period = static_cast<int>(rn * 240);
+        int random_period = static_cast<int>(rn * 90);
         LOG(INFO, "sleep a random time: %d", random_period);
         sleep(random_period);
     }

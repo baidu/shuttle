@@ -375,9 +375,14 @@ void MasterImpl::OnMasterLockChange(const ::galaxy::ins::sdk::WatchParam& param,
     master->OnLockChange(param.value);
 }
 
-void MasterImpl::OnLockChange(const std::string& lock_session_id) {
+void MasterImpl::OnLockChange(const std::string& /*lock_session_id*/) {
     std::string self_session_id = nexus_->GetSessionID();
-    if (self_session_id != lock_session_id) {
+    std::string master_lock = FLAGS_nexus_root_path + FLAGS_master_lock_path;
+    std::string locker_session;
+    if (!nexus_->Get(master_lock, &locker_session, NULL)) {
+        abort();
+    }
+    if (self_session_id != locker_session) {
         LOG(WARNING, "master lost lock, try again.");
         AcquireMasterLock();
     }
