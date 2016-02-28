@@ -31,6 +31,11 @@ Status JobTracker::Start() {
     // XXX Maybe set to running until some assignment is required
     state_ = kRunning;
     Status ret_val = kOk;
+    // TODO pre-check
+    if (!scheduler.Validate()) {
+        LOG(WARNING, "job do not meet DAG limitation: %s", job_id_.c_str());
+        return kInvalidArg;
+    }
     const std::vector<int>& first = scheduler_.AvailableNodes();
     for (std::vector<int>::const_iterator it = first.begin();
             it != first.end(); ++it) {
