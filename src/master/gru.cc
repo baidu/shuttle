@@ -327,7 +327,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
     AllocateItem* cur = NULL;
     try {
         MutexLock lock(&alloc_mu_);
-        cur = allocation_table_[no][attempt];
+        cur = allocation_table_.at(no).at(attempt);
     } catch (const std::out_of_range&) {
         LOG(WARNING, "node %d try to finish an inexist task: < no - %d, attempt - %d >: %s",
                 node_, no, attempt, job_id_.c_str());

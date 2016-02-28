@@ -32,7 +32,7 @@ Status JobTracker::Start() {
     state_ = kRunning;
     Status ret_val = kOk;
     // TODO pre-check
-    if (!scheduler.Validate()) {
+    if (!scheduler_.Validate()) {
         LOG(WARNING, "job do not meet DAG limitation: %s", job_id_.c_str());
         return kInvalidArg;
     }
