@@ -1,6 +1,5 @@
 #ifndef _BAIDU_SHUTTLE_DAG_SCHEDULER_H_
 #define _BAIDU_SHUTTLE_DAG_SCHEDULER_H_
-#include <list>
 #include <vector>
 #include "proto/shuttle.pb.h"
 #include "mutex.h"
@@ -18,6 +17,8 @@ class DagScheduler {
 public:
     DagScheduler(const JobDescriptor& job);
     virtual ~DagScheduler();
+
+    bool Validate();
 
     std::vector<int> AvailableNodes();
     std::vector<int> NextNodes(int node);

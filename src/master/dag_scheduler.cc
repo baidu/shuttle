@@ -1,4 +1,5 @@
 #include "dag_scheduler.h"
+#include <queue>
 
 namespace baidu {
 namespace shuttle {
@@ -9,6 +10,36 @@ DagScheduler::DagScheduler(const JobDescriptor& job) : left_(0) {
 }
 
 DagScheduler::~DagScheduler() {
+}
+
+bool DagScheduler::Validate() {
+    std::vector<int> indegree(indegree_);
+    std::queue<int> working;
+    do {
+        if (!working.empty()) {
+            int front = working.front();
+            working.pop();
+            const std::vector<int>& nexts = dependency_map_[front].next;
+            for (std::vector<int>::const_iterator it = nexts.begin();
+                    it != nexts.end(); ++it) {
+                --indegree[*it];
+            }
+        }
+        while (std::find(indegree.begin(), indegree.end(), 0) != indegree.end()) {
+            std::vector<int>::iterator cur = std::find(indegree.begin(), indegree.end(), 0);
+            working.push(cur - indegree.begin());
+            *cur = -1;
+        }
+    } while (!working.empty());
+    bool all_clear = true;
+    for (std::vector<int>::iterator it = indegree.begin();
+            it != indegree.end(); ++it) {
+        if (*it != -1) {
+            all_clear = false;
+            break;
+        }
+    }
+    return all_clear;
 }
 
 std::vector<int> DagScheduler::AvailableNodes() {

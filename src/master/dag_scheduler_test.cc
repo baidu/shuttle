@@ -44,6 +44,7 @@ TEST(DagSchedulerTest, InnerValidityTest) {
     }
     test->TestMapValidity();
     test->TestIndegree();
+    ASSERT_TRUE(test->Validate());
 }
 
 TEST(DagSchedulerTest, CompletenessTest) {
