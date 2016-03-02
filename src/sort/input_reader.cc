@@ -171,7 +171,7 @@ InputReader::Iterator* TextReader::Read(int64_t offset, int64_t len) {
             return it;
         }
     }
-    if (!fs_->Seek(offset)) {
+    if (offset > 0 && !fs_->Seek(offset)) {
         LOG(WARNING, "seek to %ld fail", offset);
         it->SetHasMore(false);
         it->SetError(kReadFileFail);

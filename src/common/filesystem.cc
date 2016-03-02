@@ -43,6 +43,7 @@ private:
     hdfsFS fs_;
     hdfsFile fd_;
     std::string path_;
+    Param param_;
 };
 
 
@@ -141,6 +142,7 @@ void InfHdfs::ConnectInfHdfs(Param& param, hdfsFS* fs) {
 }
 
 void InfHdfs::Connect(Param& param) {
+    param_ =  param;
     ConnectInfHdfs(param, &fs_);
 }
 
@@ -150,7 +152,12 @@ bool InfHdfs::Open(const std::string& path, OpenMode mode) {
         return false;
     }
     if (mode == kReadFile) {
-        fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
+        if (param_.find("decompress") != param_.end()
+            && param_["decompress"] == "true") {
+            fd_ = hdfsOpenFileWithDeCompress(fs_, path.c_str(), O_RDONLY, 0, 0,0, gzip);
+        } else {
+            fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
+        }
     } else if (mode == kWriteFile) {
         short replica = 3;
         fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
@@ -173,7 +180,12 @@ bool InfHdfs::Open(const std::string& path, Param& param, OpenMode mode) {
         return false;
     }
     if (mode == kReadFile) {
-        fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
+        if (param_.find("decompress") != param_.end()
+            && param_["decompress"] == "true") {
+            fd_ = hdfsOpenFileWithDeCompress(fs_, path.c_str(), O_RDONLY, 0, 0,0, gzip);
+        } else {
+            fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
+        }
     } else if (mode == kWriteFile) {
         short replica = 3;
         if (param.find("replica") != param.end()) {

@@ -283,7 +283,7 @@ ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
             item->size = block_size;
             resource_pool_.push_back(item);
         }
-        int rest = it->size - blocks * block_size;
+        int64_t rest = it->size - blocks * block_size;
         ResourceItem* item = new ResourceItem();
         item->no = counter++;
         item->attempt = 0;

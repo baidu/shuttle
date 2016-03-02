@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string>
 #include <iostream>
+#include <limits>
 #include <boost/lexical_cast.hpp>
 
 #include <gflags/gflags.h>
@@ -26,6 +27,7 @@ DEFINE_string(dfs_password, "", "password of dfs master");
 DEFINE_string(format, "text", "input format: text/binary");
 DEFINE_string(pipe, "streaming", "pipe style: streaming/bistreaming");
 DEFINE_bool(is_nline, false, "whether NlineInputformat");
+DEFINE_bool(decompress_input, false, "whether decompreess input file");
 
 void FillParam(FileSystem::Param& param) {
     if (!FLAGS_dfs_user.empty()) {
@@ -39,6 +41,9 @@ void FillParam(FileSystem::Param& param) {
     }
     if (!FLAGS_dfs_port.empty()) {
         param["port"] = FLAGS_dfs_port;
+    }
+    if (FLAGS_decompress_input) {
+        param["decompress"] = "true";
     }
 }
 
@@ -64,6 +69,10 @@ void DoRead() {
     if (status != kOk) {
         std::cerr << "fail to open: " << FLAGS_file << std::endl;
         exit(-1);
+    }
+    if (FLAGS_decompress_input) {
+        FLAGS_offset = 0;
+        FLAGS_len = std::numeric_limits<int64_t>::max();
     }
     InputReader::Iterator* it = reader->Read(FLAGS_offset, FLAGS_len);
     int32_t record_no = 0;

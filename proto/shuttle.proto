@@ -109,6 +109,7 @@ message JobDescriptor {
     optional bool check_counters = 30 [default = false];
     optional int32 ignore_map_failures = 31 [default = 0];
     optional int32 ignore_reduce_failures = 32 [default = 0];
+    optional bool decompress_input = 33 [default = false];
 }
 
 message TaskInput {

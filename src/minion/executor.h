@@ -52,6 +52,7 @@ protected:
 
     bool ReadLine(FILE* user_app, std::string* line);
     bool ReadRecord(FILE* user_app, std::string* key, std::string* value);
+    bool ReadBlock(FILE* user_app, std::string* line);
 
     TaskState TransTextOutput(FILE* user_app, const std::string& temp_file_name,
                               FileSystem::Param param, const TaskInfo& task);

@@ -96,6 +96,10 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     ::setenv("minion_output_dfs_password", task.job().output_dfs().password().c_str(), 1);
     if (task.job().input_format() == kTextInput) {
         ::setenv("minion_input_format", "text", 1);
+        if (task.job().has_decompress_input() 
+            && task.job().decompress_input()) {
+            ::setenv("minion_decompress_input", "true", 1);
+        }
     } else if (task.job().input_format() == kBinaryInput) {
         ::setenv("minion_input_format", "binary", 1);
     } else if (task.job().input_format() == kNLineInput) {
@@ -235,6 +239,19 @@ bool Executor::ReadLine(FILE* user_app, std::string* line) {
     return true;
 }
 
+bool Executor::ReadBlock(FILE* user_app, std::string* block) {
+    size_t n_read = fread(line_buf_, 1, 40960, user_app);
+    if (n_read == 0 && feof(user_app)) {
+        block->erase();
+        return true;
+    }
+    if (ferror(user_app)) {
+        return false;
+    }
+    block->assign(line_buf_, n_read);
+    return true;
+}
+
 bool Executor::ReadRecord(FILE* user_app, std::string* p_key, std::string* p_value) {
     int32_t key_len = 0;
     int32_t value_len = 0;
@@ -288,9 +305,7 @@ TaskState Executor::TransTextOutput(FILE* user_app, const std::string& temp_file
             return kTaskCanceled;
         }
         if (pipe_style == kStreaming) {
-            std::string line;
-            ok = ReadLine(user_app, &line);
-            raw_data = line;
+            ok = ReadBlock(user_app, &raw_data);
         } else if (pipe_style == kBiStreaming) {
             std::string key;
             std::string value;
@@ -298,10 +313,6 @@ TaskState Executor::TransTextOutput(FILE* user_app, const std::string& temp_file
             raw_data = key + "\t" + value + "\n";
         } else {
             LOG(FATAL, "unkonow pipe_style: %d", pipe_style);
-        }
-        if (feof(user_app)) {
-            LOG(INFO, "read user app over");
-            break;
         }
         if (!ok) {
             LOG(WARNING, "read app output fail");

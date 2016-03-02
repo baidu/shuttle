@@ -73,9 +73,12 @@ then
 	if [ "${minion_input_is_nline}" == "true" ] ; then
 		is_nline="-is_nline"
 	fi
+	if [ "${minion_decompress_input}" == "true" ]; then
+		decompress_input="-decompress_input"
+	fi
 	input_cmd="./input_tool -file=${map_input_file} \
 	-offset=${map_input_start} \
-	-len=${map_input_length} ${dfs_flags} ${format} ${pipe_style} ${is_nline}"
+	-len=${map_input_length} ${dfs_flags} ${format} ${pipe_style} ${is_nline} ${decompress_input}"
 	(InputRun $input_cmd | JailRun) 2>./stderr
 	exit $?
 elif [ "${mapred_task_is_map}" == "false" ]

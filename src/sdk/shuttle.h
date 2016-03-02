@@ -117,6 +117,7 @@ struct JobDescription {
     bool check_counters;
     int ignore_map_failures;
     int ignore_reduce_failures;
+    bool decompress_input;
 };
 
 struct TaskInstance {

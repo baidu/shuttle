@@ -2,6 +2,7 @@
 
 #include <iterator>
 #include <algorithm>
+#include <limits>
 
 #include "proto/app_master.pb.h"
 #include "common/rpc_client.h"
@@ -106,7 +107,11 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_split_size(job_desc.split_size);
     job->set_ignore_map_failures(job_desc.ignore_map_failures);
     job->set_ignore_reduce_failures(job_desc.ignore_reduce_failures);
-
+    job->set_decompress_input(job_desc.decompress_input);
+    if (job_desc.decompress_input) { 
+        //can not split file when input is compressed
+        job->set_split_size(std::numeric_limits<int64_t>::max());
+    }
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, rpc_timeout_, 1);
     if (!ok) {

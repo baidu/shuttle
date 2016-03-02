@@ -19,24 +19,25 @@ CPPFLAGS('-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DVERSION=\\\"_TEST_VERSION_\\\" -
 CFLAGS('-g -pipe -W -Wall -Werror -fPIC')
 
 #C++编译参数.
-CXXFLAGS('-g -pipe -W -Wall -Werror -fPIC')
+CXXFLAGS('-g -pipe -W -Wall  -fPIC')
 
 # protoc
-PROTOC('../../third-64/protobuf/bin/protoc')
+#PROTOC('../../third-64/protobuf/bin/protoc')
 
 #头文件路径.
-INCPATHS('. ./src ./output/include galaxy/output/include galaxy/common/include galaxy/ins/sdk/ ../../inf/computing/libhdfs/output/include')
+INCPATHS('. ./src ./output/include galaxy/src/sdk galaxy/thirdsrc/common/include galaxy/thirdsrc/ins/sdk/ ../../inf/computing/libhdfs/output/include')
 
 #使用库
-LIBS('galaxy/common/libcommon.a galaxy/ins/libins_sdk.a ./galaxy/libgalaxy.a')
+LIBS('galaxy/thirdsrc/common/libcommon.a galaxy/thirdsrc/ins/libins_sdk.a ./galaxy/libgalaxy.a')
 
 #链接参数.
-LDFLAGS('-lpthread -lz')
+LDFLAGS('-lpthread -lz -lrt')
 
 #依赖模块
-CONFIGS('public/sofa-pbrpc@trunk@comake')
+CONFIGS('ps/opensource/sofa-pbrpc@trunk@COMAKE')
+CONFIGS('third-64/protobuf@protobuf_2-6-1-200_PD_BL')
+CONFIGS('thirdsrc/protobuf@protobuf_2-6-1-200_PD_BL')
 CONFIGS('third-64/gtest@1.6.0.100')
-CONFIGS('thirdsrc/protobuf@2.6.2.0')
 CONFIGS('third-64/boost@1.63.0.101')
 CONFIGS('third-64/gflags@gflags_2-0-0-100_PD_BL')
 CONFIGS('third-64/snappy@1.0.5.100')

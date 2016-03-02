@@ -37,7 +37,6 @@ Status Gru::Start() {
     ::baidu::galaxy::JobDescription galaxy_job;
     galaxy_job.job_name = minion_name_ + "@minion";
     galaxy_job.type = "kLongRun";
-    galaxy_job.priority = "kOnline";
     galaxy_job.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
     galaxy_job.pod.version = "1.0.0";
@@ -130,14 +129,14 @@ Status Gru::Update(const std::string& priority,
                    int capacity) {
     ::baidu::galaxy::JobDescription job_desc = galaxy_job_;
     if (!priority.empty()) {
-        job_desc.priority = priority;
+        //job_desc.priority = priority;
     }
     if (capacity != -1) {
         job_desc.replica = capacity;
     }
     if (galaxy_->UpdateJob(minion_id_, job_desc)) {
         if (!priority.empty()) {
-            galaxy_job_.priority = priority;
+            //galaxy_job_.priority = priority;
         }
         if (capacity != -1) {
             galaxy_job_.replica = capacity;
