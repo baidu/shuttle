@@ -18,11 +18,10 @@ public:
     virtual ~ShuttleImpl();
     bool SubmitJob(const sdk::JobDescription& job_desc, std::string& job_id);
     bool UpdateJob(const std::string& job_id,
-                   const sdk::JobPriority& priority = sdk::kUndefined,
-                   const int map_capacity = -1,
-                   const int reduce_capacity = -1);
+                   const std::vector<sdk::UpdateItem>& new_capacities,
+                   const sdk::JobPriority& priority);
     bool KillJob(const std::string& job_id);
-    bool KillTask(const std::string& job_id, sdk::TaskType mode,
+    bool KillTask(const std::string& job_id, int node,
                   int task_id, int attempt_id);
     bool ShowJob(const std::string& job_id, 
                  sdk::JobInstance& job,
@@ -31,6 +30,9 @@ public:
     bool ListJobs(std::vector<sdk::JobInstance>& jobs,
                   bool display_all);
     void SetRpcTimeout(int second);
+private:
+    void ConvertJobInstance(const JobOverview& desc, sdk::JobInstance& job);
+
 private:
     std::string master_addr_;
     Master_Stub* master_stub_;
@@ -64,42 +66,55 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     job->set_user(job_desc.user);
     job->set_priority((job_desc.priority == sdk::kUndefined) ?
             kNormal : (JobPriority)job_desc.priority);
-    job->set_map_capacity(job_desc.map_capacity);
-    job->set_reduce_capacity(job_desc.reduce_capacity);
-    job->set_millicores(job_desc.millicores);
-    job->set_memory(job_desc.memory);
-    std::copy(job_desc.inputs.begin(), job_desc.inputs.end(),
-              ::google::protobuf::RepeatedFieldBackInserter(job->mutable_inputs()));
-    job->set_output(job_desc.output);
     std::copy(job_desc.files.begin(), job_desc.files.end(),
               ::google::protobuf::RepeatedFieldBackInserter(job->mutable_files()));
-    job->set_map_command(job_desc.map_command);
-    job->set_reduce_command(job_desc.reduce_command);
-    job->set_partition((Partition)job_desc.partition);
-    job->set_map_total(job_desc.map_total);
-    job->set_reduce_total(job_desc.reduce_total);
-    job->set_key_separator(job_desc.key_separator);
-    job->set_key_fields_num(job_desc.key_fields_num);
-    job->set_partition_fields_num(job_desc.partition_fields_num);
-    job->set_job_type((job_desc.reduce_total == 0) ? kMapOnlyJob : kMapReduceJob);
-    DfsInfo* input_info = job->mutable_input_dfs();
-    input_info->set_host(job_desc.input_dfs.host);
-    input_info->set_port(job_desc.input_dfs.port);
-    input_info->set_user(job_desc.input_dfs.user);
-    input_info->set_password(job_desc.input_dfs.password);
-    DfsInfo* output_info = job->mutable_output_dfs();
-    output_info->set_host(job_desc.output_dfs.host);
-    output_info->set_port(job_desc.output_dfs.port);
-    output_info->set_user(job_desc.output_dfs.user);
-    output_info->set_password(job_desc.output_dfs.password);
-    job->set_input_format((InputFormat)job_desc.input_format);
-    job->set_output_format((OutputFormat)job_desc.output_format);
+    job->set_cache_archive(job_desc.cache_archive);
     job->set_pipe_style((PipeStyle)job_desc.pipe_style);
-    job->set_map_allow_duplicates(job_desc.map_allow_duplicates);
-    job->set_reduce_allow_duplicates(job_desc.reduce_allow_duplicates);
-    job->set_map_retry(job_desc.map_retry);
-    job->set_reduce_retry(job_desc.reduce_retry);
     job->set_split_size(job_desc.split_size);
+    for (std::vector<sdk::NodeConfig>::const_iterator it = job_desc.nodes.begin();
+            it != job_desc.nodes.end(); ++it) {
+        const sdk::NodeConfig& cur = *it;
+        NodeConfig* node = job->add_nodes();
+        node->set_node(cur.node);
+        node->set_type((WorkMode)cur.type);
+        node->set_capacity(cur.capacity);
+        node->set_total(cur.total);
+        node->set_millicores(cur.millicores);
+        node->set_memory(cur.memory);
+        node->set_command(cur.command);
+        for (std::vector<sdk::DfsInfo>::const_iterator jt = cur.inputs.begin();
+                jt != cur.inputs.end(); ++jt) {
+            DfsInfo* info = node->add_inputs();
+            info->set_path(jt->path);
+            info->set_host(jt->host);
+            info->set_port(jt->port);
+            info->set_user(jt->user);
+            info->set_password(jt->password);
+        }
+        node->set_input_format((InputFormat)cur.input_format);
+        {
+            DfsInfo* info = node->mutable_output();
+            info->set_path(cur.output.path);
+            info->set_host(cur.output.host);
+            info->set_port(cur.output.port);
+            info->set_user(cur.output.user);
+            info->set_password(cur.output.password);
+        }
+        node->set_output_format((OutputFormat)cur.output_format);
+        node->set_partition((Partition)cur.partition);
+        node->set_key_separator(cur.key_separator);
+        node->set_key_fields_num(cur.key_fields_num);
+        node->set_partition_fields_num(cur.partition_fields_num);
+        node->set_allow_duplicates(cur.allow_duplicates);
+        node->set_retry(cur.retry);
+    }
+    for (std::vector< std::vector<int32_t> >::const_iterator it = job_desc.map.begin();
+            it != job_desc.map.end(); ++it) {
+        JobDescriptor_NodeNeigbor* cur = job->add_map();
+        for (std::vector<int32_t>::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
+            cur->add_next(*jt);
+        }
+    }
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, rpc_timeout_, 1);
@@ -118,19 +133,20 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     return true;
 }
 
-bool ShuttleImpl::UpdateJob(const std::string& job_id, const sdk::JobPriority& priority,
-                            const int map_capacity, const int reduce_capacity) {
+bool ShuttleImpl::UpdateJob(const std::string& job_id,
+                            const std::vector<sdk::UpdateItem>& new_capacities,
+                            const sdk::JobPriority& priority) {
     ::baidu::shuttle::UpdateJobRequest request;
     ::baidu::shuttle::UpdateJobResponse response;
     request.set_jobid(job_id);
     if (priority != sdk::kUndefined) {
         request.set_priority((JobPriority)priority);
     }
-    if (map_capacity != -1) {
-        request.set_map_capacity(map_capacity);
-    }
-    if (reduce_capacity != -1) {
-        request.set_reduce_capacity(reduce_capacity);
+    for (std::vector<sdk::UpdateItem>::const_iterator it = new_capacities.begin();
+            it != new_capacities.end(); ++it) {
+        ::baidu::shuttle::UpdateJobRequest_UpdatedNode* cur = request.add_capacities();
+        cur->set_node(it->node);
+        cur->set_capacity(it->capacity);
     }
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::UpdateJob,
@@ -158,16 +174,17 @@ bool ShuttleImpl::KillJob(const std::string& job_id) {
     }
     return response.status() == kOk;
 }
-bool ShuttleImpl::KillTask(const std::string& job_id, sdk::TaskType mode,
+
+bool ShuttleImpl::KillTask(const std::string& job_id, int node,
                            int task_id, int attempt_id) {
     ::baidu::shuttle::FinishTaskRequest request;
     ::baidu::shuttle::FinishTaskResponse response;
     request.set_jobid(job_id);
+    request.set_node(node);
     request.set_task_id(task_id);
     request.set_attempt_id(attempt_id);
     request.set_task_state(kTaskKilled);
     request.set_endpoint("0.0.0.0");
-    request.set_work_mode((WorkMode)mode);
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::FinishTask,
                                       &request, &response, rpc_timeout_, 1);
     if (!ok) {
@@ -196,81 +213,22 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
         return false;
     }
 
-    const JobOverview& joboverview = response.job();
-    const JobDescriptor& desc = joboverview.desc();
-    job.desc.name = desc.name();
-    job.desc.user = desc.user();
-    job.desc.priority = (sdk::JobPriority)desc.priority();
-    job.desc.map_capacity = desc.map_capacity();
-    job.desc.reduce_capacity = desc.reduce_capacity();
-    job.desc.millicores = desc.millicores();
-    job.desc.memory = desc.memory();
-    std::copy(desc.inputs().begin(), desc.inputs().end(),
-              std::back_inserter(job.desc.inputs));
-    job.desc.output = desc.output();
-    std::copy(desc.files().begin(), desc.files().end(),
-              std::back_inserter(job.desc.files));
-    job.desc.map_command = desc.map_command();
-    job.desc.reduce_command = desc.reduce_command();
-    job.desc.partition = (sdk::PartitionMethod)desc.partition();
-    job.desc.map_total = desc.map_total();
-    job.desc.reduce_total = desc.reduce_total();
-    job.desc.key_separator = desc.key_separator();
-    job.desc.key_fields_num = desc.key_fields_num();
-    job.desc.partition_fields_num = desc.partition_fields_num();
-    job.desc.input_dfs.host = desc.input_dfs().host();
-    job.desc.input_dfs.port = desc.input_dfs().port();
-    job.desc.input_dfs.user = desc.input_dfs().user();
-    job.desc.input_dfs.password = desc.input_dfs().password();
-    job.desc.output_dfs.host = desc.output_dfs().host();
-    job.desc.output_dfs.port = desc.output_dfs().port();
-    job.desc.output_dfs.user = desc.output_dfs().user();
-    job.desc.output_dfs.password = desc.output_dfs().password();
-    job.desc.input_format = (sdk::InputFormat)desc.input_format();
-    job.desc.output_format = (sdk::OutputFormat)desc.output_format();
-    job.desc.pipe_style = (sdk::PipeStyle)desc.pipe_style();
-    job.desc.map_allow_duplicates = desc.map_allow_duplicates();
-    job.desc.reduce_allow_duplicates = desc.reduce_allow_duplicates();
-    job.desc.map_retry = desc.map_retry();
-    job.desc.reduce_retry = desc.reduce_retry();
-    job.desc.split_size = desc.split_size();
-
-    job.jobid = joboverview.jobid();
-    job.state = (sdk::JobState)joboverview.state();
-
-    const TaskStatistics& map_stat = joboverview.map_stat();
-    job.map_stat.total = map_stat.total();
-    job.map_stat.pending = map_stat.pending();
-    job.map_stat.running = map_stat.running();
-    job.map_stat.failed = map_stat.failed();
-    job.map_stat.killed = map_stat.killed();
-    job.map_stat.completed = map_stat.completed();
-
-    const TaskStatistics& reduce_stat = joboverview.reduce_stat();
-    job.reduce_stat.total = reduce_stat.total();
-    job.reduce_stat.pending = reduce_stat.pending();
-    job.reduce_stat.running = reduce_stat.running();
-    job.reduce_stat.failed = reduce_stat.failed();
-    job.reduce_stat.killed = reduce_stat.killed();
-    job.reduce_stat.completed = reduce_stat.completed();
-
-    job.start_time = joboverview.start_time();
-    job.finish_time = joboverview.finish_time();
+    ConvertJobInstance(response.job(), job);
 
     ::google::protobuf::RepeatedPtrField<TaskOverview>::const_iterator it;
     for (it = response.tasks().begin(); it != response.tasks().end(); ++it) {
         sdk::TaskInstance task;
         const TaskInfo& info = it->info();
         task.job_id = job.jobid;
+        task.node = info.node();
         task.task_id = info.task_id();
         task.attempt_id = info.attempt_id();
         task.input_file = info.input().input_file();
         task.state = (sdk::TaskState)it->state();
-        task.type = (sdk::TaskType)info.task_type();
         task.minion_addr = it->minion_addr();
         task.progress = it->progress();
         task.start_time = it->start_time();
-        task.end_time = it->end_time();
+        task.finish_time = it->finish_time();
         tasks.push_back(task);
     }
     return true;
@@ -294,65 +252,74 @@ bool ShuttleImpl::ListJobs(std::vector<sdk::JobInstance>& jobs,
     ::google::protobuf::RepeatedPtrField<JobOverview>::const_iterator it;
     for (it = response.jobs().begin(); it != response.jobs().end(); ++it) {
         sdk::JobInstance job;
-        const JobDescriptor& desc = it->desc();
-        job.desc.name = desc.name();
-        job.desc.user = desc.user();
-        job.desc.priority = (sdk::JobPriority)desc.priority();
-        job.desc.map_capacity = desc.map_capacity();
-        job.desc.reduce_capacity = desc.reduce_capacity();
-        job.desc.millicores = desc.millicores();
-        job.desc.memory = desc.memory();
-        std::copy(desc.inputs().begin(), desc.inputs().end(),
-                  std::back_inserter(job.desc.inputs));
-        job.desc.output = desc.output();
-        std::copy(desc.files().begin(), desc.files().end(),
-                  std::back_inserter(job.desc.files));
-        job.desc.map_command = desc.map_command();
-        job.desc.reduce_command = desc.reduce_command();
-        job.desc.partition = (sdk::PartitionMethod)desc.partition();
-        job.desc.map_total = desc.map_total();
-        job.desc.reduce_total = desc.reduce_total();
-        job.desc.key_separator = desc.key_separator();
-        job.desc.key_fields_num = desc.key_fields_num();
-        job.desc.partition_fields_num = desc.partition_fields_num();
-        job.desc.input_dfs.host = desc.input_dfs().host();
-        job.desc.input_dfs.port = desc.input_dfs().port();
-        job.desc.input_dfs.user = desc.input_dfs().user();
-        job.desc.input_dfs.password = desc.input_dfs().password();
-        job.desc.output_dfs.host = desc.output_dfs().host();
-        job.desc.output_dfs.port = desc.output_dfs().port();
-        job.desc.output_dfs.user = desc.output_dfs().user();
-        job.desc.output_dfs.password = desc.output_dfs().password();
-        job.desc.input_format = (sdk::InputFormat)desc.input_format();
-        job.desc.output_format = (sdk::OutputFormat)desc.output_format();
-        job.desc.pipe_style = (sdk::PipeStyle)desc.pipe_style();
-        job.desc.map_allow_duplicates = desc.map_allow_duplicates();
-        job.desc.reduce_allow_duplicates = desc.reduce_allow_duplicates();
-        job.desc.map_retry = desc.map_retry();
-        job.desc.reduce_retry = desc.reduce_retry();
-        job.desc.split_size = desc.split_size();
-
-        job.jobid = it->jobid();
-        job.state = (sdk::JobState)it->state();
-
-        const TaskStatistics& map_stat = it->map_stat();
-        job.map_stat.total = map_stat.total();
-        job.map_stat.pending = map_stat.pending();
-        job.map_stat.running = map_stat.running();
-        job.map_stat.failed = map_stat.failed();
-        job.map_stat.killed = map_stat.killed();
-        job.map_stat.completed = map_stat.completed();
-
-        const TaskStatistics& reduce_stat = it->reduce_stat();
-        job.reduce_stat.total = reduce_stat.total();
-        job.reduce_stat.pending = reduce_stat.pending();
-        job.reduce_stat.running = reduce_stat.running();
-        job.reduce_stat.failed = reduce_stat.failed();
-        job.reduce_stat.killed = reduce_stat.killed();
-        job.reduce_stat.completed = reduce_stat.completed();
+        ConvertJobInstance(*it, job);
         jobs.push_back(job);
     }
     return true;
+}
+
+void ShuttleImpl::ConvertJobInstance(const JobOverview& joboverview,
+                                     sdk::JobInstance& job) {
+    const JobDescriptor& desc = joboverview.desc();
+    job.desc.name = desc.name();
+    job.desc.user = desc.user();
+    job.desc.priority = (sdk::JobPriority)desc.priority();
+    job.desc.files.resize(desc.files().size());
+    std::copy(desc.files().begin(), desc.files().end(), job.desc.files.begin());
+    job.desc.cache_archive = desc.cache_archive();
+    job.desc.pipe_style = (sdk::PipeStyle)desc.pipe_style();
+    job.desc.split_size = desc.split_size();
+    ::google::protobuf::RepeatedPtrField< ::baidu::shuttle::NodeConfig >::const_iterator it;
+    for (it = desc.nodes().begin(); it != desc.nodes().end(); ++it) {
+        job.desc.nodes.push_back(sdk::NodeConfig());
+        sdk::NodeConfig& cur = job.desc.nodes.back();
+        cur.node = it->node();
+        cur.type = (sdk::WorkMode)it->type();
+        cur.capacity = it->capacity();
+        cur.total = it->total();
+        cur.millicores = it->millicores();
+        cur.memory = it->memory();
+        cur.command = it->command();
+        ::google::protobuf::RepeatedPtrField<DfsInfo>::const_iterator jt;
+        for (jt = it->inputs().begin(); jt != it->inputs().end(); ++jt) {
+            sdk::DfsInfo info;
+            info.path = jt->path();
+            info.host = jt->host();
+            info.port = jt->port();
+            info.user = jt->user();
+            info.password = jt->password();
+            cur.inputs.push_back(info);
+        }
+        cur.input_format = (sdk::InputFormat)it->input_format();
+        cur.output.path = it->output().path();
+        cur.output.host = it->output().host();
+        cur.output.port = it->output().port();
+        cur.output.user = it->output().user();
+        cur.output.password = it->output().password();
+        cur.output_format = (sdk::OutputFormat)it->output_format();
+        cur.partition = (sdk::PartitionMethod)it->partition();
+        cur.key_separator = it->key_separator();
+        cur.key_fields_num = it->key_fields_num();
+        cur.partition_fields_num = it->partition_fields_num();
+        cur.allow_duplicates = it->allow_duplicates();
+        cur.retry = it->retry();
+    }
+
+    job.jobid = joboverview.jobid();
+    job.state = (sdk::JobState)joboverview.state();
+    ::google::protobuf::RepeatedPtrField<TaskStatistics>::const_iterator stat;
+    for (stat = joboverview.stats().begin(); stat != joboverview.stats().end(); ++stat) {
+        sdk::TaskStatistics cur;
+        cur.total = stat->total();
+        cur.pending = stat->pending();
+        cur.running = stat->running();
+        cur.failed = stat->failed();
+        cur.killed = stat->killed();
+        cur.completed = stat->completed();
+        job.stats.push_back(cur);
+    }
+    job.start_time = joboverview.start_time();
+    job.finish_time = joboverview.finish_time();
 }
 
 } //namespace shuttle

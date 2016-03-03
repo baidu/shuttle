@@ -45,6 +45,11 @@ enum PartitionMethod {
     kIntHash = 1
 };
 
+enum WorkMode {
+    kMap = 0,
+    kReduce = 1
+};
+
 enum InputFormat {
     kTextInput = 0,
     kBinaryInput = 1,
@@ -91,7 +96,7 @@ struct NodeConfig {
     InputFormat input_format;
     DfsInfo output;
     OutputFormat output_format;
-    Partition partition;
+    PartitionMethod partition;
     std::string key_separator;
     int32_t key_fields_num;
     int32_t partition_fields_num;
@@ -126,7 +131,7 @@ struct TaskInstance {
     std::string minion_addr;
     float progress;    
     time_t start_time;
-    time_t end_time;
+    time_t finish_time;
 };
 
 struct JobInstance {
@@ -147,10 +152,10 @@ public:
     virtual bool SubmitJob(const sdk::JobDescription& job_desc,
                            std::string& job_id) = 0;
     virtual bool UpdateJob(const std::string& job_id,
-                           const sdk::JobPriority& priority,
-                           const std::vector<UpdateItem>& new_capacities) = 0;
+                           const std::vector<sdk::UpdateItem>& new_capacities,
+                           const sdk::JobPriority& priority = sdk::kUndefined) = 0;
     virtual bool KillJob(const std::string& job_id) = 0;
-    virtual bool KillTask(const std::string& job_id, sdk::TaskType mode,
+    virtual bool KillTask(const std::string& job_id, int node,
                           int task_id, int attempt_id) = 0;
     virtual bool ShowJob(const std::string& job_id, 
                          sdk::JobInstance& job,
