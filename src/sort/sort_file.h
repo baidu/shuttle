@@ -94,7 +94,8 @@ public:
     Status Close();
     const std::string& GetErrorFile() {return err_file_;}
 private:
-    void AddIter(std::vector<SortFileReader::Iterator*>* iters,
+    SortFileReader::Iterator* AddIter(
+                 std::vector<SortFileReader::Iterator*>* iters,
                  SortFileReader* reader,
                  const std::string& start_key,
                  const std::string& end_key);

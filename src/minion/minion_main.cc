@@ -47,8 +47,8 @@ int main(int argc, char* argv[]) {
     while (!rpc_server.Start(endpoint)) {
         LOG(WARNING, "failed to start server on %s", endpoint.c_str());
         if (++retry_count > FLAGS_max_minions) {
-            LOG(FATAL, "cannot find free port");
-            exit(-1);
+            LOG(WARNING, "cannot find free port");
+            _exit(-1);
         }
         std::string real_port = boost::lexical_cast<std::string>(FLAGS_minion_port + retry_count);
         endpoint = "0.0.0.0:" + real_port;
@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
     minion->SetJobId(FLAGS_jobid);
     if (!minion->Run()) {
         LOG(WARNING, "fail to start minion.");
-        exit(-1);
+        _exit(-1);
     }
     signal(SIGINT, SignalIntHandler);
     signal(SIGTERM, SignalIntHandler);

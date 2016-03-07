@@ -97,7 +97,7 @@ void MinionImpl::WatchDogTask() {
         system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
         task_frozen_ = true;
     } else {
-        if (task_frozen_) {
+        if (task_frozen_ && minute_load < 1.5 * numCPU) {
             LOG(INFO, "machine seems healthy, so resume the task");
             system("killall -SIGCONT input_tool shuffle_tool 2>/dev/null");
             task_frozen_ = false;

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 set -o pipefail
-./ionice -c 2 -n 7 -p $$
+./ionice -c 3 -p $$
 
 CmdArgs=$*
 
@@ -132,7 +132,7 @@ CheckStatus() {
 	msg=$2
 	if [ $ret -ne 0 ]; then
 		echo $msg
-		sleep 60
+		sleep 180
 		exit $ret
 	fi
 }

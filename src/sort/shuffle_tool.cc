@@ -265,7 +265,7 @@ int MergeTuo() {
             if (lockers.size() > 2 && !g_fs->Exist(my_lock_flag.str())) {
                 LOG(WARNING, "two many workers on this tuo!: %d", tuo_now);
                 double rn = rand() / (RAND_MAX+0.0);
-                if (rn < 0.99) {
+                if (rn < 0.99 || lockers.size() > 15) {
                     continue;
                 }
             }
@@ -301,7 +301,7 @@ int main(int argc, char* argv[]) {
         LOG(FATAL, "invalid map task total");
     }
     if (FLAGS_tuo_size == 0) {
-        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 300);
+        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 100);
         int n_tuo = (int)ceil((float)FLAGS_total / FLAGS_tuo_size);
         if (n_tuo < 100) {
             FLAGS_tuo_size = std::max((int32_t)ceil(sqrt(FLAGS_tuo_size)), 10);
