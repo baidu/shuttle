@@ -80,7 +80,7 @@ void MinionImpl::WatchDogTask() {
     if (!netstat_.Is10gb()) {
        network_limit =  FLAGS_flow_limit_1gb;
     }
-    if (minute_load > 2.5 * numCPU) {
+    if (minute_load > 1.5 * numCPU) {
         LOG(WARNING, "load average: %f, cores: %d", minute_load, numCPU);
         LOG(WARNING, "machine may be overloaded, so froze the task");
         double rn = rand() / (RAND_MAX+0.0);
@@ -97,7 +97,7 @@ void MinionImpl::WatchDogTask() {
         system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
         task_frozen_ = true;
     } else {
-        if (task_frozen_ && minute_load < 1.5 * numCPU) {
+        if (task_frozen_ && minute_load < 0.8 * numCPU) {
             LOG(INFO, "machine seems healthy, so resume the task");
             system("killall -SIGCONT input_tool shuffle_tool 2>/dev/null");
             task_frozen_ = false;
