@@ -10,6 +10,8 @@ using baidu::common::WARNING;
 namespace baidu {
 namespace shuttle {
 
+const static int sParallelLevel = 6;
+
 MergeFileReader::~MergeFileReader() {
     std::vector<SortFileReader*>::iterator it;
     for (it = readers_.begin(); it != readers_.end(); it++) {
@@ -72,44 +74,58 @@ Status MergeFileReader::Close() {
     std::vector<SortFileReader*>::iterator it;
     Status status = kOk;
 	Status* st = new Status();
+	ThreadPool pool(sParallelLevel);
 	LOG(INFO, "wait #%d readers close", readers_.size());
     for (it = readers_.begin(); it != readers_.end(); it++) {
 		SortFileReader* reader = *it;
-		CloseReader(reader, st);
+		pool.AddTask(boost::bind(&MergeFileReader::CloseReader, this, reader, st));
     }
+	pool.Stop(true);
 	LOG(INFO, "wait readers close done");
 	status = *st;
 	delete st;
     return status;
 }
 
-SortFileReader::Iterator* MergeFileReader::AddIter(
-                              std::vector<SortFileReader::Iterator*>* iters,
+void MergeFileReader::AddIter(std::vector<SortFileReader::Iterator*>* iters,
                               SortFileReader* reader,
                               const std::string& start_key,
-                              const std::string& end_key) {
+                              const std::string& end_key,
+                              bool* has_error) {
+    {
+        MutexLock lock(&mu_);
+        if (*has_error) {
+            LOG(WARNING, "other file has error, no need to scan.");
+            return;
+        }
+    }
     SortFileReader::Iterator* it = reader->Scan(start_key, end_key);
     {
         MutexLock lock(&mu_);
         iters->push_back(it);
+        if (it->Error() != kOk) {
+            *has_error = true;
+            err_file_ = it->GetFileName();
+        }
     }
-    return it;
 }
 
 SortFileReader::Iterator* MergeFileReader::Scan(const std::string& start_key, const std::string& end_key) {
     std::vector<SortFileReader::Iterator*>* iters = new std::vector<SortFileReader::Iterator*>();
     std::vector<SortFileReader*>::iterator it;
+    ThreadPool pool(sParallelLevel);
+    bool* has_error   = new bool(false);
 	LOG(INFO, "wait for iterators init...");
     for (it = readers_.begin(); it != readers_.end(); it++) {
         SortFileReader * const& reader = *it;
-        SortFileReader::Iterator* reader_it = AddIter(iters, reader, start_key, end_key);
-        if (reader_it->Error() != kOk) {
-            LOG(WARNING, "fail to add reader iterator: %s",
-                reader_it->GetFileName().c_str());
-            break;
-        }
+        pool.AddTask(boost::bind(
+                    &MergeFileReader::AddIter, this, iters, reader, 
+                    start_key, end_key, has_error
+        ));
     }
+	pool.Stop(true);
     LOG(INFO, "all iterators done. #%d", iters->size());
+    delete has_error;
     MergeIterator* merge_it = new MergeIterator(*iters, this);
     delete iters;
     return merge_it;

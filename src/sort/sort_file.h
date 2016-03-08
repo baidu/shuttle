@@ -94,11 +94,11 @@ public:
     Status Close();
     const std::string& GetErrorFile() {return err_file_;}
 private:
-    SortFileReader::Iterator* AddIter(
-                 std::vector<SortFileReader::Iterator*>* iters,
+    void AddIter(std::vector<SortFileReader::Iterator*>* iters,
                  SortFileReader* reader,
                  const std::string& start_key,
-                 const std::string& end_key);
+                 const std::string& end_key,
+                 bool* has_error);
     void AddReader(const std::string& file_name,
                    FileSystem::Param param,
                    FileType type,

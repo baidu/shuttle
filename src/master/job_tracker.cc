@@ -770,8 +770,9 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
                 break;
             }
             int completed = reduce_manager_->Done();
+            int not_done = job_descriptor_.reduce_total() - completed;
             reduce_dismiss_minion_num_ = job_descriptor_.reduce_capacity() - (int)
-                ::ceil((job_descriptor_.reduce_total() - completed) * FLAGS_left_percent / 100.0);
+                ::ceil(std::max(not_done, 5) * FLAGS_left_percent / 100.0);
             AccumulateCounters(counters);
 
             LOG(INFO, "complete a reduce task(%d/%d): %s",
