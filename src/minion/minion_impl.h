@@ -53,6 +53,7 @@ private:
     ThreadPool watch_dog_;
     NetStatistics netstat_;
     bool task_frozen_;
+    bool over_loaded_;
 };
 
 }

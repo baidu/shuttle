@@ -78,6 +78,7 @@ void SortFileReaderImpl::IteratorImpl::Init() {
             if (cur_offset_ >= cur_block_.items_size()) {
                 status = reader_->ReadNextRecord(cur_block_);
                 cur_offset_ = 0;
+                //printf("read next block\n");
                 //read the next block
             } else {
                 break;

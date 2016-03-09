@@ -10,7 +10,7 @@ using baidu::common::WARNING;
 namespace baidu {
 namespace shuttle {
 
-const static int sParallelLevel = 6;
+const static int sParallelLevel = 3;
 
 MergeFileReader::~MergeFileReader() {
     std::vector<SortFileReader*>::iterator it;

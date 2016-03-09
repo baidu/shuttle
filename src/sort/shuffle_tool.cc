@@ -301,7 +301,7 @@ int main(int argc, char* argv[]) {
         LOG(FATAL, "invalid map task total");
     }
     if (FLAGS_tuo_size == 0) {
-        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 100);
+        FLAGS_tuo_size = std::min((int32_t)ceil(sqrt(FLAGS_total)), 300);
         int n_tuo = (int)ceil((float)FLAGS_total / FLAGS_tuo_size);
         if (n_tuo < 100) {
             FLAGS_tuo_size = std::max((int32_t)ceil(sqrt(FLAGS_tuo_size)), 10);
