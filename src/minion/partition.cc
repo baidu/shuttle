@@ -63,7 +63,6 @@ int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) co
     }
     key->assign(head, p1 - 1);
     std::string partition_key(head, p2 - 1);
-    //printf("zzzzzzzzzzzzz: %s\n", partition_key.c_str());
     return HashCode(partition_key) % reduce_total_; 
 }
 

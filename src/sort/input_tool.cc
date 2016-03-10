@@ -4,6 +4,7 @@
 #include <iostream>
 #include <limits>
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <gflags/gflags.h>
 #include "input_reader.h"
@@ -30,6 +31,13 @@ DEFINE_bool(is_nline, false, "whether NlineInputformat");
 DEFINE_bool(decompress_input, false, "whether decompreess input file");
 
 void FillParam(FileSystem::Param& param) {
+    if (boost::ends_with(FLAGS_file, ".gz")) {
+        FLAGS_decompress_input = true;
+        param["decompress_format"] = "gzip";
+    } else if (boost::ends_with(FLAGS_file, ".lzma")) {
+        FLAGS_decompress_input = true;
+        param["decompress_format"] = "lzma";
+    }
     if (!FLAGS_dfs_user.empty()) {
         param["user"] = FLAGS_dfs_user;
     }

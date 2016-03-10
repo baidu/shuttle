@@ -103,7 +103,7 @@ void MergeFileReader::AddIter(std::vector<SortFileReader::Iterator*>* iters,
     {
         MutexLock lock(&mu_);
         iters->push_back(it);
-        if (it->Error() != kOk) {
+        if (it->Error() != kOk && it->Error() != kNoMore) {
             *has_error = true;
             err_file_ = it->GetFileName();
         }

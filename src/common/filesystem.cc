@@ -154,12 +154,35 @@ bool InfHdfs::Open(const std::string& path, OpenMode mode) {
     if (mode == kReadFile) {
         if (param_.find("decompress") != param_.end()
             && param_["decompress"] == "true") {
-            fd_ = hdfsOpenFileWithDeCompress(fs_, path.c_str(), O_RDONLY, 0, 0,0, gzip);
+            if (param_.find("decompress_format") == param_.end()) {
+                fd_ = hdfsOpenFileWithDeCompress(fs_, path.c_str(), O_RDONLY, 0, 0,0, gzip);
+            } else {
+                std::string fmt = param_["decompress_format"];
+                CompressType compress_type;
+                if (fmt == "gzip") {
+                    compress_type = gzip;
+                } else if (fmt == "bz") {
+                    compress_type = bzip;
+                } else if (fmt == "lzma") {
+                    compress_type = lzma;
+                } else if (fmt == "lzo") {
+                    compress_type = lzo;
+                } else if (fmt == "qz") {
+                    compress_type = quicklz;
+                } else {
+                    LOG(WARNING, "unkown format %s", fmt.c_str());
+                    compress_type = gzip;
+                }
+                fd_ = hdfsOpenFileWithDeCompress(fs_, path.c_str(), O_RDONLY, 0, 0,0, compress_type);
+            }
         } else {
             fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
         }
     } else if (mode == kWriteFile) {
         short replica = 3;
+        if (param_.find("replica") != param_.end()) {
+            replica = atoi(param_["replica"].c_str());
+        }
         fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
     } else {
         LOG(WARNING, "unknown open mode.");
@@ -179,29 +202,7 @@ bool InfHdfs::Open(const std::string& path, Param& param, OpenMode mode) {
     if (!fs_) {
         return false;
     }
-    if (mode == kReadFile) {
-        if (param_.find("decompress") != param_.end()
-            && param_["decompress"] == "true") {
-            fd_ = hdfsOpenFileWithDeCompress(fs_, path.c_str(), O_RDONLY, 0, 0,0, gzip);
-        } else {
-            fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
-        }
-    } else if (mode == kWriteFile) {
-        short replica = 3;
-        if (param.find("replica") != param.end()) {
-            replica = atoi(param["replica"].c_str());
-        }
-        //printf("replica: %d, %s\n", replica, path.c_str());
-        fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
-    } else {
-        LOG(WARNING, "unknown open mode.");
-        return false;
-    }
-    if (!fd_) {
-        LOG(WARNING, "open %s fail", path.c_str());
-        return false;
-    }
-    return true;
+    return Open(path, mode);
 }
 
 bool InfHdfs::Close() {
