@@ -86,10 +86,6 @@ void MinionImpl::WatchDogTask() {
         LOG(WARNING, "machine may be overloaded, so froze the task");
         task_frozen_ = true;
         over_loaded_ =  true;
-        double rn = rand() / (RAND_MAX+0.0);
-        if (rn < 0.005) {
-            _exit(1);
-        }
         system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
     } else if (netstat_.GetSendSpeed() > network_limit ||
                netstat_.GetRecvSpeed() > network_limit) {
