@@ -22,7 +22,7 @@ JailRun() {
 	if [ "${minion_combiner_cmd}" == "" ]; then
 		${user_cmd}
 	else
-		${user_cmd} | ${minion_combiner_cmd}
+		${user_cmd} | eval ${minion_combiner_cmd}
 	fi
 	return $?
 }
