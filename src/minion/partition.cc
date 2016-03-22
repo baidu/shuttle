@@ -34,6 +34,25 @@ KeyFieldBasedPartitioner::KeyFieldBasedPartitioner(const TaskInfo& task)
     }
 }
 
+KeyFieldBasedPartitioner::KeyFieldBasedPartitioner(int num_key_fields,
+                                                   int num_partition_fields,
+                                                   int reduce_total,
+                                                   const std::string& separator) {
+    num_key_fields_ = num_key_fields;
+    num_partition_fields_ = num_partition_fields;
+    reduce_total_ = reduce_total;
+    separator_ = separator;
+    if (num_key_fields_ == 0) {
+        num_key_fields_ = 1;
+    }
+    if (num_partition_fields_ == 0) {
+        num_partition_fields_ = 1;
+    }
+    if (separator_.empty()) {
+        separator_ = "\t";
+    }
+}
+
 int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) const {
     assert(key);
     const char* head = line.data();
@@ -74,6 +93,15 @@ IntHashPartitioner::IntHashPartitioner(const TaskInfo& task)
   : reduce_total_(0) {
     reduce_total_ = task.job().reduce_total();
     separator_ = task.job().key_separator();
+    if (separator_.empty()) {
+        separator_ = "\t";
+    }
+}
+
+IntHashPartitioner::IntHashPartitioner(int reduce_total,
+                                       const std::string& separator) {
+    reduce_total_ = reduce_total;
+    separator_ = separator;
     if (separator_.empty()) {
         separator_ = "\t";
     }

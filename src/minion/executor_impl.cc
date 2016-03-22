@@ -94,6 +94,27 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     ::setenv("minion_output_dfs_port", task.job().output_dfs().port().c_str(), 1);
     ::setenv("minion_output_dfs_user", task.job().output_dfs().user().c_str(), 1);
     ::setenv("minion_output_dfs_password", task.job().output_dfs().password().c_str(), 1);
+
+    if (!task.job().combine_command().empty()) {
+        std::string combiner_cmd = "./combine_tool -cmd '" 
+                                   + task.job().combine_command() + "' ";
+        if (task.job().partition() == kIntHashPartitioner) {
+            combiner_cmd += "-is_inthash=true ";
+        }
+        if (task.job().key_fields_num() != 1) {
+            combiner_cmd += ("-num_key_fields=" + boost::lexical_cast<std::string>(task.job().key_fields_num()) + " ");
+        }
+        if (task.job().pipe_style() == kStreaming) {
+            combiner_cmd += "-pipe streaming ";
+        } else if (task.job().pipe_style() == kBiStreaming) {
+            combiner_cmd += "-pipe bistreaming ";
+        }
+        if (!task.job().key_separator().empty()) {
+            combiner_cmd += "-separator '" + task.job().key_separator() +"' ";
+        }
+        ::setenv("minion_combiner_cmd", combiner_cmd.c_str(), 1);
+        LOG(INFO, "combiner_cmd: %s", combiner_cmd.c_str());
+    }
     if (task.job().input_format() == kTextInput) {
         ::setenv("minion_input_format", "text", 1);
         if (task.job().has_decompress_input() 

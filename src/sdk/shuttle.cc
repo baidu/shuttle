@@ -79,6 +79,7 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
               ::google::protobuf::RepeatedFieldBackInserter(job->mutable_files()));
     job->set_map_command(job_desc.map_command);
     job->set_reduce_command(job_desc.reduce_command);
+    job->set_combine_command(job_desc.combine_command);
     job->set_partition((Partition)job_desc.partition);
     job->set_map_total(job_desc.map_total);
     job->set_reduce_total(job_desc.reduce_total);
@@ -227,6 +228,7 @@ bool ShuttleImpl::ShowJob(const std::string& job_id,
               std::back_inserter(job.desc.files));
     job.desc.map_command = desc.map_command();
     job.desc.reduce_command = desc.reduce_command();
+    job.desc.combine_command = desc.combine_command();
     job.desc.partition = (sdk::PartitionMethod)desc.partition();
     job.desc.map_total = desc.map_total();
     job.desc.reduce_total = desc.reduce_total();
@@ -330,6 +332,7 @@ bool ShuttleImpl::ListJobs(std::vector<sdk::JobInstance>& jobs,
                   std::back_inserter(job.desc.files));
         job.desc.map_command = desc.map_command();
         job.desc.reduce_command = desc.reduce_command();
+        job.desc.combine_command = desc.combine_command();
         job.desc.partition = (sdk::PartitionMethod)desc.partition();
         job.desc.map_total = desc.map_total();
         job.desc.reduce_total = desc.reduce_total();

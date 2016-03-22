@@ -19,7 +19,11 @@ JailRun() {
 	set -x
 	ulimit -m ${mapred_memory_limit}
 	ulimit -n 10240
-	${user_cmd}
+	if [ "${minion_combiner_cmd}" == "" ]; then
+		${user_cmd}
+	else
+		${user_cmd} | ${minion_combiner_cmd}
+	fi
 	return $?
 }
 

@@ -71,6 +71,7 @@ bool check_counters = false;
 int ignore_map_failures = 0;
 int ignore_reduce_failures = 0;
 bool decompress_input = false;
+std::string combine = "";
 }
 
 const std::string error_message = "shuttle client - A fast computing framework base on Galaxy\n"
@@ -89,8 +90,9 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t-output <path>\t\t\tSpecify the output path, which must be empty\n"
         "\t-file <file>[,...]\t\tSpecify the files needed by your program\n"
         "\t-cacheArchive <file>\\#<dir>\tSpecify the additional package and its relative path\n"
-        "\t-mapper <file>\t\t\tSpecify the map program\n"
-        "\t-reducer <file>\t\t\tSpecify the reduce program\n"
+        "\t-mapper <command>\t\t\tSpecify the map program\n"
+        "\t-reducer <command>\t\t\tSpecify the reduce program\n"
+        "\t-combiner <command>\t\t\tSpecify the combiner program\n"
         "\t-partitioner <partitioner>\tSpecify the partitioner used when shuffling\n"
         "\t-inputformat <input format>\tSpecify the input format\n"
         "\t-outputformat <output format>\tSpecify the output format\n"
@@ -271,6 +273,11 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
                 config::reduce += ",";
             }
             config::reduce += opt[++i];
+        } else if (!strcmp(ctx, "combiner")){
+            if (!config::combine.empty()) {
+                config::combine += ",";
+            }
+            config::combine += opt[++i];
         } else if (!strcmp(ctx, "partitioner")) {
             config::partitioner = ParsePartitioner(opt[++i]);
         } else if (!strcmp(ctx, "inputformat")) {
@@ -778,6 +785,7 @@ static int SubmitJob() {
     job_desc.output = config::output;
     job_desc.map_command = config::map;
     job_desc.reduce_command = config::reduce;
+    job_desc.combine_command = config::combine;
     job_desc.partition = config::partitioner;
     job_desc.map_total = config::map_tasks;
     job_desc.reduce_total = config::reduce_tasks;

@@ -253,7 +253,7 @@ int MergeTuo() {
                 LOG(INFO, "lucky, total #%d/%d tuo ready", ready_tuo_set.size(), n_tuo);
                 continue;
             }
-            if (FLAGS_reduce_no > n_tuo) {
+            if (FLAGS_reduce_no > n_tuo * 2) {
                 continue;
             }
             std::stringstream ss_lock;

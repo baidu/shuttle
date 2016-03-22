@@ -118,6 +118,7 @@ struct JobDescription {
     int ignore_map_failures;
     int ignore_reduce_failures;
     bool decompress_input;
+    std::string combine_command;
 };
 
 struct TaskInstance {
