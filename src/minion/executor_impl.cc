@@ -95,7 +95,15 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     ::setenv("minion_output_dfs_user", task.job().output_dfs().user().c_str(), 1);
     ::setenv("minion_output_dfs_password", task.job().output_dfs().password().c_str(), 1);
 
-    if (!task.job().combine_command().empty()) {
+    bool is_map = false;
+    char* c_is_map = getenv("mapred_task_is_map");
+    if (c_is_map != NULL) {
+        std::string s_is_map = c_is_map;
+        if (s_is_map == "true") {
+            is_map = true;
+        }
+    }
+    if (!task.job().combine_command().empty() && is_map) {
         std::string combiner_cmd = "./combine_tool -cmd '" 
                                    + task.job().combine_command() + "' ";
         if (task.job().partition() == kIntHashPartitioner) {
