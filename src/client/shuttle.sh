@@ -31,10 +31,12 @@ if [[ $1 == *streaming ]]; then
     pack_dirname=$packname-`date +%s`
     mkdir $pack_dirname
     packname=${pack_dirname}".tar.gz"
-    cp -rf ${files[@]} ${pack_dirname} 
-    if [ "$?" -ne "0" ]; then
-        echo 'file options contains inexist file'
-        exit -1
+    if [ ${#files[*]} -gt 0 ]; then
+        cp -rf ${files[@]} ${pack_dirname} 
+        if [ $? -ne 0 ]; then
+            echo 'file options contains inexist file'
+            exit -1
+        fi
     fi
     tar -czvf "$packname" -C $pack_dirname . >& /dev/null
 
