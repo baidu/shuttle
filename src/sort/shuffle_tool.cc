@@ -86,11 +86,15 @@ bool MergeManyFilesToOne(const std::vector<std::string>& file_names,
     }
 
     SortFileReader::Iterator* scan_it = reader.Scan("", "");
+    boost::scoped_ptr<SortFileReader::Iterator> scan_it_guard(scan_it);
+
     if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
         LOG(WARNING, "fail to scan: %s", reader.GetErrorFile().c_str());
         return false;
     }
     SortFileWriter* writer = SortFileWriter::Create(kHdfsFile, &status);
+    boost::scoped_ptr<SortFileWriter> writer_guard(writer);
+
     if (status != kOk) {
         LOG(WARNING, "fail to create writer");
         return false;
@@ -115,23 +119,26 @@ bool MergeManyFilesToOne(const std::vector<std::string>& file_names,
                 counter, output_file.c_str());
         }
         scan_it->Next();
+        if (scan_it->Error() !=kOk && scan_it->Error() != kNoMore) {
+            break;
+        }
     }
-    if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
-        LOG(WARNING, "fail to scan: %s", reader.GetErrorFile().c_str());
-        return false;
-    }
+    
     status = writer->Close();
     if (status != kOk) {
         LOG(WARNING, "fail to close writer: %s", output_file.c_str());
+        reader.Close();
         return false;
     }
-    delete scan_it;
     status = reader.Close();
     if (status != kOk) {
         LOG(WARNING, "fail to close reader: %s", reader.GetErrorFile().c_str());
         return false;
     }
-    delete writer;
+    if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
+        LOG(WARNING, "fail to scan: %s", reader.GetErrorFile().c_str());
+        return false;
+    }
     LOG(INFO, "totally written %lld records to %s",
         counter, output_file.c_str());
     return true;

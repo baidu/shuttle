@@ -24,3 +24,4 @@ DEFINE_bool(recovery, false, "whether fallen into recovery process at the beginn
 DEFINE_int32(master_rpc_thread_num, 12, "rpc thread num of master");
 DEFINE_int32(max_counters_per_job, 10000, "max counters per job");
 DEFINE_bool(enable_cpu_soft_limit, false, "enable cpu soft limit or not");
+DEFINE_string(galaxy_node_label, "", "set deploying node label on Galaxy");

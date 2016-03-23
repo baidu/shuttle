@@ -12,6 +12,7 @@ DECLARE_string(nexus_server_list);
 DECLARE_string(nexus_root_path);
 DECLARE_string(master_path);
 DECLARE_bool(enable_cpu_soft_limit);
+DECLARE_string(galaxy_node_label);
 
 namespace baidu {
 namespace shuttle {
@@ -40,6 +41,9 @@ Status Gru::Start() {
     galaxy_job.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
     galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
     galaxy_job.pod.version = "1.0.0";
+    if (!FLAGS_galaxy_node_label.empty()) {
+        galaxy_job.label = FLAGS_galaxy_node_label;
+    }
     if (mode_str_ == "map") {
         galaxy_job.pod.requirement.millicores = job_->millicores() + additional_map_millicores;
     } else {
