@@ -17,6 +17,7 @@ namespace baidu {
 namespace shuttle {
 
 const static size_t sMaxInMemTable = 512 << 20;
+const static size_t sMaxRecordSize = 2 << 20;
 
 struct EmitItem {
     int reduce_no;
@@ -27,7 +28,7 @@ struct EmitItem {
         key = l_key;
         record = l_record;
     }
-    size_t Size() {
+    inline size_t Size() {
         return sizeof(int) + key.capacity() + record.capacity() + sizeof(EmitItem*);
     }
 };
@@ -143,6 +144,11 @@ void Emitter::Reset() {
 
 Status Emitter::Emit(int reduce_no, const std::string& key, const std::string& record) {
     EmitItem* item = new EmitItem(reduce_no, key, record);
+    if (item->Size() > sMaxRecordSize) {
+        LOG(WARNING, "ignore too large records");
+        delete item;
+        return kOk;
+    }
     mem_table_.push_back(item);
     cur_byte_size_ += item->Size();
     
