@@ -54,6 +54,9 @@ Status MergeFileReader::Open(const std::vector<std::string>& files,
     for (it = files.begin(); it != files.end(); it++) {
         const std::string& file_name = *it;
         AddReader(file_name, param, file_type, st);
+        if (*st != kOk) {
+            break;
+        }
     }
     LOG(INFO, "wait file open done");
     status = *st; 
