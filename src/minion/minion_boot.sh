@@ -99,6 +99,23 @@ DownloadUserTar() {
                     return 4
                 fi
             fi
+
+            if [ ! -d $CACHE_BASE/$cache_key/$cache_archive_dir ]; then
+                tmp_dump_dir="$CACHE_BASE/${cache_key}_`date +%s`_$$"
+                mkdir -p $tmp_dump_dir/$cache_archive_dir
+                ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
+                if [ $? -ne 0 ]; then
+                    return 3
+                fi
+                (cd $tmp_dump_dir/$cache_archive_dir && (tar -xzf *.tar.gz || tar -xf *.tar))
+                if [ $? -eq 0 ]; then
+                    mv $tmp_dump_dir/$cache_archive_dir "$CACHE_BASE/${cache_key}"
+                else
+                    echo "extract failed"
+                    return 5
+                fi
+            fi
+
             for sub_dir in $( ls "${CACHE_BASE}/${cache_key}/" )
             do
                 ln -s "${CACHE_BASE}/${cache_key}/$sub_dir" .
