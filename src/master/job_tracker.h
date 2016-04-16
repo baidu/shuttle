@@ -108,7 +108,7 @@ public:
         }
         return kOk;
     }
-    void Load(const std::string& jobid, const JobState state,
+    bool Load(const std::string& jobid, const JobState state,
               const std::vector<AllocateItem>& data,
               const std::vector<ResourceItem>& resource,
               int32_t start_time,

@@ -495,11 +495,13 @@ void MasterImpl::Reload() {
     while (GetJobInfoFromNexus(jobid, job, state, history, 
                                resources, start_time, finish_time)) {
         JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
-        jobtracker->Load(jobid, state, history, resources, start_time, finish_time);
-        if (jobtracker->GetState() == kRunning) {
-            job_trackers_[jobid] = jobtracker;
-        } else {
-            dead_trackers_[jobid] = jobtracker;
+        bool load_succ = jobtracker->Load(jobid, state, history, resources, start_time, finish_time);
+        if (load_succ) {
+            if (jobtracker->GetState() == kRunning) {
+                job_trackers_[jobid] = jobtracker;
+            } else {
+                dead_trackers_[jobid] = jobtracker;
+            }
         }
         history.clear();
         resources.clear();

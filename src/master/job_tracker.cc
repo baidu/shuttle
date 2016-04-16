@@ -925,7 +925,7 @@ void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<Id
     }
 }
 
-void JobTracker::Load(const std::string& jobid, const JobState state,
+bool JobTracker::Load(const std::string& jobid, const JobState state,
                       const std::vector<AllocateItem>& data,
                       const std::vector<ResourceItem>& resource,
                       int32_t start_time,
@@ -945,7 +945,10 @@ void JobTracker::Load(const std::string& jobid, const JobState state,
 
         std::vector<IdItem> id_data;
         id_data.resize(job_descriptor_.map_total());
-        assert(resource.size() == id_data.size());
+        if (resource.size() != id_data.size()) {
+            LOG(WARNING, "resource reload fail, %d, %d",resource.size(), id_data.size());
+            return false;
+        }
         Replay(data, id_data, true);
 
         std::vector<ResourceItem> res_data;
@@ -996,6 +999,7 @@ void JobTracker::Load(const std::string& jobid, const JobState state,
         default: break;
         }
     }
+    return true;
 }
 
 const std::vector<AllocateItem> JobTracker::HistoryForDump() {
