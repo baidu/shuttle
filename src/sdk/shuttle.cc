@@ -113,6 +113,7 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
         //can not split file when input is compressed
         job->set_split_size(std::numeric_limits<int64_t>::max());
     }
+    job->set_compress_output(job_desc.compress_output);
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, rpc_timeout_, 1);
     if (!ok) {

@@ -72,6 +72,7 @@ int ignore_map_failures = 0;
 int ignore_reduce_failures = 0;
 bool decompress_input = false;
 std::string combine = "";
+bool compress_output = false;
 }
 
 const std::string error_message = "shuttle client - A fast computing framework base on Galaxy\n"
@@ -114,6 +115,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.ignore.map.failures \t\tSpecify the maximum number of failed-map ignored\n"
         "\t  mapred.ignore.reduce.failures\t\tSpecify the maximum number of failed-reduce ignored\n"
         "\t  mapred.decompress.input \t\t Allow decompress input file\n"
+        "\t  mapred.compress.output \t\t Allow compress output file\n"
         "\t  mapred.map.max.attempts\t\tSpecify the maximum number of retries per each map task\n"
         "\t  mapred.job.check.counters\t\tEnable checking job counters\n"
         "\t  mapred.reduce.max.attempts\t\tSpecify the maximum number of retries per each reduce tasks\n"
@@ -463,6 +465,9 @@ static void ParseJobConfig() {
         } else if(boost::starts_with(*it, "mapred.decompress.input=")) {
             config::decompress_input = 
                ParseBooleanValue(it->substr(strlen("mapred.decompress.input=")));
+        } else if(boost::starts_with(*it, "mapred.compress.output=")) {
+            config::compress_output = 
+               ParseBooleanValue(it->substr(strlen("mapred.compress.output=")));
         }
     }
 }
@@ -812,6 +817,7 @@ static int SubmitJob() {
     job_desc.ignore_map_failures = config::ignore_map_failures;
     job_desc.ignore_reduce_failures = config::ignore_reduce_failures;
     job_desc.decompress_input = config::decompress_input;
+    job_desc.compress_output = config::compress_output;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);

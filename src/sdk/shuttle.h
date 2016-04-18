@@ -119,6 +119,7 @@ struct JobDescription {
     int ignore_reduce_failures;
     bool decompress_input;
     std::string combine_command;
+    bool compress_output;
 };
 
 struct TaskInstance {

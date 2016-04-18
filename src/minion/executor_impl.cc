@@ -137,6 +137,10 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     }
     if (task.job().output_format() == kTextOutput) {
         ::setenv("minion_output_format", "text", 1);
+        if (task.job().has_compress_output()
+            && task.job().compress_output()) {
+            ::setenv("minion_compress_output", "true", 1);
+        }
     } else if (task.job().output_format() == kBinaryOutput) {
         ::setenv("minion_output_format", "binary", 1);
     }
@@ -206,8 +210,14 @@ bool Executor::MoveTempToOutput(const TaskInfo& task, FileSystem* fs, bool is_ma
         old_name = GetReduceWorkFilename(task);
     }
     char new_name[4096];
-    snprintf(new_name, sizeof(new_name), "%s/part-%05d", 
-             task.job().output().c_str(), task.task_id());
+    if (task.job().has_compress_output() && task.job().compress_output()) {
+        snprintf(new_name, sizeof(new_name), "%s/part-%05d.gz", 
+                 task.job().output().c_str(), task.task_id());
+    } else {
+        snprintf(new_name, sizeof(new_name), "%s/part-%05d", 
+                 task.job().output().c_str(), task.task_id());
+    }
+    
     LOG(INFO, "rename %s -> %s", old_name.c_str(), new_name);
     if (fs->Rename(old_name, new_name)) {
         MoveByPassData(task, fs, is_map);
@@ -571,8 +581,14 @@ bool Executor::MoveMultipleTempToOutput(const TaskInfo& task, FileSystem* fs, bo
             continue;
         }
         char new_name[4096];
-        snprintf(new_name, sizeof(new_name), "%s/part-%05d-%c", 
-                 task.job().output().c_str(), task.task_id(), suffix);
+        if (task.job().has_compress_output() && task.job().compress_output()) {
+            snprintf(new_name, sizeof(new_name), "%s/part-%05d-%c.gz", 
+                     task.job().output().c_str(), task.task_id(), suffix);
+        } else {
+            snprintf(new_name, sizeof(new_name), "%s/part-%05d-%c", 
+                     task.job().output().c_str(), task.task_id(), suffix);    
+        }
+        
         LOG(INFO, "rename %s -> %s", real_old_name.c_str(), new_name);
         if (fs->Rename(real_old_name, new_name)) {
             continue;
