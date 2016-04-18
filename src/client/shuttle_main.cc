@@ -115,7 +115,7 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.ignore.map.failures \t\tSpecify the maximum number of failed-map ignored\n"
         "\t  mapred.ignore.reduce.failures\t\tSpecify the maximum number of failed-reduce ignored\n"
         "\t  mapred.decompress.input \t\t Allow decompress input file\n"
-        "\t  mapred.compress.output \t\t Allow compress output file\n"
+        "\t  mapred.output.compress \t\t Allow compress output file\n"
         "\t  mapred.map.max.attempts\t\tSpecify the maximum number of retries per each map task\n"
         "\t  mapred.job.check.counters\t\tEnable checking job counters\n"
         "\t  mapred.reduce.max.attempts\t\tSpecify the maximum number of retries per each reduce tasks\n"
@@ -465,9 +465,9 @@ static void ParseJobConfig() {
         } else if(boost::starts_with(*it, "mapred.decompress.input=")) {
             config::decompress_input = 
                ParseBooleanValue(it->substr(strlen("mapred.decompress.input=")));
-        } else if(boost::starts_with(*it, "mapred.compress.output=")) {
+        } else if(boost::starts_with(*it, "mapred.output.compress=")) {
             config::compress_output = 
-               ParseBooleanValue(it->substr(strlen("mapred.compress.output=")));
+               ParseBooleanValue(it->substr(strlen("mapred.output.compress=")));
         }
     }
 }
