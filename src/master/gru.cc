@@ -63,6 +63,12 @@ Status Gru::Start() {
         }
     }
     std::stringstream ss;
+    if (!job_->input_dfs().user().empty()) {
+        ss << "hadoop_job_ugi=" << job_->input_dfs().user()
+           << "," << job_->input_dfs().password()
+           << " fs_default_name=hdfs://" << job_->input_dfs().host()
+           << ":" << job_->input_dfs().port() << " "; 
+    }
     for (size_t i = 0; i < cache_archive_list.size(); i++) {
         ss << "cache_archive_" << i << "=" << cache_archive_list[i] << " ";
     }

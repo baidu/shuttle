@@ -83,11 +83,19 @@ DownloadUserTar() {
             if [ "$cache_archive_dir" == "" ]; then
                 return 2
             fi
-            cache_key=`${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -ls $cache_archive_addr | tail -1 | md5sum | awk '{print \$1}'`
+            if [ "${hadoop_job_ugi}" == "" ]; then
+                cache_key=`${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -ls $cache_archive_addr | tail -1 | md5sum | awk '{print \$1}'`
+            else
+                cache_key=`${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -Dhadoop.job.ugi=${hadoop_job_ugi} -Dfs.default.name=${fs_default_name} -ls $cache_archive_addr | tail -1 | md5sum | awk '{print \$1}'`
+            fi
             if [ ! -d $CACHE_BASE/$cache_key ]; then
                 tmp_dump_dir="$CACHE_BASE/${cache_key}_`date +%s`_$$"
                 mkdir -p $tmp_dump_dir/$cache_archive_dir
-                ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
+                if [ "${hadoop_job_ugi}" == "" ]; then
+                    ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
+                else
+                    ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -Dhadoop.job.ugi=${hadoop_job_ugi} -Dfs.default.name=${fs_default_name} -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
+                fi
                 if [ $? -ne 0 ]; then
                     return 3
                 fi
@@ -103,7 +111,11 @@ DownloadUserTar() {
             if [ ! -d $CACHE_BASE/$cache_key/$cache_archive_dir ]; then
                 tmp_dump_dir="$CACHE_BASE/${cache_key}_`date +%s`_$$"
                 mkdir -p $tmp_dump_dir/$cache_archive_dir
-                ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
+                if [ "${hadoop_job_ugi}" == "" ]; then
+                    ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
+                else
+                    ${HADOOP_CLIENT_HOME}/hadoop/bin/hadoop fs -Dhadoop.job.ugi=${hadoop_job_ugi} -Dfs.default.name=${fs_default_name} -get $cache_archive_addr $tmp_dump_dir/$cache_archive_dir
+                fi
                 if [ $? -ne 0 ]; then
                     return 3
                 fi
