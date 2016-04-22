@@ -48,7 +48,8 @@ Executor* Executor::GetExecutor(WorkMode mode) {
     return executor;
 }
 
-void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
+void Executor::SetEnv(const std::string& jobid, const TaskInfo& task,
+                      WorkMode mode) {
     {
         MutexLock locker(&mu_);
         stop_task_ids_.clear();
@@ -138,7 +139,8 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task) {
     if (task.job().output_format() == kTextOutput) {
         ::setenv("minion_output_format", "text", 1);
         if (task.job().has_compress_output()
-            && task.job().compress_output()) {
+            && task.job().compress_output()
+            && (mode == kReduce || mode == kMapOnly)) {
             ::setenv("minion_compress_output", "true", 1);
         }
     } else if (task.job().output_format() == kBinaryOutput) {

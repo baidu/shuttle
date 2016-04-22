@@ -29,7 +29,7 @@ class Executor {
 public:
     virtual ~Executor();
     static Executor* GetExecutor(WorkMode mode);
-    void SetEnv(const std::string& jobid, const TaskInfo& task);
+    void SetEnv(const std::string& jobid, const TaskInfo& task, WorkMode mode);
     virtual TaskState Exec(const TaskInfo& task) = 0;
     void Stop(int32_t task_id);
     std::string GetErrorMsg(const TaskInfo& task, bool is_map);

@@ -204,7 +204,7 @@ void MinionImpl::Loop() {
         }
         const TaskInfo& task = response.task();
         SaveBreakpoint(task);
-        executor_->SetEnv(jobid_, task);
+        executor_->SetEnv(jobid_, task, work_mode_);
         {
             MutexLock locker(&mu_);
             cur_task_id_ = task.task_id();
