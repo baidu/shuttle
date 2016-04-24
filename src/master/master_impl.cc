@@ -22,6 +22,7 @@ DECLARE_string(jobdata_header);
 DECLARE_int32(gc_interval);
 DECLARE_int32(backup_interval);
 DECLARE_bool(recovery);
+DECLARE_bool(ignore_ins_error);
 
 namespace baidu {
 namespace shuttle {
@@ -365,6 +366,9 @@ void MasterImpl::OnMasterSessionTimeout(void* ctx) {
 }
 
 void MasterImpl::OnSessionTimeout() {
+    if (FLAGS_ignore_ins_error) {
+        return;
+    }
     LOG(FATAL, "master lost session with nexus, die");
     abort();
 }
@@ -376,6 +380,9 @@ void MasterImpl::OnMasterLockChange(const ::galaxy::ins::sdk::WatchParam& param,
 }
 
 void MasterImpl::OnLockChange(const std::string& /*lock_session_id*/) {
+    if (FLAGS_ignore_ins_error) {
+        return;
+    }
     std::string self_session_id = nexus_->GetSessionID();
     std::string master_lock = FLAGS_nexus_root_path + FLAGS_master_lock_path;
     std::string locker_session;

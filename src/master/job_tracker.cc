@@ -32,6 +32,7 @@ DECLARE_int32(replica_begin_percent);
 DECLARE_int32(retry_bound);
 DECLARE_int32(left_percent);
 DECLARE_int32(max_counters_per_job);
+DECLARE_int32(parallel_attempts);
 
 namespace baidu {
 namespace shuttle {
@@ -1124,11 +1125,25 @@ void JobTracker::KeepMonitoring(bool map_now) {
             map_now ? ++map_killed_ : ++reduce_killed_;
         }
         if (map_now) {
+            int cur_replica = map_index_[top->resource_no].size();
+            if (cur_replica >= FLAGS_parallel_attempts && cur_replica < 15
+                && top->state == kTaskRunning) {
+                top->state = kTaskKilled;
+                top->period = std::time(NULL) - top->alloc_time;
+                ++map_killed_;
+            }
             if (top->state == kTaskKilled) {
                 map_manager_->ReturnBackItem(top->resource_no);
             }
             map_slug_.push(top->resource_no);
         } else {
+            int cur_replica = reduce_index_[top->resource_no].size();
+            if (cur_replica >= FLAGS_parallel_attempts && cur_replica < 15
+                && top->state == kTaskRunning) {
+                top->state = kTaskKilled;
+                top->period = std::time(NULL) - top->alloc_time;
+                ++reduce_killed_;
+            }
             if (top->state == kTaskKilled) {
                 reduce_manager_->ReturnBackItem(top->resource_no);
             }
