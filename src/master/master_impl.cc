@@ -23,6 +23,7 @@ DECLARE_int32(gc_interval);
 DECLARE_int32(backup_interval);
 DECLARE_bool(recovery);
 DECLARE_bool(ignore_ins_error);
+DECLARE_bool(skip_history);
 
 namespace baidu {
 namespace shuttle {
@@ -501,6 +502,9 @@ void MasterImpl::Reload() {
     int32_t finish_time;
     while (GetJobInfoFromNexus(jobid, job, state, history, 
                                resources, start_time, finish_time)) {
+        if (FLAGS_skip_history && state != kRunning) {
+            continue;
+        }
         JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
         bool load_succ = jobtracker->Load(jobid, state, history, resources, start_time, finish_time);
         if (load_succ) {

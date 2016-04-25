@@ -26,3 +26,4 @@ DEFINE_int32(max_counters_per_job, 10000, "max counters per job");
 DEFINE_bool(enable_cpu_soft_limit, false, "enable cpu soft limit or not");
 DEFINE_string(galaxy_node_label, "", "set deploying node label on Galaxy");
 DEFINE_bool(ignore_ins_error, false, "whether ignore nexus errors");
+DEFINE_bool(skip_history, false, "whether skip history when master restarting");

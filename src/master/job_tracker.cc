@@ -1125,24 +1125,26 @@ void JobTracker::KeepMonitoring(bool map_now) {
             map_now ? ++map_killed_ : ++reduce_killed_;
         }
         if (map_now) {
-            int cur_replica = map_index_[top->resource_no].size();
-            if (cur_replica >= FLAGS_parallel_attempts && cur_replica < 15
+            if (top->attempt >= FLAGS_parallel_attempts - 1
                 && top->state == kTaskRunning) {
-                top->state = kTaskKilled;
-                top->period = std::time(NULL) - top->alloc_time;
-                ++map_killed_;
+                ++ counter;
+                returned_item.push_back(top); //check again
+                if (map_slug_.size() > map_index_.size()) {
+                    continue;
+                }
             }
             if (top->state == kTaskKilled) {
                 map_manager_->ReturnBackItem(top->resource_no);
             }
             map_slug_.push(top->resource_no);
         } else {
-            int cur_replica = reduce_index_[top->resource_no].size();
-            if (cur_replica >= FLAGS_parallel_attempts && cur_replica < 15
+            if (top->attempt >= FLAGS_parallel_attempts - 1
                 && top->state == kTaskRunning) {
-                top->state = kTaskKilled;
-                top->period = std::time(NULL) - top->alloc_time;
-                ++reduce_killed_;
+                ++ counter;
+                returned_item.push_back(top); //check again
+                if (reduce_slug_.size() > reduce_index_.size()) {
+                    continue;
+                }
             }
             if (top->state == kTaskKilled) {
                 reduce_manager_->ReturnBackItem(top->resource_no);
