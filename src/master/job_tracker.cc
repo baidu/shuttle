@@ -560,11 +560,14 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
                        << "map_" << cur->resource_no << "/0.sort";
                     std::string fake_sort_file = ss.str();
                     LOG(WARNING, "make a empty sort file: %s", fake_sort_file.c_str());
-                    writer->Open(fake_sort_file, output_param_);
+                    FileSystem::Param the_param = output_param_;
+                    mu_.Unlock();
+                    writer->Open(fake_sort_file, the_param);
                     w_status = writer->Close();
                     if (w_status != kOk) {
                         state = kTaskFailed;
                     }
+                    mu_.Lock();
                 }
                 if (writer) {
                     delete writer;
@@ -603,8 +606,9 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
             if (completed == map_manager_->SumOfItem()) {
                 if (job_descriptor_.job_type() == kMapOnlyJob) {
                     LOG(INFO, "map-only job finish: %s", job_id_.c_str());
-                    fs_->Remove(job_descriptor_.output() + "/_temporary");
+                    std::string tmp_work_dir = job_descriptor_.output() + "/_temporary";
                     mu_.Unlock();
+                    fs_->Remove(tmp_work_dir);
                     master_->RetractJob(job_id_, kCompleted);
                     mu_.Lock();
                     state_ = kCompleted;
@@ -782,10 +786,10 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
                 LOG(INFO, "map-reduce job finish: %s", job_id_.c_str());
                 std::string work_dir = job_descriptor_.output() + "/_temporary";
                 LOG(INFO, "remove temp work directory: %s", work_dir.c_str());
+                mu_.Unlock();
                 if (!fs_->Remove(work_dir)) {
                     LOG(WARNING, "remove temp failed");
                 }
-                mu_.Unlock();
                 master_->RetractJob(job_id_, kCompleted);
                 mu_.Lock();
                 state_ = kCompleted;
