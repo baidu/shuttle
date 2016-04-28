@@ -4,20 +4,19 @@ import re
 import datetime
 import shelve
 
-SLOT_TOTAL = 6000
+SLOT_TOTAL = 3200
 LOWEST_SLOT = 80
 SLOT_NOT_IN_WHITE_LIST = 200
 SCALE_DOWN_RATIO = 0.85
 VIP_SCALE_DOWN_RATIO = 0.7
 
 USER_LIST = {
-        'online': 2500,
-        'offline': 1600,
-        'besteffor': 1000
-        'nobody': 300
+        'online': 3000,
+        'offline': 700,
+        'nobody': 3000,
 }
 
-VIP_LIST = ['bigbrother']
+VIP_LIST = ['robin']
 
 def GetCPURatio():
     result = os.popen("./galaxy status | grep cpu -a2 | tail -1 | awk '{print $3/$1}'").read()
@@ -54,15 +53,15 @@ def Kill(jobid):
 
 def SetMapCapacity(jobid, cap):
     cap = int(cap)
-    if cap < 50:
-        return
+    if cap < 10:
+        cap = 10
     print "update", jobid, "map", cap
     os.system("./shuttle update %s -D mapred.job.map.capacity=%d" % (jobid, cap))
 
 def SetReduceCapacity(jobid, cap):
     cap = int(cap)
-    if cap < 50:
-        return
+    if cap < 10:
+        cap = 10 
     print "update", jobid, "reduce", cap
     os.system("./shuttle update %s -D mapred.job.reduce.capacity=%d" % (jobid, cap))
 
@@ -82,14 +81,15 @@ def GetTotalTasks():
         reduce_total[job_id] = int(reduce_t)
     return map_total, reduce_total
 
-def GetPendingTasks():
-    map_pending = {}
-    reduce_pending = {}
-    for line in os.popen('''./shuttle list | grep job_ | awk '{split($(NF-1),A,"/"); split($(NF),B,"/");  print $1, A[2], B[2]}' '''):
+#running + pendings
+def GetTodoTasks():
+    map_todo = {}
+    reduce_todo = {}
+    for line in os.popen('''./shuttle list | grep job_ | awk '{split($(NF-1),A,"/"); split($(NF),B,"/");  print $1, A[1]+A[2], B[1]+B[2]}' '''):
         job_id, map_t, reduce_t = line.split()
-        map_pending[job_id] = int(map_t)
-        reduce_pending[job_id] = int(reduce_t)
-    return map_pending, reduce_pending
+        map_todo[job_id] = int(map_t) + LOWEST_SLOT
+        reduce_todo[job_id] = int(reduce_t) + LOWEST_SLOT
+    return map_todo, reduce_todo
 
 def GetJobNames():
     job_names = {}
@@ -154,12 +154,13 @@ def VIPIsHungry(galaxy_pending):
     for vip in VIP_LIST:
         if vip not in galaxy_pending:
             continue
-        if galaxy_pending[vip] > 2:
+        if galaxy_pending[vip] > 3:
             return True   
     return False
 
 complet_db = shelve.open('complete.data', 'c')
 scale_db = shelve.open("scale.data", 'c')
+vip_down_db = shelve.open('vip_down.data', 'c')
 
 if __name__ == "__main__":
     jobs = []
@@ -177,7 +178,7 @@ if __name__ == "__main__":
     mem_ratio = GetMemRatio()
     running_slots = GetJobRunningSlot()
     map_total, reduce_total = GetTotalTasks()
-    map_pending, reduce_pending = GetPendingTasks()
+    map_todo, reduce_todo = GetTodoTasks()
     job_names = GetJobNames()
     #print running_slots
     #print map_total, reduce_total
@@ -214,7 +215,7 @@ if __name__ == "__main__":
             complet_db[key] = complet_db.get(key,0) + 1
             pend_times = complet_db[key]
             print "PEND:", pend_times
-            if pend_times > 70:
+            if pend_times > 80:
                 print "freeze long no complet job"
                 Kill(jobid)
                 continue
@@ -226,16 +227,35 @@ if __name__ == "__main__":
 
         print "check job:", job_name, InWhiteList(job_name)
 
+        map_is_abuse = False
+        reduce_is_abuse = False
+        if cpu_ratio > 0.35 and map_c > map_total and map_c > LOWEST_SLOT:
+            map_c = map_total
+            map_is_abuse = True
+        
+        if cpu_ratio > 0.35 and reduce_c > reduce_total and reduce_c > LOWEST_SLOT:
+            reduce_c = reduce_total
+            reduce_is_abuse = True
+
         if cpu_ratio > 0.35 and map_c > USER_LIST[user_name]:
-            print "scale down abuse", map_c
-            SetMapCapacity(jobid, USER_LIST[user_name])
+            map_c = min(USER_LIST[user_name], map_c)
+            map_is_abuse = True
         
         if cpu_ratio > 0.35 and reduce_c > USER_LIST[user_name]:
-            print "scale down abuse", reduce_c
-            SetReduceCapacity(jobid, USER_LIST[user_name])
+            reduce_c = min(USER_LIST[user_name], reduce_c)
+            reduce_is_abuse = True
 
-        avg_slot = SLOT_TOTAL / len(jobs)
-        print "avg slot", avg_slot
+        if map_is_abuse:
+            print "scale down abuse:", jobid, map_c
+            SetMapCapacity(jobid, min(map_c, map_todo[jobid]))
+        if reduce_is_abuse:
+            print "scale down abuse:", jobid, reduce_c
+            SetReduceCapacity(jobid, min(reduce_c, reduce_todo[jobid]))
+
+        user_count = sum([1 for user,res in galaxy_usage.items() if res > 0])
+        avg_slot = SLOT_TOTAL / user_count
+        avg_slot_by_job = SLOT_TOTAL / len(jobs)
+        print "avg slot", avg_slot, avg_slot_by_job
            
         vip_is_hungry = VIPIsHungry(galaxy_pending)
 
@@ -256,8 +276,10 @@ if __name__ == "__main__":
 
             if vip_is_hungry:
                 print "vip is hungry"
-                if user_name not in VIP_LIST:
+                if (user_name not in VIP_LIST) and (galaxy_usage[user_name] > avg_slot) and vip_down_db.get(jobid,0) < 2:
                     beyond_quota = True
+                    vip_down_db[jobid] = vip_down_db.get(jobid,0) + 1
+                    print "give some res to vip"
 
             if not beyond_quota:
                 continue
@@ -265,30 +287,30 @@ if __name__ == "__main__":
             print "scale down"
            
             scale_down_ratio = VIP_SCALE_DOWN_RATIO if vip_is_hungry else SCALE_DOWN_RATIO
-            if map_pending[jobid] >= 0:
-                if map_c > USER_LIST[user_name]:
-                    map_c = USER_LIST[user_name]
-                SetMapCapacity(jobid, int(map_c * scale_down_ratio))
-                adjust_flag = True
-            if reduce_pending[jobid] >= 0:
-                if reduce_c > USER_LIST[user_name]:
-                    reduce_c = USER_LIST[user_name]
-                SetReduceCapacity(jobid, int(reduce_c * scale_down_ratio))
-                adjust_flag = True
-            if (not jobid in scale_db) and adjust_flag:
+
+            if map_c > USER_LIST[user_name]:
+                map_c = USER_LIST[user_name]
+            if map_c > avg_slot_by_job:
+                SetMapCapacity(jobid, int( min(map_c * scale_down_ratio, map_todo[jobid]) ) )
+            
+            if reduce_c > USER_LIST[user_name]:
+                reduce_c = USER_LIST[user_name]
+            if reduce_c > avg_slot_by_job:
+                SetReduceCapacity(jobid, int( min(reduce_c * scale_down_ratio, reduce_todo[jobid]) ) )
+
+            if (not jobid in scale_db):
                 scale_db[jobid] = (map_c, reduce_c)
         else:
             if jobid in scale_db:
                 old_map_c, old_reduce_c = scale_db[jobid]
                 print "scale up"
-                if map_c < avg_slot and map_c < old_map_c and map_pending[jobid]>0:
+                if map_c < avg_slot and map_c < old_map_c:
                     del scale_db[jobid]
-                    SetMapCapacity(jobid, old_map_c)
-                if reduce_c < avg_slot and reduce_c < old_reduce_c and reduce_pending[jobid]>0:
-                    del scale_db[jobid]
-                    SetReduceCapacity(jobid, old_reduce_c)
+                    SetMapCapacity(jobid, max(old_map_c, USER_LIST[user_name]))
+                    break
 
     complet_db.close()
     scale_db.close()
+    vip_down_db.close()
 
 

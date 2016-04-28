@@ -1046,7 +1046,8 @@ void JobTracker::KeepMonitoring(bool map_now) {
             }
         }
         double rn = rand() / (RAND_MAX+0.0);
-        if (rn < 0.05) {
+        LOG(INFO, "random query: %f", rn);
+        if (rn < 0.3) {
             need_random_query = true;
             LOG(INFO, "need random query");
         }
@@ -1063,13 +1064,12 @@ void JobTracker::KeepMonitoring(bool map_now) {
         LOG(INFO, "[monitor] will now rest for %ds: %s", FLAGS_first_sleeptime, job_id_.c_str());
         return;
     }
-    bool is_long_task = timeout >= FLAGS_time_tolerance;
     bool not_allow_duplicates = (map_now && !map_allow_duplicates_ || !reduce_allow_duplicates_);
 
     // timeout will NOT be 0 since monitor will be terminated if no tasks is finished
     // sleep_time is always no greater than timeout
     time_t sleep_time = std::min((time_t)FLAGS_time_tolerance, timeout);
-    unsigned int counter = is_long_task ? 5 : 10;
+    unsigned int counter = 10;
     std::vector<AllocateItem*> returned_item;
     alloc_mu_.Lock();
     time_t now = std::time(NULL);
