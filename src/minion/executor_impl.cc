@@ -553,7 +553,7 @@ std::string Executor::GetErrorMsg(const TaskInfo& task, bool is_map) {
     std::string task_type = (is_map ? "map_" : "reduce_");
     task_local_dir << task_type << task.task_id() << "_" << task.attempt_id();
     cmd_ss << "ls -tr " << task_local_dir.str() << "/* | grep -P 'stdout|stderr|\\.log' | "
-              "while read f_name ;do  echo $f_name && tail -c 4000 $f_name; done | tail -c 8000";
+              "while read f_name ;do  echo $f_name && tail -c 8000 $f_name; done | tail -c 8000";
     LOG(INFO, "=== upload task log ===");
     LOG(INFO, "%s", cmd_ss.str().c_str());
     FILE* reporter = popen(cmd_ss.str().c_str(), "r");
