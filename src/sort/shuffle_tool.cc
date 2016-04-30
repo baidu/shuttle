@@ -272,7 +272,7 @@ int MergeTuo() {
             if (lockers.size() > 2 && !g_fs->Exist(my_lock_flag.str())) {
                 LOG(WARNING, "two many workers on this tuo!: %d", tuo_now);
                 double rn = rand() / (RAND_MAX+0.0);
-                if (rn < 0.99 || lockers.size() > 15) {
+                if (rn < 0.99) {
                     continue;
                 }
             }

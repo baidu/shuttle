@@ -11,6 +11,7 @@ namespace shuttle {
 const static int32_t sBlockSize = (64 << 10);
 const static int32_t sMagicNumber = 25997;
 const static int32_t sMaxIndexSize = 15000;
+const static size_t sMaxIndexBytes = (56 << 20);
 
 SortFileReader* SortFileReader::Create(FileType file_type, Status* status) {
     if (file_type == kHdfsFile) {
@@ -259,7 +260,7 @@ Status SortFileReaderImpl::LoadIndexBlock(IndexBlock* idx_block) {
     snappy::Uncompress(index_raw_buf.data(), index_raw_buf.size(), &tmp_buf);
     bool ret = idx_block->ParseFromString(tmp_buf);
     if (!ret) {
-        LOG(WARNING, "unserialize index block fail, %s", path_.c_str());
+        LOG(WARNING, "unserialize index block fail, %s, buf_len:%ld", path_.c_str(), tmp_buf.size());
         return kUnKnown;
     }
     //printf("debug: %s\n", idx_block->DebugString().c_str());
@@ -394,6 +395,15 @@ Status SortFileWriterImpl::FlushIdxBlock() {
     if (!ret) {
         LOG(WARNING, "serialize index fail");
         return kUnKnown;
+    }
+    while (tmp_buf.size() > sMaxIndexBytes) {
+        LOG(WARNING, "index too large: %ld, make it sparse.", tmp_buf.size());
+        MakeIndexSparse();
+        ret = idx_block_.SerializeToString(&tmp_buf);
+        if (!ret) {
+            LOG(WARNING, "serialize index fail");
+            return kUnKnown;
+        }
     }
     snappy::Compress(tmp_buf.data(), tmp_buf.size(), &raw_buf);
     int64_t offset = fs_->Tell();
