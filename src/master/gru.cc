@@ -12,6 +12,7 @@ DECLARE_string(nexus_server_list);
 DECLARE_string(nexus_root_path);
 DECLARE_string(master_path);
 DECLARE_bool(enable_cpu_soft_limit);
+DECLARE_bool(enable_memory_soft_limit);
 DECLARE_string(galaxy_node_label);
 
 namespace baidu {
@@ -93,6 +94,11 @@ Status Gru::Start() {
         minion.cpu_isolation_type = "kCpuIsolationSoft";
     } else {
         minion.cpu_isolation_type = "kCpuIsolationHard";
+    }
+    if (FLAGS_enable_memory_soft_limit) {
+        minion.mem_isolation_type = "kMemIsolationLimit";
+    } else {
+        minion.mem_isolation_type = "kMemIsolationCgroup";
     }
     galaxy_job.pod.tasks.push_back(minion);
     std::string minion_id;
