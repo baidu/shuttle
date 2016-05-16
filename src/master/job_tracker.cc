@@ -47,14 +47,12 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
                       map_(NULL),
                       map_manager_(NULL),
                       map_dismiss_minion_num_(0),
-                      map_dismissed_(0),
                       map_killed_(0),
                       map_failed_(0),
                       reduce_begin_(0),
                       reduce_(NULL),
                       reduce_manager_(NULL),
                       reduce_dismiss_minion_num_(0),
-                      reduce_dismissed_(0),
                       reduce_killed_(0),
                       reduce_failed_(0),
                       monitor_(NULL),
@@ -311,14 +309,14 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
         if (map_slug_.empty()) {
             alloc_mu_.Unlock();
             mu_.Lock();
-            if (map_dismissed_ > 0 && map_dismissed_ >= map_dismiss_minion_num_) {
+            if (map_dismissed_.size() > 0 && (int)map_dismissed_.size() >= map_dismiss_minion_num_) {
                 LOG(DEBUG, "assign map: suspend: %s", job_id_.c_str());
                 if (status != NULL) {
                     *status = kSuspend;
                 }
             } else {
-                ++ map_dismissed_;
-                LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+                map_dismissed_.insert(endpoint);
+                LOG(INFO, "assign map: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
                 if (status != NULL) {
                     *status = kNoMore;
                 }
@@ -333,14 +331,14 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
         if (cur == NULL) {
             alloc_mu_.Unlock();
             mu_.Lock();
-            if (map_dismissed_ > 0 && map_dismissed_ >= map_dismiss_minion_num_) {
+            if (map_dismissed_.size() > 0 && (int)map_dismissed_.size() >= map_dismiss_minion_num_) {
                 LOG(DEBUG, "assign map: suspend: %s", job_id_.c_str());
                 if (status != NULL) {
                     *status = kSuspend;
                 }
             } else {
-                ++ map_dismissed_;
-                LOG(DEBUG, "assign map: no more: %s", job_id_.c_str());
+                map_dismissed_.insert(endpoint);
+                LOG(INFO, "assign map: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
                 if (status != NULL) {
                     *status = kNoMore;
                 }
@@ -397,14 +395,14 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
         if (reduce_slug_.empty()) {
             alloc_mu_.Unlock();
             mu_.Lock();
-            if (reduce_dismissed_ > 0 && reduce_dismissed_ >= reduce_dismiss_minion_num_) {
+            if (reduce_dismissed_.size() > 0 && (int)reduce_dismissed_.size() >= reduce_dismiss_minion_num_) {
                 LOG(DEBUG, "assign reduce: suspend: %s", job_id_.c_str());
                 if (status != NULL) {
                     *status = kSuspend;
                 }
             } else {
-                ++ reduce_dismissed_;
-                LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+                reduce_dismissed_.insert(endpoint);
+                LOG(INFO, "assign reduce: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
                 if (status != NULL) {
                     *status = kNoMore;
                 }
@@ -418,14 +416,14 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
         if (cur == NULL) {
             alloc_mu_.Unlock();
             mu_.Lock();
-            if (reduce_dismissed_ > 0 && reduce_dismissed_ >= reduce_dismiss_minion_num_) {
+            if (reduce_dismissed_.size() > 0 && (int)reduce_dismissed_.size() >= reduce_dismiss_minion_num_) {
                 LOG(DEBUG, "assign reduce: suspend: %s", job_id_.c_str());
                 if (status != NULL) {
                     *status = kSuspend;
                 }
             } else {
-                ++ reduce_dismissed_;
-                LOG(DEBUG, "assign reduce: no more: %s", job_id_.c_str());
+                reduce_dismissed_.insert(endpoint);
+                LOG(INFO, "assign reduce: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
                 if (status != NULL) {
                     *status = kNoMore;
                 }

@@ -150,7 +150,7 @@ private:
     ResourceManager* map_manager_;
     int map_end_game_begin_;
     int map_dismiss_minion_num_;
-    int map_dismissed_;
+    std::set<std::string> map_dismissed_;
     int map_killed_;
     int map_failed_;
     // Reduce resource
@@ -159,7 +159,7 @@ private:
     IdManager* reduce_manager_;
     int reduce_end_game_begin_;
     int reduce_dismiss_minion_num_;
-    int reduce_dismissed_;
+    std::set<std::string> reduce_dismissed_;
     int reduce_killed_;
     int reduce_failed_;
     // For monitoring
