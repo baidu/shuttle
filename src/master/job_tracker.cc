@@ -1066,7 +1066,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
         LOG(INFO, "[monitor] will now rest for %ds: %s", FLAGS_first_sleeptime, job_id_.c_str());
         return;
     }
-    bool not_allow_duplicates = (map_now && !map_allow_duplicates_ || !reduce_allow_duplicates_);
+    bool not_allow_duplicates = (map_now && !map_allow_duplicates_ || (!map_now) && !reduce_allow_duplicates_);
 
     // timeout will NOT be 0 since monitor will be terminated if no tasks is finished
     // sleep_time is always no greater than timeout

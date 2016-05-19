@@ -33,6 +33,11 @@ IsValidHadoop() {
     if [ $? -ne 0 ]; then
         return 3
     fi
+    cat ${HADOOP_CLIENT_HOME}/hadoop/conf/hadoop-site.xml > /dev/null
+    if [ $? -ne 0 ]; then
+	mv ${HADOOP_CLIENT_HOME} "/tmp/bad_hadoop_client_"`date +%s`
+	return 4
+    fi
     return 0
 }
 
@@ -184,6 +189,7 @@ do
         let user_pack_ret=0
         break
     fi
+    hadoop_job_ugi=""
 done
 
 if [ $user_pack_ret -ne 0 ]; then
