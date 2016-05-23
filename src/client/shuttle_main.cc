@@ -560,12 +560,14 @@ static void PrintJobPrediction(const ::baidu::shuttle::sdk::JobInstance& job,
         int32_t c_time_sum = 0;
         int32_t r_time_sum = 0;
         int32_t now = time(NULL);
+        std::vector<int32_t> completed_map_time;
         for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
                 it != tasks.end(); ++it) {
             if (::baidu::shuttle::sdk::kMap == it->type ||
                     ::baidu::shuttle::sdk::kMapOnly == it->type) {
                 if (::baidu::shuttle::sdk::kTaskCompleted == it->state) {
                     c_time_sum += it->end_time - it->start_time;
+                    completed_map_time.push_back(it->end_time - it->start_time);
                 } else if (::baidu::shuttle::sdk::kTaskRunning == it->state) {
                     r_time_sum += now - it->start_time;
                 }
@@ -584,6 +586,26 @@ static void PrintJobPrediction(const ::baidu::shuttle::sdk::JobInstance& job,
             printf("need more %s to complete map, ", FormatCostTime(more_cost_time).c_str());
             printf("map may complete @ %s\n", FromatLongTime(now + more_cost_time).c_str());
         }
+        std::sort(completed_map_time.begin(), completed_map_time.end());
+        std::vector<int32_t>::iterator lower_it = std::lower_bound(
+                completed_map_time.begin(), completed_map_time.end(), avg_time);
+        printf("\n====================\n");
+        printf("%d maps run faster than average\n", (int)std::distance(completed_map_time.begin(), lower_it));
+        size_t all = completed_map_time.size();
+        size_t index_9 = (size_t)(all * 0.9f);
+        size_t index_99 = (size_t)(all * 0.99f);
+        size_t index_999 = (size_t)(all * 0.999f);
+        size_t index_9999 = (size_t)(all * 0.9999f);
+        int32_t time_9 = completed_map_time[index_9];
+        int32_t time_99 = completed_map_time[index_99];
+        int32_t time_999 = completed_map_time[index_999];
+        int32_t time_9999 = completed_map_time[index_9999];
+        int32_t time_all = completed_map_time[all - 1];
+        printf("90.00%% maps (%lu) completed in %s \n", index_9, FormatCostTime(time_9).c_str());
+        printf("99.00%% maps (%lu) completed in %s \n", index_99, FormatCostTime(time_99).c_str());
+        printf("99.90%% maps (%lu) completed in %s \n", index_999, FormatCostTime(time_999).c_str());
+        printf("99.99%% maps (%lu) completed in %s \n", index_9999, FormatCostTime(time_9999).c_str());
+        printf("100.0%% maps (%lu) completed in %s \n", all, FormatCostTime(time_all).c_str());
         printf("\n====================\n");
     }
 }
