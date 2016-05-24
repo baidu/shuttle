@@ -54,6 +54,17 @@ void Executor::SetEnv(const std::string& jobid, const TaskInfo& task,
         MutexLock locker(&mu_);
         stop_task_ids_.clear();
     }
+    for (int i = 0; i < task.job().cmdenvs_size(); i++) {
+        const std::string& env_kv = task.job().cmdenvs(i);
+        std::size_t sep_idx = env_kv.find_first_of("=");
+        if (sep_idx == std::string::npos) {
+            continue;
+        }
+        std::string env_key = env_kv.substr(0, sep_idx);
+        std::string env_value = env_kv.substr(sep_idx+1);
+        LOG(INFO, "user env setting: %s: %s", env_key.c_str(), env_value.c_str());
+        ::setenv(env_key.c_str(), env_value.c_str(), 1);
+    }
     ::setenv("mapred_job_id", jobid.c_str(), 1);
     ::setenv("mapred_job_name", task.job().name().c_str(), 1);
     ::setenv("mapred_output_dir", task.job().output().c_str(), 1);

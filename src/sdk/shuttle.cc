@@ -114,6 +114,9 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
         job->set_split_size(std::numeric_limits<int64_t>::max());
     }
     job->set_compress_output(job_desc.compress_output);
+    for (size_t i = 0; i < job_desc.cmdenvs.size(); i++) {
+        job->add_cmdenvs(job_desc.cmdenvs[i]);   
+    }
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::SubmitJob,
                                       &request, &response, rpc_timeout_, 1);
     if (!ok) {
