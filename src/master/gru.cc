@@ -5,6 +5,7 @@
 #include <boost/algorithm/string.hpp>
 #include <vector>
 #include "logging.h"
+#include "util.h"
 
 DECLARE_int32(galaxy_deploy_step);
 DECLARE_string(minion_path);
@@ -43,13 +44,15 @@ Status Gru::Start() {
     ::baidu::galaxy::sdk::SubmitJobRequest galaxy_job;
     galaxy_job.user.user = FLAGS_galaxy_user;
     galaxy_job.user.token = FLAGS_galaxy_token;
+    galaxy_job.hostname = ::baidu::common::util::GetLocalHostName();
     galaxy_job.job.deploy.pools.push_back(FLAGS_galaxy_pool);
-    galaxy_job.job.name = minion_name_ + "@minion";;
+    galaxy_job.job.name = minion_name_ + "@minion";
     galaxy_job.job.type = ::baidu::galaxy::sdk::kJobBatch;
     galaxy_job.job.deploy.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
     galaxy_job.job.deploy.step = FLAGS_galaxy_deploy_step;
     galaxy_job.job.deploy.interval = 1;
     galaxy_job.job.deploy.max_per_host = FLAGS_max_minions_per_host;
+    galaxy_job.job.deploy.update_break_count = 0;
     galaxy_job.job.version = "1.0.0";
     galaxy_job.job.run_user = "galaxy";
     if (!FLAGS_galaxy_node_label.empty()) {
@@ -62,6 +65,7 @@ Status Gru::Start() {
     pod_desc.workspace_volum.readonly = false;
     pod_desc.workspace_volum.use_symlink = false;
     pod_desc.workspace_volum.dest_path = "/home/shuttle";
+    pod_desc.workspace_volum.type = ::baidu::galaxy::sdk::kEmptyDir;
 
     ::baidu::galaxy::sdk::TaskDescription task_desc;
     if (mode_str_ == "map") {
@@ -103,10 +107,12 @@ Status Gru::Start() {
             << " -kill_task";
     task_desc.exe_package.package.source_path = FLAGS_minion_path;
     task_desc.exe_package.package.dest_path = ".";
+    task_desc.exe_package.package.version = "1.0";
     task_desc.exe_package.start_cmd = ss.str().c_str();
     task_desc.exe_package.stop_cmd = ss_stop.str().c_str();
     task_desc.tcp_throt.recv_bps_quota = (50L << 20);
     task_desc.tcp_throt.send_bps_quota = (50L << 20);
+    task_desc.blkio.weight = 100;
     ::baidu::galaxy::sdk::PortRequired port_req;
     port_req.port = "dynamic";
     port_req.port_name = "NFS_CLIENT_PORT";
@@ -152,6 +158,7 @@ Status Gru::Kill() {
     ::baidu::galaxy::sdk::RemoveJobResponse rsps;
     rqst.jobid = minion_id_;
     rqst.user = galaxy_job_.user;
+    rqst.hostname = ::baidu::common::util::GetLocalHostName();
     if (galaxy_->RemoveJob(rqst, &rsps)) {
         return kOk;
     } else {
@@ -174,6 +181,8 @@ Status Gru::Update(const std::string& priority,
     rqst.user = galaxy_job_.user;
     rqst.job = job_desc;
     rqst.jobid = minion_id_;
+    rqst.oprate = ::baidu::galaxy::sdk::kUpdateJobDefault;
+    rqst.hostname = ::baidu::common::util::GetLocalHostName();
     if (galaxy_->UpdateJob(rqst, &rsps)) {
         if (!priority.empty()) {
             //galaxy_job_.priority = priority;
