@@ -48,6 +48,7 @@ Status Gru::Start() {
     galaxy_job.job.type = ::baidu::galaxy::sdk::kJobBatch;
     galaxy_job.job.deploy.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
     galaxy_job.job.deploy.step = FLAGS_galaxy_deploy_step;
+    galaxy_job.job.deploy.interval = 1;
     galaxy_job.job.deploy.max_per_host = FLAGS_max_minions_per_host;
     galaxy_job.job.version = "1.0.0";
     galaxy_job.job.run_user = "galaxy";
@@ -55,7 +56,7 @@ Status Gru::Start() {
         galaxy_job.job.deploy.tag = FLAGS_galaxy_node_label;
     }
     ::baidu::galaxy::sdk::PodDescription & pod_desc = galaxy_job.job.pod;
-    pod_desc.workspace_volum.size = (20L << 30);
+    pod_desc.workspace_volum.size = (3L << 30);
     pod_desc.workspace_volum.medium = ::baidu::galaxy::sdk::kDisk;
     pod_desc.workspace_volum.exclusive = false;
     pod_desc.workspace_volum.readonly = false;

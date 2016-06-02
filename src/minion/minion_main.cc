@@ -46,9 +46,9 @@ int main(int argc, char* argv[]) {
     LOG(INFO, "hostname: %s", hostname.c_str());
     char* env_minion_port = getenv("GALAXY_PORT_MINION_PORT");
     if (env_minion_port != NULL) {
-        endpoint = "0.0.0.0:";
-        endpoint += env_minion_port;
-        remote_ep = endpoint;
+        std::string s_env_minion_port = env_minion_port;        
+        endpoint = "0.0.0.0:" + s_env_minion_port;
+        remote_ep = hostname + ":" + s_env_minion_port;
         if (!rpc_server.Start(endpoint)) {
             LOG(WARNING, "cannot find free port");
             _exit(-1);
