@@ -14,6 +14,10 @@ DECLARE_string(master_path);
 DECLARE_bool(enable_cpu_soft_limit);
 DECLARE_bool(enable_memory_soft_limit);
 DECLARE_string(galaxy_node_label);
+DECLARE_string(galaxy_user);
+DECLARE_string(galaxy_token);
+DECLARE_string(galaxy_pool);
+DECLARE_int32(max_minions_per_host);
 
 namespace baidu {
 namespace shuttle {
@@ -28,7 +32,7 @@ int Gru::additional_reduce_millicores = default_reduce_additional_millicores;
 int64_t Gru::additional_map_memory = default_additional_map_memory;
 int64_t Gru::additional_reduce_memory = default_additional_reduce_memory;
 
-Gru::Gru(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
+Gru::Gru(::baidu::galaxy::sdk::AppMaster* galaxy, JobDescriptor* job,
          const std::string& job_id, WorkMode mode) :
         galaxy_(galaxy), job_(job), job_id_(job_id), mode_(mode) {
     mode_str_ = ((mode == kReduce) ? "reduce" : "map");
@@ -36,21 +40,35 @@ Gru::Gru(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
 }
 
 Status Gru::Start() {
-    ::baidu::galaxy::JobDescription galaxy_job;
-    galaxy_job.job_name = minion_name_ + "@minion";
-    galaxy_job.type = "kLongRun";
-    galaxy_job.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
-    galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
-    galaxy_job.pod.version = "1.0.0";
+    ::baidu::galaxy::sdk::SubmitJobRequest galaxy_job;
+    galaxy_job.user.user = FLAGS_galaxy_user;
+    galaxy_job.user.token = FLAGS_galaxy_token;
+    galaxy_job.job.deploy.pools.push_back(FLAGS_galaxy_pool);
+    galaxy_job.job.name = minion_name_ + "@minion";;
+    galaxy_job.job.type = ::baidu::galaxy::sdk::kJobBatch;
+    galaxy_job.job.deploy.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
+    galaxy_job.job.deploy.step = FLAGS_galaxy_deploy_step;
+    galaxy_job.job.deploy.max_per_host = FLAGS_max_minions_per_host;
+    galaxy_job.job.version = "1.0.0";
+    galaxy_job.job.run_user = "galaxy";
     if (!FLAGS_galaxy_node_label.empty()) {
-        galaxy_job.label = FLAGS_galaxy_node_label;
+        galaxy_job.job.deploy.tag = FLAGS_galaxy_node_label;
     }
+    ::baidu::galaxy::sdk::PodDescription & pod_desc = galaxy_job.job.pod;
+    pod_desc.workspace_volum.size = (20L << 30);
+    pod_desc.workspace_volum.medium = ::baidu::galaxy::sdk::kDisk;
+    pod_desc.workspace_volum.exclusive = false;
+    pod_desc.workspace_volum.readonly = false;
+    pod_desc.workspace_volum.use_symlink = false;
+    pod_desc.workspace_volum.dest_path = "/home/shuttle";
+
+    ::baidu::galaxy::sdk::TaskDescription task_desc;
     if (mode_str_ == "map") {
-        galaxy_job.pod.requirement.millicores = job_->millicores() + additional_map_millicores;
+        task_desc.cpu.milli_core = job_->millicores() + additional_map_millicores;
     } else {
-        galaxy_job.pod.requirement.millicores = job_->millicores() + additional_reduce_millicores;
+        task_desc.cpu.milli_core = job_->millicores() + additional_reduce_millicores;
     }
-    galaxy_job.pod.requirement.memory = job_->memory() +
+    task_desc.memory.size = job_->memory() +
         ((mode_ == kReduce) ? additional_reduce_memory : additional_map_memory);
     std::string app_package;
     std::vector<std::string> cache_archive_list;
@@ -82,50 +100,44 @@ Status Gru::Start() {
             << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
             << " -work_mode=" << ((mode_ == kMapOnly) ? "map-only" : mode_str_)
             << " -kill_task";
-    ::baidu::galaxy::TaskDescription minion;
-    minion.offset = 1;
-    minion.binary = FLAGS_minion_path;
-    minion.source_type = "kSourceTypeFTP";
-    minion.start_cmd = ss.str().c_str();
-    minion.stop_cmd = ss_stop.str().c_str();
-    minion.requirement = galaxy_job.pod.requirement;
-    minion.mem_isolation_type = "kMemIsolationCgroup";
+    task_desc.exe_package.package.source_path = FLAGS_minion_path;
+    task_desc.exe_package.package.dest_path = ".";
+    task_desc.exe_package.start_cmd = ss.str().c_str();
+    task_desc.exe_package.stop_cmd = ss_stop.str().c_str();
+    task_desc.tcp_throt.recv_bps_quota = (50L << 20);
+    task_desc.tcp_throt.send_bps_quota = (50L << 20);
+    ::baidu::galaxy::sdk::PortRequired port_req;
+    port_req.port = "dynamic";
+    port_req.port_name = "NFS_CLIENT_PORT";
+    task_desc.ports.push_back(port_req);
+    port_req.port = "dynamic";
+    port_req.port_name = "MINION_PORT";
+    task_desc.ports.push_back(port_req);
     if (FLAGS_enable_cpu_soft_limit) {
-        minion.cpu_isolation_type = "kCpuIsolationSoft";
+        task_desc.cpu.excess = true;
     } else {
-        minion.cpu_isolation_type = "kCpuIsolationHard";
+        task_desc.cpu.excess = false;
     }
     if (FLAGS_enable_memory_soft_limit) {
-        minion.mem_isolation_type = "kMemIsolationLimit";
+        task_desc.memory.excess = true;
     } else {
-        minion.mem_isolation_type = "kMemIsolationCgroup";
+        task_desc.memory.excess = false;
     }
-    galaxy_job.pod.tasks.push_back(minion);
+    pod_desc.tasks.push_back(task_desc);
     std::string minion_id;
-    if (galaxy_->SubmitJob(galaxy_job, &minion_id)) {
+    ::baidu::galaxy::sdk::SubmitJobResponse rsps;
+    if (galaxy_->SubmitJob(galaxy_job, &rsps)) {
+        minion_id = rsps.jobid;
         LOG(INFO, "galaxy job id: %s", minion_id.c_str());
         minion_id_ = minion_id;
         galaxy_job_ = galaxy_job;
-        int retry_count = 10;
-        while (minion_id_.empty() && retry_count-- > 0 ) {
-            std::vector<galaxy::JobInformation> jobs;
-            if (galaxy_->ListJobs(&jobs) ) {
-                for (size_t i = 0; i < jobs.size(); i++) {
-                    const galaxy::JobInformation& job_info = jobs[i];
-                    if (job_info.job_name ==  galaxy_job_.job_name) {
-                        minion_id_ = job_info.job_id;
-                        LOG(INFO, "galaxy job id: %s", minion_id_.c_str());
-                        break;
-                    }
-                }
-            }
-            sleep(3);
-        }
         if (minion_id_.empty()) {
             LOG(INFO, "can not get galaxy job id");
             return kGalaxyError;
         }
         return kOk;
+    } else {
+        LOG(WARNING, "galaxy error: %s", rsps.error_code.reason.c_str());
     }
     return kGalaxyError;
 }
@@ -135,29 +147,42 @@ Status Gru::Kill() {
     if (minion_id_.empty()) {
         return kOk;
     }
-    if (galaxy_->TerminateJob(minion_id_)) {
+    ::baidu::galaxy::sdk::RemoveJobRequest rqst;
+    ::baidu::galaxy::sdk::RemoveJobResponse rsps;
+    rqst.jobid = minion_id_;
+    rqst.user = galaxy_job_.user;
+    if (galaxy_->RemoveJob(rqst, &rsps)) {
         return kOk;
+    } else {
+        LOG(WARNING, "galaxy error: %s", rsps.error_code.reason.c_str());
     }
     return kGalaxyError;
 }
 
 Status Gru::Update(const std::string& priority,
                    int capacity) {
-    ::baidu::galaxy::JobDescription job_desc = galaxy_job_;
+    ::baidu::galaxy::sdk::JobDescription job_desc = galaxy_job_.job;
     if (!priority.empty()) {
         //job_desc.priority = priority;
     }
     if (capacity != -1) {
-        job_desc.replica = capacity;
+        job_desc.deploy.replica = capacity;
     }
-    if (galaxy_->UpdateJob(minion_id_, job_desc)) {
+    ::baidu::galaxy::sdk::UpdateJobRequest rqst;
+    ::baidu::galaxy::sdk::UpdateJobResponse rsps;
+    rqst.user = galaxy_job_.user;
+    rqst.job = job_desc;
+    rqst.jobid = minion_id_;
+    if (galaxy_->UpdateJob(rqst, &rsps)) {
         if (!priority.empty()) {
             //galaxy_job_.priority = priority;
         }
         if (capacity != -1) {
-            galaxy_job_.replica = capacity;
+            galaxy_job_.job.deploy.replica = capacity;
         }
         return kOk;
+    } else {
+        LOG(WARNING, "galaxy error: %s", rsps.error_code.reason.c_str());
     }
     return kGalaxyError;
 }

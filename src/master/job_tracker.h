@@ -6,7 +6,7 @@
 #include <utility>
 #include <ctime>
 
-#include "galaxy.h"
+#include "galaxy_sdk_appmaster.h"
 #include "mutex.h"
 #include "thread_pool.h"
 #include "proto/shuttle.pb.h"
@@ -44,7 +44,7 @@ class CancelTaskResponse;
 class JobTracker {
 
 public:
-    JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
+    JobTracker(MasterImpl* master, ::baidu::galaxy::sdk::AppMaster* galaxy_sdk,
                const JobDescriptor& job);
     virtual ~JobTracker();
 
@@ -128,7 +128,7 @@ private:
                              int no, int attempt) ;
 private:
     MasterImpl* master_;
-    ::baidu::galaxy::Galaxy* galaxy_;
+    ::baidu::galaxy::sdk::AppMaster* galaxy_;
     Mutex mu_;
     JobDescriptor job_descriptor_;
     std::string job_id_;

@@ -28,3 +28,9 @@ DEFINE_bool(enable_memory_soft_limit, false, "enable memory soft limit or not");
 DEFINE_string(galaxy_node_label, "", "set deploying node label on Galaxy");
 DEFINE_bool(ignore_ins_error, false, "whether ignore nexus errors");
 DEFINE_bool(skip_history, false, "whether skip history when master restarting");
+DEFINE_string(galaxy_user, "", "galaxy login user");
+DEFINE_string(galaxy_token, "", "galaxy login token");
+DEFINE_string(galaxy_pool, "test", "galaxy pool");
+DEFINE_string(galaxy_am_path, "", "galaxy AppMaster path on nexus");
+DEFINE_int32(max_minions_per_host, 15, "max minions per one host");
+

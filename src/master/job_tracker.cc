@@ -37,7 +37,7 @@ DECLARE_int32(parallel_attempts);
 namespace baidu {
 namespace shuttle {
 
-JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::Galaxy* galaxy_sdk,
+JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::sdk::AppMaster* galaxy_sdk,
                        const JobDescriptor& job) :
                       master_(master),
                       galaxy_(galaxy_sdk),

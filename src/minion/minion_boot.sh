@@ -3,6 +3,10 @@ set -x
 set -o pipefail
 ./ionice -c 3 -p $$
 
+if [ "{GALAXY_PORT_NFS_CLIENT_PORT}" != "" ];then
+    sed -i "s|#CLIENT_PORT|${GALAXY_PORT_NFS_CLIENT_PORT}|g" conf/NfsShell.conf
+fi
+
 CmdArgs=$*
 
 script_name=`readlink -f $0`

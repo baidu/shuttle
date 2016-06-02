@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include "proto/shuttle.pb.h"
-#include "galaxy.h"
+#include "galaxy_sdk_appmaster.h"
 
 namespace baidu {
 namespace shuttle {
@@ -13,7 +13,7 @@ namespace shuttle {
 class Gru {
 
 public:
-    Gru(::baidu::galaxy::Galaxy* galaxy, JobDescriptor* job,
+    Gru(::baidu::galaxy::sdk::AppMaster* galaxy, JobDescriptor* job,
         const std::string& job_id, WorkMode mode);
     virtual ~Gru() { Kill(); }
 
@@ -28,8 +28,8 @@ public:
 
 private:
     // For galaxy manangement
-    ::baidu::galaxy::Galaxy* galaxy_;
-    ::baidu::galaxy::JobDescription galaxy_job_;
+    ::baidu::galaxy::sdk::AppMaster* galaxy_;
+    ::baidu::galaxy::sdk::SubmitJobRequest galaxy_job_;
     std::string minion_id_;
 
     // Minion information

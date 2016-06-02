@@ -4,7 +4,7 @@
 #include <map>
 #include <set>
 
-#include "galaxy.h"
+#include "galaxy_sdk_appmaster.h"
 #include "ins_sdk.h"
 #include "mutex.h"
 #include "thread_pool.h"
@@ -84,7 +84,7 @@ private:
     void ParseJobCounters(const google::protobuf::RepeatedPtrField<baidu::shuttle::TaskCounter>& rpc_counters,
                           std::map<std::string, int64_t>* counters);
 private:
-    ::baidu::galaxy::Galaxy* galaxy_sdk_;
+    ::baidu::galaxy::sdk::AppMaster* galaxy_sdk_;
     Mutex tracker_mu_;
     std::map<std::string, JobTracker*> job_trackers_;
     Mutex dead_mu_;

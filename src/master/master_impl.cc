@@ -24,13 +24,16 @@ DECLARE_int32(backup_interval);
 DECLARE_bool(recovery);
 DECLARE_bool(ignore_ins_error);
 DECLARE_bool(skip_history);
+DECLARE_string(galaxy_am_path);
 
 namespace baidu {
 namespace shuttle {
 
 MasterImpl::MasterImpl() {
     srand(time(NULL));
-    galaxy_sdk_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
+    galaxy_sdk_ = ::baidu::galaxy::sdk::AppMaster::ConnectAppMaster(
+                    FLAGS_nexus_server_list, FLAGS_galaxy_am_path);
+    assert(galaxy_sdk_);
     nexus_ = new ::galaxy::ins::sdk::InsSDK(FLAGS_nexus_server_list);
     gc_.AddTask(boost::bind(&MasterImpl::KeepGarbageCollecting, this));
 }

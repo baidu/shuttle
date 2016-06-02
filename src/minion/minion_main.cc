@@ -44,15 +44,26 @@ int main(int argc, char* argv[]) {
     std::string hostname = baidu::common::util::GetLocalHostName();
     std::string remote_ep = hostname + ":" + boost::lexical_cast<std::string>(FLAGS_minion_port);
     LOG(INFO, "hostname: %s", hostname.c_str());
-    while (!rpc_server.Start(endpoint)) {
-        LOG(WARNING, "failed to start server on %s", endpoint.c_str());
-        if (++retry_count > FLAGS_max_minions) {
+    char* env_minion_port = getenv("GALAXY_PORT_MINION_PORT");
+    if (env_minion_port != NULL) {
+        endpoint = "0.0.0.0:";
+        endpoint += env_minion_port;
+        remote_ep = endpoint;
+        if (!rpc_server.Start(endpoint)) {
             LOG(WARNING, "cannot find free port");
             _exit(-1);
         }
-        std::string real_port = boost::lexical_cast<std::string>(FLAGS_minion_port + retry_count);
-        endpoint = "0.0.0.0:" + real_port;
-        remote_ep = hostname + ":" + real_port;
+    } else {
+        while (!rpc_server.Start(endpoint)) {
+            LOG(WARNING, "failed to start server on %s", endpoint.c_str());
+            if (++retry_count > FLAGS_max_minions) {
+                LOG(WARNING, "cannot find free port");
+                _exit(-1);
+            }
+            std::string real_port = boost::lexical_cast<std::string>(FLAGS_minion_port + retry_count);
+            endpoint = "0.0.0.0:" + real_port;
+            remote_ep = hostname + ":" + real_port;
+        }
     }
     minion->SetEndpoint(remote_ep);
     minion->SetJobId(FLAGS_jobid);

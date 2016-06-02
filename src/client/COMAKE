@@ -27,7 +27,7 @@ ImportConfigsFrom('../../', Skip('inf/computing/libhdfs'))
 INCPATHS('../../src ../../galaxy/output/include ../../galaxy/thirdsrc/common/include ../../galaxy/thirdsrc/ins/sdk/')
 
 #使用库
-LIBS('../../galaxy/thirdsrc/common/libcommon.a ../../galaxy/thirdsrc/ins/libins_sdk.a ../../galaxy/libgalaxy.a')
+LIBS('../../galaxy/thirdsrc/common/libcommon.a ../../galaxy/thirdsrc/ins/libins_sdk.a')
 LIBS('../../libshuttle.a')
 
 #链接参数.
