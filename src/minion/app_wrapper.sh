@@ -21,15 +21,15 @@ JailRun() {
 	ulimit -n 10240
 	if [ "${minion_compress_output}" == "" ]; then
 		if [ "${minion_combiner_cmd}" == "" ]; then
-			${user_cmd}
+			eval ${user_cmd}
 		else
-			${user_cmd} | eval ${minion_combiner_cmd}
+			eval ${user_cmd} | eval ${minion_combiner_cmd}
 		fi
 	elif [ "${minion_compress_output}" == "true" ]; then
 		if [ "${minion_combiner_cmd}" == "" ]; then
-			${user_cmd} | gzip -f -
+			eval ${user_cmd} | gzip -f -
 		else
-			${user_cmd} | eval ${minion_combiner_cmd} | gzip -f -
+			eval ${user_cmd} | eval ${minion_combiner_cmd} | gzip -f -
 		fi
 	fi 
 	return $?
