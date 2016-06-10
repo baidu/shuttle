@@ -8,8 +8,12 @@ using namespace baidu::shuttle;
 char g_line_buf[409600];
 
 int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("./partition_tool [N reducer]\n");
+        return 1;
+    }
     TaskInfo task;
-    task.mutable_job()->set_reduce_total(400);
+    task.mutable_job()->set_reduce_total(atoi(argv[1]));
     KeyFieldBasedPartitioner kf_parti(task);
 
     while (!feof(stdin)) {
