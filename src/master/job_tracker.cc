@@ -46,13 +46,11 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::sdk::AppMaster* gala
                       reduce_allow_duplicates_(true),
                       map_(NULL),
                       map_manager_(NULL),
-                      map_dismiss_minion_num_(0),
                       map_killed_(0),
                       map_failed_(0),
                       reduce_begin_(0),
                       reduce_(NULL),
                       reduce_manager_(NULL),
-                      reduce_dismiss_minion_num_(0),
                       reduce_killed_(0),
                       reduce_failed_(0),
                       monitor_(NULL),
@@ -294,6 +292,54 @@ Status JobTracker::Kill(JobState end_state) {
     return kOk;
 }
 
+void JobTracker::CanMapDismiss(Status* status, const std::string& endpoint) {
+    mu_.AssertHeld();
+    int completed = map_manager_->Done();
+    int not_done = job_descriptor_.map_total() - completed;
+    int map_dismiss_minion_num = job_descriptor_.map_capacity() - (int)
+        ::ceil( std::max(not_done, 5) * FLAGS_left_percent / 100.0);
+    if (job_descriptor_.map_capacity() > not_done) {
+        if ((int)map_dismissed_.size() >= map_dismiss_minion_num) {
+            LOG(DEBUG, "assign map: suspend: %s", job_id_.c_str());
+            if (status != NULL) {
+                *status = kSuspend;
+            }
+        } else {
+            map_dismissed_.insert(endpoint);
+            LOG(INFO, "assign map: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
+            if (status != NULL) {
+                *status = kNoMore;
+            }
+        }
+    } else {
+        *status = kSuspend;
+    }
+}
+
+void JobTracker::CanReduceDismiss(Status* status, const std::string& endpoint) {
+    mu_.AssertHeld();
+    int completed = reduce_manager_->Done();
+    int not_done = job_descriptor_.reduce_total() - completed;
+    int reduce_dismiss_minion_num = job_descriptor_.reduce_capacity() - (int)
+        ::ceil(std::max(not_done, 5) * FLAGS_left_percent / 100.0);
+    if (job_descriptor_.reduce_capacity() > not_done) {
+        if ((int)reduce_dismissed_.size() >= reduce_dismiss_minion_num) {
+            LOG(DEBUG, "assign reduce: suspend: %s", job_id_.c_str());
+            if (status != NULL) {
+                *status = kSuspend;
+            }
+        } else {
+            reduce_dismissed_.insert(endpoint);
+            LOG(INFO, "assign reduce: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
+            if (status != NULL) {
+                *status = kNoMore;
+            }
+        }
+    } else {
+        *status = kSuspend;
+    }
+}
+
 ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status) {
     if (state_ == kPending) {
         state_ = kRunning;
@@ -309,18 +355,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
         if (map_slug_.empty()) {
             alloc_mu_.Unlock();
             mu_.Lock();
-            if (map_dismissed_.size() > 0 && (int)map_dismissed_.size() >= map_dismiss_minion_num_) {
-                LOG(DEBUG, "assign map: suspend: %s", job_id_.c_str());
-                if (status != NULL) {
-                    *status = kSuspend;
-                }
-            } else {
-                map_dismissed_.insert(endpoint);
-                LOG(INFO, "assign map: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
-                if (status != NULL) {
-                    *status = kNoMore;
-                }
-            }
+            CanMapDismiss(status, endpoint);
             mu_.Unlock();
             alloc_mu_.Lock();
             return NULL;
@@ -331,18 +366,7 @@ ResourceItem* JobTracker::AssignMap(const std::string& endpoint, Status* status)
         if (cur == NULL) {
             alloc_mu_.Unlock();
             mu_.Lock();
-            if (map_dismissed_.size() > 0 && (int)map_dismissed_.size() >= map_dismiss_minion_num_) {
-                LOG(DEBUG, "assign map: suspend: %s", job_id_.c_str());
-                if (status != NULL) {
-                    *status = kSuspend;
-                }
-            } else {
-                map_dismissed_.insert(endpoint);
-                LOG(INFO, "assign map: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
-                if (status != NULL) {
-                    *status = kNoMore;
-                }
-            }
+            CanMapDismiss(status, endpoint);
             mu_.Unlock();
             alloc_mu_.Lock();
             return NULL;
@@ -395,18 +419,7 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
         if (reduce_slug_.empty()) {
             alloc_mu_.Unlock();
             mu_.Lock();
-            if (reduce_dismissed_.size() > 0 && (int)reduce_dismissed_.size() >= reduce_dismiss_minion_num_) {
-                LOG(DEBUG, "assign reduce: suspend: %s", job_id_.c_str());
-                if (status != NULL) {
-                    *status = kSuspend;
-                }
-            } else {
-                reduce_dismissed_.insert(endpoint);
-                LOG(INFO, "assign reduce: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
-                if (status != NULL) {
-                    *status = kNoMore;
-                }
-            }
+            CanReduceDismiss(status, endpoint);
             mu_.Unlock();
             alloc_mu_.Lock();
             return NULL;
@@ -416,18 +429,7 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
         if (cur == NULL) {
             alloc_mu_.Unlock();
             mu_.Lock();
-            if (reduce_dismissed_.size() > 0 && (int)reduce_dismissed_.size() >= reduce_dismiss_minion_num_) {
-                LOG(DEBUG, "assign reduce: suspend: %s", job_id_.c_str());
-                if (status != NULL) {
-                    *status = kSuspend;
-                }
-            } else {
-                reduce_dismissed_.insert(endpoint);
-                LOG(INFO, "assign reduce: no more: %s, %s", job_id_.c_str(), endpoint.c_str());
-                if (status != NULL) {
-                    *status = kNoMore;
-                }
-            }
+            CanReduceDismiss(status, endpoint);
             mu_.Unlock();
             alloc_mu_.Lock();
             return NULL;
@@ -580,12 +582,8 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
                 state = kTaskCanceled;
                 break;
             }
-            int completed = map_manager_->Done();
-            int not_done = job_descriptor_.map_total() - completed;
-            map_dismiss_minion_num_ = job_descriptor_.map_capacity() - (int)
-                ::ceil( std::max(not_done, 5) * FLAGS_left_percent / 100.0);
             AccumulateCounters(counters);
-
+            int completed = map_manager_->Done();
             LOG(INFO, "complete a map task(%d/%d): %s",
                     completed, map_manager_->SumOfItem(), job_id_.c_str());
             if (completed == reduce_begin_ && job_descriptor_.job_type() != kMapOnlyJob) {
@@ -772,12 +770,8 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
                 state = kTaskCanceled;
                 break;
             }
-            int completed = reduce_manager_->Done();
-            int not_done = job_descriptor_.reduce_total() - completed;
-            reduce_dismiss_minion_num_ = job_descriptor_.reduce_capacity() - (int)
-                ::ceil(std::max(not_done, 5) * FLAGS_left_percent / 100.0);
             AccumulateCounters(counters);
-
+            int completed = reduce_manager_->Done();
             LOG(INFO, "complete a reduce task(%d/%d): %s",
                     completed, reduce_manager_->SumOfItem(), job_id_.c_str());
             if (completed == reduce_manager_->SumOfItem()) {

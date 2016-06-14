@@ -126,6 +126,8 @@ private:
     void CancelCallback(const CancelTaskRequest* request, CancelTaskResponse* response, bool fail, int eno);
     void CancelOtherAttempts(const std::map<int, std::map<int, AllocateItem*> >& lookup_index,
                              int no, int attempt) ;
+    void CanReduceDismiss(Status* status, const std::string& endpoint);
+    void CanMapDismiss(Status* status, const std::string& endpoint);
 private:
     MasterImpl* master_;
     ::baidu::galaxy::sdk::AppMaster* galaxy_;
@@ -149,7 +151,6 @@ private:
     Gru* map_;
     ResourceManager* map_manager_;
     int map_end_game_begin_;
-    int map_dismiss_minion_num_;
     std::set<std::string> map_dismissed_;
     int map_killed_;
     int map_failed_;
@@ -158,7 +159,6 @@ private:
     Gru* reduce_;
     IdManager* reduce_manager_;
     int reduce_end_game_begin_;
-    int reduce_dismiss_minion_num_;
     std::set<std::string> reduce_dismissed_;
     int reduce_killed_;
     int reduce_failed_;

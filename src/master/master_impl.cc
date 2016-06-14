@@ -52,12 +52,12 @@ MasterImpl::~MasterImpl() {
 }
 
 void MasterImpl::Init() {
-    AcquireMasterLock();
     LOG(INFO, "master alive, recovering");
     if (FLAGS_recovery) {
         Reload();
         LOG(INFO, "master recovered");
     }
+    AcquireMasterLock();
 }
 
 void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
