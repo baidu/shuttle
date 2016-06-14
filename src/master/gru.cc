@@ -49,7 +49,7 @@ Status Gru::Start() {
     galaxy_job.job.name = minion_name_ + "@minion";
     galaxy_job.job.type = ::baidu::galaxy::sdk::kJobBatch;
     galaxy_job.job.deploy.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
-    galaxy_job.job.deploy.step = FLAGS_galaxy_deploy_step;
+    galaxy_job.job.deploy.step = std::min((int)FLAGS_galaxy_deploy_step, (int)galaxy_job.job.deploy.replica);
     galaxy_job.job.deploy.interval = 1;
     galaxy_job.job.deploy.max_per_host = FLAGS_max_minions_per_host;
     galaxy_job.job.deploy.update_break_count = 0;
