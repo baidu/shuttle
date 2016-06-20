@@ -56,7 +56,7 @@ void FillParam(FileSystem::Param& param) {
 }
 
 void DoRead() {
-    InputReader * reader;
+    InputReader * reader = NULL;
     if (FLAGS_fs == "hdfs") {
         if (FLAGS_format == "text") {
             reader = InputReader::CreateHdfsTextReader();

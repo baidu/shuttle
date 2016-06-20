@@ -120,6 +120,7 @@ struct JobDescription {
     bool decompress_input;
     std::string combine_command;
     bool compress_output;
+    std::vector<std::string> cmdenvs;
 };
 
 struct TaskInstance {

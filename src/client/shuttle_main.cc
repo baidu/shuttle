@@ -29,6 +29,7 @@ std::string nexus;
 std::string nexus_root = "/shuttle/";
 std::string nexus_file;
 std::string master = "master";
+std::vector<std::string> cmdenvs;
 
 bool display_all = false;
 bool immediate_return = false;
@@ -320,6 +321,8 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
         } else if (!strcmp(ctx, "help") || !strcmp(ctx, "h")) {
             fprintf(stderr, "%s\n", error_message.c_str());
             exit(0);
+        } else if (!strcmp(ctx, "cmdenv")) {
+            config::cmdenvs.push_back(opt[++i]);
         } else {
             continue;
         }
@@ -764,23 +767,23 @@ static int SubmitJob() {
     }
 
     if (config::file.empty()) {
-        fprintf(stderr, "file flag is needed, use --file to specify\n");
+        fprintf(stderr, "file flag is needed, use -file to specify\n");
         return -1;
     }
     if (config::input.empty()) {
-        fprintf(stderr, "input flag is needed, use --input to specify\n");
+        fprintf(stderr, "input flag is needed, use -input to specify\n");
         return -1;
     }
     if (config::output.empty()) {
-        fprintf(stderr, "output flag is needed, use --output to specify\n");
+        fprintf(stderr, "output flag is needed, use -output to specify\n");
         return -1;
     }
     if (config::map.empty()) {
-        fprintf(stderr, "map flag is needed, use --map to specify\n");
+        fprintf(stderr, "map flag is needed, use -mapper to specify\n");
         return -1;
     }
     if (config::reduce_tasks != 0 && config::reduce.empty()) {
-        fprintf(stderr, "reduce flag is needed, use --reduce to specify\n");
+        fprintf(stderr, "reduce flag is needed, use -reducer to specify\n");
         return -1;
     }
 /*  if (config::input_host.empty() || config::input_port.empty() ||
@@ -840,6 +843,7 @@ static int SubmitJob() {
     job_desc.ignore_reduce_failures = config::ignore_reduce_failures;
     job_desc.decompress_input = config::decompress_input;
     job_desc.compress_output = config::compress_output;
+    job_desc.cmdenvs = config::cmdenvs;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);

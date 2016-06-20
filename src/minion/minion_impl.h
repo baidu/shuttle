@@ -54,6 +54,7 @@ private:
     NetStatistics netstat_;
     bool task_frozen_;
     bool over_loaded_;
+    time_t frozen_time_;
 };
 
 }

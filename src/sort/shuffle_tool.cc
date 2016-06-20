@@ -150,7 +150,8 @@ void MergeAndPrint(const std::vector<std::string>& file_names) {
     FillParam(param);
     Status status = reader.Open(file_names, param, kHdfsFile);
     if (status != kOk) {
-        LOG(FATAL, "fail to open: %s", reader.GetErrorFile().c_str());
+        LOG(WARNING, "fail to open: %s", reader.GetErrorFile().c_str());
+        _exit(1);
     }
     char s_reduce_no[256];
     snprintf(s_reduce_no, sizeof(s_reduce_no), "%05d", FLAGS_reduce_no);
@@ -158,7 +159,8 @@ void MergeAndPrint(const std::vector<std::string>& file_names) {
     SortFileReader::Iterator* scan_it = reader.Scan(s_reduce_key,
                                                     s_reduce_key + "\xff");
     if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
-        LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
+        LOG(WARNING, "fail to scan: %s", reader.GetErrorFile().c_str());
+        _exit(2);
     }
     while (!scan_it->Done()) {
         if (FLAGS_pipe == "streaming") {
@@ -172,7 +174,8 @@ void MergeAndPrint(const std::vector<std::string>& file_names) {
         scan_it->Next();
     }
     if (scan_it->Error() != kOk && scan_it->Error() != kNoMore) {
-        LOG(FATAL, "fail to scan: %s", reader.GetErrorFile().c_str());
+        LOG(WARNING, "fail to scan: %s", reader.GetErrorFile().c_str());
+        _exit(3);
     }
     reader.Close();
     delete scan_it;
