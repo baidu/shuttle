@@ -112,6 +112,7 @@ message JobDescriptor {
     optional bool decompress_input = 33 [default = false];
     optional string combine_command = 34 [default = ""];
     optional bool compress_output = 35 [default = false];
+    repeated string cmdenvs = 36;
 }
 
 message TaskInput {

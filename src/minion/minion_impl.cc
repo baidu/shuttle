@@ -32,7 +32,8 @@ const std::string sBreakpointFile = "./task_running";
 MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
                            stop_(false),
                            task_frozen_(false),
-                           over_loaded_(false) {
+                           over_loaded_(false),
+                           frozen_time_(0) {
     if (FLAGS_work_mode == "map") {
         executor_ = Executor::GetExecutor(kMap);
         work_mode_ =  kMap;
@@ -84,6 +85,9 @@ void MinionImpl::WatchDogTask() {
     if (minute_load > 1.5 * numCPU) {
         LOG(WARNING, "load average: %f, cores: %d", minute_load, numCPU);
         LOG(WARNING, "machine may be overloaded, so froze the task");
+        if (!task_frozen_) {
+            frozen_time_ = std::time(NULL);
+        }
         task_frozen_ = true;
         over_loaded_ =  true;
         system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
@@ -93,6 +97,9 @@ void MinionImpl::WatchDogTask() {
             netstat_.GetSendSpeed(), netstat_.GetRecvSpeed());
         LOG(WARNING, "network traffic is busy, so froze the task");
         system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
+        if (!task_frozen_) {
+            frozen_time_ = std::time(NULL);
+        }
         task_frozen_ = true;
     } else {
         if (task_frozen_ && minute_load < 0.8 * numCPU) {
@@ -112,9 +119,16 @@ void MinionImpl::Query(::google::protobuf::RpcController* controller,
     (void)controller;
     (void)request;
     MutexLock locker(&mu_);
-    if (task_frozen_ && over_loaded_) {
+    if (over_loaded_) {
         done->Run();
         return;
+    }
+    if (task_frozen_) {
+        time_t now = std::time(NULL);
+        if (frozen_time_ + 300 < now) {
+            done->Run();
+            return;
+        }
     }
     response->set_job_id(jobid_);
     response->set_task_id(cur_task_id_);
