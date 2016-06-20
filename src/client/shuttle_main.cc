@@ -672,6 +672,7 @@ static int MonitorJob() {
     if (!is_tty) {
         monitor_interval = 20;
     }
+    bool display_all_attemp = false;
     while (true) {
         ::baidu::shuttle::sdk::JobInstance job;
         std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
@@ -679,7 +680,7 @@ static int MonitorJob() {
         std::string error_msg;
         std::map<std::string, int64_t> counters;
         bool ok = shuttle->ShowJob(config::params[0], job, tasks, 
-                                   true, false, error_msg, counters);
+                                   true, display_all_attemp, error_msg, counters);
         if (!ok) {
             fprintf(stderr, "lost connection with master\n");
             if (error_tolerance-- <= 0) {
@@ -713,6 +714,10 @@ static int MonitorJob() {
             fflush(stdout);
             break;
         case ::baidu::shuttle::sdk::kCompleted:
+            if (!display_all_attemp) {
+                display_all_attemp = true;
+                break;
+            }
             if (is_tty) {
                 printf("\r%s", erase);
                 printf("\r[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
