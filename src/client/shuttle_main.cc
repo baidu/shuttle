@@ -518,6 +518,7 @@ static inline std::string FormatCostTime(const uint32_t& time) {
     if ((time % 60) > 0) {
         ss << (time % 60) << " sec";
     }
+    ss << "; " << time;
     return ss.str();
 }
 
@@ -722,6 +723,7 @@ static int MonitorJob() {
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             }
             fflush(stdout);
+            PrintJobPrediction(job, tasks);
             printf("[%s] job `%s' has completed\n", timestamp.c_str(), job.desc.name.c_str());
             return 0;
         case ::baidu::shuttle::sdk::kFailed:
