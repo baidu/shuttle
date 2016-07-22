@@ -181,7 +181,7 @@ Status Gru::Update(const std::string& priority,
     rqst.user = galaxy_job_.user;
     rqst.job = job_desc;
     rqst.jobid = minion_id_;
-    rqst.operate = ::baidu::galaxy::sdk::kUpdateJobDefault;
+    rqst.operate = ::baidu::galaxy::sdk::kUpdateJobStart;
     rqst.hostname = ::baidu::common::util::GetLocalHostName();
     if (galaxy_->UpdateJob(rqst, &rsps)) {
         if (!priority.empty()) {
