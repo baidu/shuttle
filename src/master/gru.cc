@@ -223,6 +223,15 @@ Gru* Gru::GetOmegaGru(JobDescriptor& job, const std::string& job_id,
 
 Status BasicGru::Start() {
     start_time_ = std::time(NULL);
+    // check existence of output
+    FileSystem::Param param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_output()));
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    if (fs->Exist(cur_node_->output().path())) {
+        LOG(WARNING, "node %d output exists, failed: %s", node_, job_id_.c_str());
+        cur_node_->set_total(0);
+        return kWriteFileFail;
+    }
+
     manager_ = BuildResourceManager();
     if (manager_ == NULL) {
         state_ = kFailed;
