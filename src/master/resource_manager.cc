@@ -75,15 +75,13 @@ public:
 
 class BlockManager : public ResourceManagerImpl {
 public:
-    BlockManager(const std::vector<std::string>& input_files,
-                 FileSystem::Param& param, int64_t split_size);
+    BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size);
     virtual ~BlockManager() { }
 };
 
 class NLineManager : public ResourceManagerImpl {
 public:
-    NLineManager(const std::vector<std::string>& input_files,
-                 FileSystem::Param& param);
+    NLineManager(std::vector<DfsInfo>& inputs);
     virtual ~NLineManager() { }
 };
 
@@ -94,14 +92,12 @@ ResourceManager* ResourceManager::GetIdManager(int size) {
 }
 
 ResourceManager* ResourceManager::GetBlockManager(
-        const std::vector<std::string>& input_files,
-        FileSystem::Param& param, int64_t split_size) {
-    return new BlockManager(input_files, param, split_size);
+        std::vector<DfsInfo>& inputs, int64_t split_size) {
+    return new BlockManager(inputs, split_size);
 }
 
-ResourceManager* ResourceManager::GetNLineManager(
-        const std::vector<std::string>& input_files, FileSystem::Param& param) {
-    return new NLineManager(input_files, param);
+ResourceManager* ResourceManager::GetNLineManager(std::vector<DfsInfo>& inputs) {
+    return new NLineManager(inputs);
 }
 
 ResourceManager* ResourceManager::BuildManagerFromBackup(
@@ -291,33 +287,26 @@ IdManager::IdManager(int size) {
     }
 }
 
-BlockManager::BlockManager(const std::vector<std::string>& input_files,
-                           FileSystem::Param& param,
-                           int64_t split_size) {
-    if (input_files.size() == 0) {
+BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
+    if (inputs.size() == 0) {
         return;
     }
-    if (boost::starts_with(input_files[0], "hdfs://")) {
-        std::string host;
-        int port;
-        ParseHdfsAddress(input_files[0], &host, &port, NULL);
-        param["host"] = host;
-        param["port"] = boost::lexical_cast<std::string>(port);
+    FileSystemHub* hub = FileSystemHub::GetHub();
+    for (std::vector<DfsInfo>::iterator it = inputs.begin(); it != inputs.end(); ++it) {
+        hub->BuildFs(*it);
     }
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+
     std::vector<FileInfo> files;
-    ::baidu::common::ThreadPool tp(parallel_level);
-    std::vector<FileInfo> sub_files[parallel_level];
     int i = 0;
     std::vector<std::string> expand_input_files;
-    for (size_t i = 0; i < input_files.size(); i++) {
-        const std::string& file_name = input_files[i];
+    for (size_t i = 0; i < inputs.size(); i++) {
+        const std::string& file_name = inputs[i].path();
         size_t prefix_pos ;
-        if ( (prefix_pos = file_name.find("/*/")) != std::string::npos) {
+        if ((prefix_pos = file_name.find("/*/")) != std::string::npos) {
             const std::string& prefix = file_name.substr(0, prefix_pos);
             const std::string& suffix = file_name.substr(prefix_pos + 3);
             std::vector<FileInfo> children;
-            bool ok = fs->List(prefix, &children);
+            bool ok = hub->GetFs(file_name)->List(prefix, &children);
             if (!ok) {
                 expand_input_files.push_back(file_name);
             } else {
@@ -329,19 +318,17 @@ BlockManager::BlockManager(const std::vector<std::string>& input_files,
             expand_input_files.push_back(file_name);
         }
     }
+    ::baidu::common::ThreadPool tp(parallel_level);
+    std::vector<FileInfo> sub_files[parallel_level];
     for (std::vector<std::string>::const_iterator it = expand_input_files.begin();
             it != expand_input_files.end(); ++it) {
-        std::string path;
         LOG(INFO, "input file: %s", it->c_str());
-        if (boost::starts_with(*it, "hdfs://")) {
-            ParseHdfsAddress(*it, NULL, NULL, &path);
-        } else {
-            path = *it;
-        }
+        std::string path;
+        ParseHdfsAddress(*it, NULL, NULL, &path);
         if (path.find('*') == std::string::npos) {
-            tp.AddTask(boost::bind(&FileSystem::List, fs, path, &sub_files[i]));
+            tp.AddTask(boost::bind(&FileSystem::List, hub->GetFs(*it), path, &sub_files[i]));
         } else {
-            tp.AddTask(boost::bind(&FileSystem::Glob, fs, path, &sub_files[i]));
+            tp.AddTask(boost::bind(&FileSystem::Glob, hub->GetFs(*it), path, &sub_files[i]));
         }
         i = (i + 1) % parallel_level;
     }
@@ -380,32 +367,19 @@ BlockManager::BlockManager(const std::vector<std::string>& input_files,
         pending_res_.push_back(item);
     }
     pending_ = static_cast<int>(resource_pool_.size());
-    delete fs;
 }
 
-NLineManager::NLineManager(const std::vector<std::string>& input_files,
-                           FileSystem::Param& param) {
-    if (boost::starts_with(input_files[0], "hdfs://")) {
-        std::string host;
-        int port;
-        ParseHdfsAddress(input_files[0], &host, &port, NULL);
-        param["host"] = host;
-        param["port"] = boost::lexical_cast<std::string>(port);
-    }
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
+    FileSystemHub* hub = FileSystemHub::GetHub();
     std::vector<FileInfo> files;
     std::string path;
-    for (std::vector<std::string>::const_iterator it = input_files.begin();
-            it != input_files.end(); ++it) {
-        if (boost::starts_with(input_files[0], "hdfs://")) {
-            ParseHdfsAddress(*it, NULL, NULL, &path);
-        } else {
-            path = *it;
-        }
+    for (std::vector<DfsInfo>::iterator it = inputs.begin();
+            it != inputs.end(); ++it) {
+        ParseHdfsAddress(it->path(), NULL, NULL, &path);
         if (path.find('*') == std::string::npos) {
-            fs->List(path, &files);
+            hub->BuildFs(*it)->List(path, &files);
         } else {
-            fs->Glob(path, &files);
+            hub->BuildFs(*it)->Glob(path, &files);
         }
     }
     int counter = 0;
@@ -414,7 +388,7 @@ NLineManager::NLineManager(const std::vector<std::string>& input_files,
         std::string path;
         ParseHdfsAddress(it->name, NULL, NULL, &path);
         InputReader* reader = InputReader::CreateHdfsTextReader();
-        if (reader->Open(path, param) != kOk) {
+        if (reader->Open(path, hub->GetParam(it->name)) != kOk) {
             LOG(WARNING, "set n line file error: %s", it->name.c_str());
             continue;
         }

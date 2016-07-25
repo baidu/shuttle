@@ -169,7 +169,10 @@ public:
     virtual ~AlphaGru() { }
 
     virtual bool CleanTempDir();
+
 protected:
+    void NormalizeDfsinfo(std::vector<DfsInfo>& infos);
+
     virtual ResourceManager* BuildResourceManager();
     virtual void DumpResourceManager(GruCollection* backup);
     virtual void LoadResourceManager(const GruCollection& backup);
@@ -797,23 +800,50 @@ bool AlphaGru::CleanTempDir() {
     return ok;
 }
 
-ResourceManager* AlphaGru::BuildResourceManager() {
-    std::vector<std::string> input_names;
-    const ::google::protobuf::RepeatedPtrField<DfsInfo>& inputs = cur_node_->inputs();
-    input_names.reserve(inputs.size());
-    ::google::protobuf::RepeatedPtrField<DfsInfo>::const_iterator it;
-    for (it = inputs.begin(); it != inputs.end(); ++it) {
-        input_names.push_back(it->path());
+void AlphaGru::NormalizeDfsinfo(std::vector<DfsInfo>& infos) {
+    std::vector<DfsInfo>::iterator it = infos.begin();
+    while (it != infos.end()) {
+        const std::string& path = it->path();
+        if (boost::starts_with(path, "hdfs://")) {
+            if (path.find_first_of(':', 7) == std::string::npos) {
+                it = infos.erase(it);
+            } else {
+                std::string host;
+                int port;
+                ParseHdfsAddress(path, &host, &port, NULL);
+                it->set_host(host);
+                it->set_port(boost::lexical_cast<std::string>(port));
+                ++it;
+            }
+        } else {
+            if (it->has_host() && it->has_port()) {
+                std::string path = "hdfs://" + it->host() + ":" +
+                    boost::lexical_cast<std::string>(it->port()) + it->path();
+                it->set_path(path);
+                ++it;
+            } else {
+                it = infos.erase(it);
+            }
+        }
     }
+}
 
-    // TODO Wait for multifs
-    FileSystem::Param input_param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_inputs(0)));
+ResourceManager* AlphaGru::BuildResourceManager() {
+    std::vector<DfsInfo> dfs_inputs;
+    const ::google::protobuf::RepeatedPtrField<DfsInfo>& inputs = cur_node_->inputs();
+    dfs_inputs.resize(inputs.size());
+    std::copy(inputs.begin(), inputs.end(), dfs_inputs.begin());
+
+    NormalizeDfsinfo(dfs_inputs);
+    if (dfs_inputs.size() != static_cast<size_t>(inputs.size())) {
+        return NULL;
+    }
 
     ResourceManager* manager = NULL;
     if (cur_node_->input_format() == kNLineInput) {
-        manager = ResourceManager::GetNLineManager(input_names, input_param);
+        manager = ResourceManager::GetNLineManager(dfs_inputs);
     } else {
-        manager = ResourceManager::GetBlockManager(input_names, input_param, job_.split_size());
+        manager = ResourceManager::GetBlockManager(dfs_inputs, job_.split_size());
     }
     if (manager == NULL || manager->SumOfItem() < 1) {
         LOG(INFO, "node %d phase cannot divide input, which may not exist: %s",

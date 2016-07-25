@@ -96,10 +96,13 @@ public:
     FileSystemHubImpl() { }
     virtual ~FileSystemHubImpl() { }
 
-    virtual FileSystem* GetFs(DfsInfo& info);
+    virtual FileSystem* BuildFs(DfsInfo& info);
+    virtual FileSystem* GetFs(const std::string& address);
+    virtual FileSystem::Param GetParam(const std::string& address);
 
 private:
     std::map< std::string, boost::shared_ptr<FileSystem> > fs_map_;
+    std::map< std::string, FileSystem::Param > param_map_;
     Mutex mu_;
 };
 
@@ -439,7 +442,7 @@ FileSystem::Param FileSystemHub::BuildFileParam(DfsInfo& info) {
 
 }
 
-FileSystem* FileSystemHubImpl::GetFs(DfsInfo& info) {
+FileSystem* FileSystemHubImpl::BuildFs(DfsInfo& info) {
     FileSystem::Param param = BuildFileParam(info);
     const std::string& host = info.host();
     if (host.empty() || info.port().empty()) {
@@ -452,9 +455,36 @@ FileSystem* FileSystemHubImpl::GetFs(DfsInfo& info) {
         LOG(DEBUG, "get fs, host: %s, param.size(): %d", host.c_str(), param.size());
         FileSystem* fs = FileSystem::CreateInfHdfs(param);
         fs_map_[key].reset(fs);
+        param_map_[key] = param;
         return fs;
     }
     return fs_map_[key].get();
+}
+
+FileSystem* FileSystemHubImpl::GetFs(const std::string& address) {
+    std::string host;
+    int port;
+    ParseHdfsAddress(address, &host, &port, NULL);
+    std::string key = host + ":" + boost::lexical_cast<std::string>(port);
+
+    MutexLock lock(&mu_);
+    if (fs_map_.find(key) == fs_map_.end()) {
+        return NULL;
+    }
+    return fs_map_[key].get();
+}
+
+FileSystem::Param FileSystemHubImpl::GetParam(const std::string& address) {
+    std::string host;
+    int port;
+    ParseHdfsAddress(address, &host, &port, NULL);
+    std::string key = host + ":" + boost::lexical_cast<std::string>(port);
+
+    MutexLock lock(&mu_);
+    if (param_map_.find(key) == param_map_.end()) {
+        return FileSystem::Param();
+    }
+    return param_map_[key];
 }
 
 InfSeqFile::InfSeqFile() : fs_(NULL), sf_(NULL) {

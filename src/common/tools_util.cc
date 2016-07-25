@@ -16,10 +16,14 @@ void ParseHdfsAddress(const std::string& address, std::string* host, int* port,
     if (!boost::starts_with(address, "hdfs://")) {
         return;
     }
-    // len('hdfs://') + 1 == 7
+    // len('hdfs://') == 7
     size_t server_path_seperator = address.find_first_of('/', 7);
     const std::string& server = address.substr(7, server_path_seperator - 7);
-    int last_colon = server.find_last_of(':');
+    size_t last_colon = server.find_last_of(':');
+    // address doesn't contain port information
+    if (last_colon == std::string::npos) {
+        return;
+    }
     if (host != NULL) {
         *host = server.substr(0, last_colon);
     }

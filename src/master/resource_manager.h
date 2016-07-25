@@ -54,10 +54,8 @@ public:
 
     static ResourceManager* GetIdManager(int n);
     static ResourceManager* GetBlockManager(
-            const std::vector<std::string>& input_files,
-            FileSystem::Param& param, int64_t split_size);
-    static ResourceManager* GetNLineManager(
-            const std::vector<std::string>& input_files, FileSystem::Param& param);
+            std::vector<DfsInfo>& inputs, int64_t split_size);
+    static ResourceManager* GetNLineManager(std::vector<DfsInfo>& inputs);
     static ResourceManager* BuildManagerFromBackup(
             const std::vector<ResourceItem>& data);
 };

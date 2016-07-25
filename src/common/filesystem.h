@@ -57,7 +57,10 @@ public:
 
 class FileSystemHub {
 public:
-    virtual FileSystem* GetFs(DfsInfo& info) = 0;
+    virtual FileSystem* BuildFs(DfsInfo& info) = 0;
+    virtual FileSystem* GetFs(const std::string& address) = 0;
+    virtual FileSystem::Param GetParam(const std::string& address) = 0;
+
     static FileSystemHub* GetHub();
     static FileSystem::Param BuildFileParam(DfsInfo& info);
 };
