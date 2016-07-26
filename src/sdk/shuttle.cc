@@ -3,7 +3,7 @@
 #include <iterator>
 #include <algorithm>
 
-#include "proto/app_master.pb.h"
+#include "proto/master.pb.h"
 #include "common/rpc_client.h"
 #include "logging.h"
 

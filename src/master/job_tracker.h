@@ -6,7 +6,7 @@
 #include "gru.h"
 #include "dag_scheduler.h"
 #include "proto/shuttle.pb.h"
-#include "proto/app_master.pb.h"
+#include "proto/master.pb.h"
 
 namespace baidu {
 namespace shuttle {

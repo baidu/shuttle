@@ -8,7 +8,7 @@
 #include "ins_sdk.h"
 #include "mutex.h"
 #include "thread_pool.h"
-#include "proto/app_master.pb.h"
+#include "proto/master.pb.h"
 #include "proto/serialize.pb.h"
 #include "job_tracker.h"
 

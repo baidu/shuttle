@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <gflags/gflags.h>
 #include "logging.h"
-#include "proto/app_master.pb.h"
+#include "proto/master.pb.h"
 
 DECLARE_string(master_nexus_path);
 DECLARE_string(nexus_addr);

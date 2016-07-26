@@ -53,7 +53,7 @@ master_src = 'src/master/gru.cc \
               src/common/filesystem.cc \
               src/common/tools_util.cc \
               src/sort/input_reader.cc \
-              proto/app_master.proto \
+              proto/master.proto \
               proto/minion.proto \
               proto/serialize.proto \
               proto/shuttle.proto'
@@ -65,11 +65,11 @@ minion_src = 'src/minion/minion_main.cc \
               src/common/filesystem.cc \
               src/common/tools_util.cc \
               proto/minion.proto \
-              proto/app_master.proto \
+              proto/master.proto \
               proto/shuttle.proto'
 
 sdk_src = 'src/sdk/shuttle.cc \
-           proto/app_master.proto \
+           proto/master.proto \
            proto/shuttle.proto'
 
 sdk_header = 'src/sdk/shuttle.h'
