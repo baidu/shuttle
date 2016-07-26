@@ -31,7 +31,6 @@ Status JobTracker::Start() {
     // XXX Maybe set to running until some assignment is required
     state_ = kRunning;
     Status ret_val = kOk;
-    // TODO pre-check
     if (!scheduler_.Validate()) {
         LOG(WARNING, "job do not meet DAG limitation: %s", job_id_.c_str());
         return kInvalidArg;
@@ -162,6 +161,7 @@ Status JobTracker::GetTaskOverview(std::vector<TaskOverview>& tasks) {
             info->set_node(i);
             task.set_state(it->state);
             task.set_minion_addr(it->endpoint);
+            task.set_progress(it->period == -1 ? 0 : 1);
             task.set_start_time(it->alloc_time);
             task.set_finish_time(it->period == -1 ? 0 : it->alloc_time + it->period);
             tasks.push_back(task);

@@ -776,7 +776,6 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::string temp;
     ParseHdfsAddress(output->path(), NULL, NULL, &temp);
-    // TODO Maybe no need of separator`/', check default value
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdirs(temp);
     delete fs;
@@ -915,7 +914,6 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::string temp;
     ParseHdfsAddress(output->path(), NULL, NULL, &temp);
-    // TODO Maybe no need of separator`/', check default value
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdirs(temp);
     delete fs;

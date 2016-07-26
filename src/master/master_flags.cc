@@ -22,12 +22,12 @@ DEFINE_int32(time_tolerance, 120, "longest time interval of the monitor sleep");
 DEFINE_string(temporary_dir, "/_temporary/", "define the accepted temporary directory");
 
 // Used in master_impl.cc
-// nexus_server_list
+// nexus_server_list defined
 DEFINE_bool(recovery, false, "whether fallen into recovery process at the beginning");
-// nexus_root_path
+// nexus_root_path defined
 DEFINE_string(master_lock_path, "master_lock", "the key used for master to lock");
 DEFINE_string(master_path, "master", "the key used for minion to find master");
-// master_port
+// master_port defined
 DEFINE_int32(gc_interval, 600, "time interval for master recycling outdated job");
 DEFINE_int32(backup_interval, 5000, "millisecond time interval for master backup jobs information");
 
