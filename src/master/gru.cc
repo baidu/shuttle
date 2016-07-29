@@ -90,6 +90,10 @@ Status Gru::Start() {
     minion.stop_cmd = ss_stop.str().c_str();
     minion.requirement = galaxy_job.pod.requirement;
     minion.mem_isolation_type = "kMemIsolationCgroup";
+    minion.requirement.read_io_ps = 0;
+    minion.requirement.write_io_ps = 0;
+    minion.requirement.read_bytes_ps = 0;
+    minion.requirement.write_bytes_ps = 0;
     if (FLAGS_enable_cpu_soft_limit) {
         minion.cpu_isolation_type = "kCpuIsolationSoft";
     } else {

@@ -134,8 +134,8 @@ int main(int argc, char* argv[]) {
     if (!host.empty() && host != FLAGS_dfs_host) { // when conflict
         FLAGS_dfs_host = host;
         FLAGS_dfs_port = boost::lexical_cast<std::string>(port);
-        FLAGS_dfs_user = "";
-        FLAGS_dfs_password = "";
+        //FLAGS_dfs_user = "";
+        //FLAGS_dfs_password = "";
     }
     DoRead();
     return 0;
