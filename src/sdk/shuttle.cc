@@ -129,6 +129,9 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     } else if (response.status() == kWriteFileFail) {
         LOG(WARNING, "output file exists");
         return false;
+    } else if (response.status() == kGalaxyError) {
+        LOG(WARNING, "fail to submit job to galaxy, no quota");
+        return false;
     }
     job_id = response.jobid();
     return true;
