@@ -12,6 +12,7 @@ public:
     virtual int Calc(const std::string& line, std::string* key) const = 0;
     virtual int Calc(const std::string& key) const = 0;
     int HashCode(const std::string& str) const;
+    virtual ~Partitioner() { }
 };
 
 class KeyFieldBasedPartitioner : public Partitioner {

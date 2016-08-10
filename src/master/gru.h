@@ -69,6 +69,9 @@ public:
 
     // For temporary dir cleaning. Will influence successors processing. Use with CAUTION
     virtual bool CleanTempDir() = 0;
+
+    // Virtual empty destructor
+    virtual ~Gru() { }
     
     // Factory methods
     static Gru* GetAlphaGru(JobDescriptor& job, const std::string& job_id,

@@ -51,6 +51,7 @@ public:
     virtual int Done() = 0;
     virtual void Load(const std::vector<ResourceItem>& data) = 0;
     virtual std::vector<ResourceItem> Dump() = 0;
+    virtual ~ResourceManager() { }
 
     static ResourceManager* GetIdManager(int n);
     static ResourceManager* GetBlockManager(

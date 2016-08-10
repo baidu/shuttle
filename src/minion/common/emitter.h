@@ -10,8 +10,8 @@ namespace shuttle {
 class EmitItem {
 public:
     virtual size_t Size() = 0;
-
     virtual EmitItem* GetCopy() = 0;
+    virtual ~EmitItem() { }
 };
 
 class Emitter {
