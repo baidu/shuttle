@@ -6,7 +6,7 @@
 namespace baidu {
 namespace shuttle {
 
-class FileReader {
+class RecordReader {
 public:
     class Iterator {
     public:
@@ -25,7 +25,7 @@ public:
     virtual ~FileReader() { }
 };
 
-class FileWriter {
+class RecordWriter {
 public:
     virtual Status Open(const std::string& path, FileSystem::Param param) = 0;
     virtual Status Put(const std::string& key, const std::string& value) = 0;
