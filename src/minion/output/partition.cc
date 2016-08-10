@@ -15,14 +15,15 @@ int Partitioner::HashCode(const std::string& str) const{
     return h & 0x7FFFFFFF;
 }
 
-KeyFieldBasedPartitioner::KeyFieldBasedPartitioner(const TaskInfo& task) 
-  : num_key_fields_(0),
-    num_partition_fields_(0), 
-    reduce_total_(0) {
-    num_key_fields_ = task.job().key_fields_num();
-    num_partition_fields_ = task.job().partition_fields_num();
-    reduce_total_ = task.job().reduce_total();
-    separator_ = task.job().key_separator();
+KeyFieldBasedPartitioner::KeyFieldBasedPartitioner(const NodeConfig& node) :
+        num_key_fields_(0),
+        num_partition_fields_(0),
+        reduce_total_(0) {
+    num_key_fields_ = node.key_fields_num();
+    num_partition_fields_ = node.partition_fields_num();
+    separator_ = node.key_separator();
+    // TODO
+    reduce_total_ = node.reduce_total();
     if (num_key_fields_ == 0) {
         num_key_fields_ = 1;
     }
@@ -63,7 +64,6 @@ int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) co
     }
     key->assign(head, p1 - 1);
     std::string partition_key(head, p2 - 1);
-    //printf("zzzzzzzzzzzzz: %s\n", partition_key.c_str());
     return HashCode(partition_key) % reduce_total_; 
 }
 
@@ -71,17 +71,17 @@ int KeyFieldBasedPartitioner::Calc(const std::string& key) const {
     return HashCode(key) % reduce_total_;
 }
 
-IntHashPartitioner::IntHashPartitioner(const TaskInfo& task)
-  : reduce_total_(0) {
-    reduce_total_ = task.job().reduce_total();
-    separator_ = task.job().key_separator();
+IntHashPartitioner::IntHashPartitioner(const NodeCOnfig& node) : reduce_total_(0) {
+    separator_ = node.key_separator();
+    // TODO
+    reduce_total_ = node.reduce_total();
     if (separator_.empty()) {
         separator_ = "\t";
     }
 }
 
 int IntHashPartitioner::Calc(const std::string& line, std::string* key) const{
-    size_t space_pos = line.find(" "); //e.g "123 key_xxx\tvalue"
+    size_t space_pos = line.find(" "); // e.g "123 key_xxx\tvalue"
     int hash_code;
     if (space_pos != std::string::npos) {
         hash_code = atoi(line.substr(0, space_pos).c_str());
@@ -98,7 +98,7 @@ int IntHashPartitioner::Calc(const std::string& line, std::string* key) const{
 }
 
 int IntHashPartitioner::Calc(const std::string& key) const{
-    size_t space_pos = key.find(" "); //e.g "123 key_xxx"
+    size_t space_pos = key.find(" "); // e.g "123 key_xxx"
     int hash_code;
     if (space_pos != std::string::npos) {
         hash_code = atoi(key.substr(0, space_pos).c_str());
@@ -108,5 +108,6 @@ int IntHashPartitioner::Calc(const std::string& key) const{
     return hash_code % reduce_total_;
 }
 
-} //namespace shuttle
-} //namespace baidu
+} // namespace shuttle
+} // namespace baidu
+

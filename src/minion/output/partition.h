@@ -16,7 +16,7 @@ public:
 
 class KeyFieldBasedPartitioner : public Partitioner {
 public:
-    KeyFieldBasedPartitioner(const TaskInfo& task);
+    KeyFieldBasedPartitioner(const NodeConfig& node);
     virtual ~KeyFieldBasedPartitioner(){};
     int Calc(const std::string& line, std::string* key) const;
     int Calc(const std::string& key) const;
@@ -29,7 +29,7 @@ private:
 
 class IntHashPartitioner : public Partitioner {
 public:
-    IntHashPartitioner(const TaskInfo& task);
+    IntHashPartitioner(const NodeConfig& node);
     virtual ~IntHashPartitioner(){};
     int Calc(const std::string& line, std::string* key) const;
     int Calc(const std::string& key) const;
