@@ -14,7 +14,7 @@ class GalaxyHandler {
 
 public:
     GalaxyHandler(JobDescriptor& job, const std::string& job_id, int node);
-    virtual ~GalaxyHandler() {
+    ~GalaxyHandler() {
         Kill();
         if (galaxy_ != NULL) {
             delete galaxy_;

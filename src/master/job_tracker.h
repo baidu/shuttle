@@ -22,7 +22,7 @@ class JobTracker {
 
 public:
     JobTracker(const JobDescriptor& job_descriptor);
-    virtual ~JobTracker();
+    ~JobTracker();
 
     Status Start();
     Status Update(const std::string& priority, const std::vector<UpdateItem>& nodes);

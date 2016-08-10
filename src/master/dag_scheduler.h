@@ -16,7 +16,7 @@ struct DagNode {
 class DagScheduler {
 public:
     DagScheduler(const JobDescriptor& job);
-    virtual ~DagScheduler();
+    ~DagScheduler();
 
     bool Validate();
 
