@@ -223,7 +223,8 @@ Gru* Gru::GetOmegaGru(JobDescriptor& job, const std::string& job_id,
 
 Status BasicGru::Start() {
     start_time_ = std::time(NULL);
-    // check existence of output
+
+    // Check the existence of output
     FileSystem::Param param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_output()));
     FileSystem* fs = FileSystem::CreateInfHdfs(param);
     if (fs->Exist(cur_node_->output().path())) {
@@ -237,6 +238,14 @@ Status BasicGru::Start() {
         state_ = kFailed;
         return kNoMore;
     }
+
+    // Limit capacity
+    int limit = manager_->SumOfItem();
+    limit += limit / 2;
+    if (cur_node_->capacity() > limit) {
+        cur_node_->set_capacity(limit);
+    }
+
     BuildEndGameCounters();
     if (galaxy_->Start() != kOk) {
         state_ = kFailed;

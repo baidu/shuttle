@@ -30,10 +30,6 @@ public:
     int64_t offset;
     int64_t size;
     int allocated;
-//    ResourceItem() { }
-//    ResourceItem(const ResourceItem& res);
-//    ResourceItem* operator=(const ResourceItem& res);
-//    ResourceItem* CopyFrom(const ResourceItem& res);
 };
 
 class ResourceManager {
