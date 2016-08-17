@@ -6,7 +6,6 @@
 #include <assert.h>
 #include <sys/time.h>
 
-#include "common/filesystem.h"
 #include "proto/serialize.pb.h"
 #include "logging.h"
 

@@ -4,7 +4,7 @@
 #include <deque>
 #include <string>
 
-#include "common/filesystem.h"
+#include "proto/shuttle.pb.h"
 
 namespace baidu {
 namespace shuttle {

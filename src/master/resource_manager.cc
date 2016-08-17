@@ -10,6 +10,7 @@
 #include "thread_pool.h"
 #include "mutex.h"
 #include "sort/input_reader.h"
+#include "common/file.h"
 #include "common/tools_util.h"
 
 DECLARE_int32(input_block_size);
@@ -291,7 +292,7 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
     if (inputs.size() == 0) {
         return;
     }
-    FileSystemHub* hub = FileSystemHub::GetHub();
+    FileHub* hub = FileHub::GetHub();
     for (std::vector<DfsInfo>::iterator it = inputs.begin(); it != inputs.end(); ++it) {
         hub->BuildFs(*it);
     }
@@ -326,9 +327,9 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
         std::string path;
         ParseHdfsAddress(*it, NULL, NULL, &path);
         if (path.find('*') == std::string::npos) {
-            tp.AddTask(boost::bind(&FileSystem::List, hub->GetFs(*it), path, &sub_files[i]));
+            tp.AddTask(boost::bind(&File::List, hub->GetFs(*it), path, &sub_files[i]));
         } else {
-            tp.AddTask(boost::bind(&FileSystem::Glob, hub->GetFs(*it), path, &sub_files[i]));
+            tp.AddTask(boost::bind(&File::Glob, hub->GetFs(*it), path, &sub_files[i]));
         }
         i = (i + 1) % parallel_level;
     }
@@ -370,7 +371,7 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
 }
 
 NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
-    FileSystemHub* hub = FileSystemHub::GetHub();
+    FileHub* hub = FileHub::GetHub();
     std::vector<FileInfo> files;
     std::string path;
     for (std::vector<DfsInfo>::iterator it = inputs.begin();

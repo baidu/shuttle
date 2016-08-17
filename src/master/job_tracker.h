@@ -16,8 +16,6 @@ struct UpdateItem {
     int capacity;
 };
 
-class FileSystem;
-
 class JobTracker {
 
 public:

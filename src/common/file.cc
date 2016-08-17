@@ -1,3 +1,5 @@
+#include "file.h"
+
 #include <deque>
 #include <map>
 #include <boost/shared_ptr.hpp>
@@ -9,18 +11,15 @@
 #include <sys/types.h> 
 #include <unistd.h> 
 
-#include "filesystem.h"
+#include "hdfs.h"
 #include "logging.h"
 #include "mutex.h"
 #include "common/tools_util.h"
 
-using baidu::common::INFO;
-using baidu::common::WARNING;
-
 namespace baidu {
 namespace shuttle {
 
-class InfHdfs : public FileSystem {
+class InfHdfs : public File {
 public:
     InfHdfs();
     virtual ~InfHdfs() { }
@@ -50,7 +49,7 @@ private:
 };
 
 
-class LocalFs : public FileSystem {
+class LocalFs : public File {
 public:
     LocalFs();
     virtual ~LocalFs() { }
@@ -91,36 +90,34 @@ private:
     std::string path_;
 };
 
-class FileSystemHubImpl : public FileSystemHub {
+class FileHubImpl : public FileHub {
 public:
-    FileSystemHubImpl() { }
-    virtual ~FileSystemHubImpl() { }
+    FileHubImpl() { }
+    virtual ~FileHubImpl() { }
 
-    virtual FileSystem* BuildFs(DfsInfo& info);
-    virtual FileSystem* GetFs(const std::string& address);
-    virtual FileSystem::Param GetParam(const std::string& address);
+    virtual File* BuildFs(DfsInfo& info);
+    virtual File* GetFs(const std::string& address);
+    virtual File::Param GetParam(const std::string& address);
 
 private:
-    std::map< std::string, boost::shared_ptr<FileSystem> > fs_map_;
-    std::map< std::string, FileSystem::Param > param_map_;
+    std::map< std::string, boost::shared_ptr<File> > fs_map_;
+    std::map< std::string, File::Param > param_map_;
     Mutex mu_;
 };
 
-FileSystem* FileSystem::CreateInfHdfs() {
-    return new InfHdfs();
+File* File::Create(FileType type, Param& param) {
+    switch(type) {
+    case kLocalFs:
+        return new LocalFs();
+    case kInfHdfs:
+        InfHdfs* fs = new InfHdfs();
+        fs->Connect(param);
+        return fs;
+    }
+    return NULL;
 }
 
-FileSystem* FileSystem::CreateInfHdfs(Param& param) {
-    InfHdfs* fs = new InfHdfs();
-    fs->Connect(param);
-    return fs;
-}
-
-FileSystem* FileSystem::CreateLocalFs() {
-    return new LocalFs();
-}
-
-bool FileSystem::WriteAll(void* buf, size_t len) {
+bool File::WriteAll(void* buf, size_t len) {
     size_t start = 0;
     char* str = (char*)buf;
     while (start < len) {
@@ -164,30 +161,8 @@ void InfHdfs::Connect(Param& param) {
 }
 
 bool InfHdfs::Open(const std::string& path, OpenMode mode) {
-    path_ = path;
-    if (!fs_) {
-        return false;
-    }
-    if (mode == kReadFile) {
-        fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
-    } else if (mode == kWriteFile) {
-        short replica = 3;
-        fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
-    } else {
-        LOG(WARNING, "unknown open mode.");
-        return false;
-    }
-    if (!fd_) {
-        LOG(WARNING, "open %s fail", path.c_str());
-        return false;
-    }
-    return true;
-}
-
-bool InfHdfs::Open(const std::string& path, Param& param, OpenMode mode) {
     LOG(INFO, "try to open: %s", path.c_str());
     path_ = path;
-    Connect(param);
     if (!fs_) {
         return false;
     }
@@ -195,10 +170,6 @@ bool InfHdfs::Open(const std::string& path, Param& param, OpenMode mode) {
         fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
     } else if (mode == kWriteFile) {
         short replica = 3;
-        if (param.find("replica") != param.end()) {
-            replica = atoi(param["replica"].c_str());
-        }
-        //printf("replica: %d, %s\n", replica, path.c_str());
         fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
     } else {
         LOG(WARNING, "unknown open mode.");
@@ -275,7 +246,11 @@ bool InfHdfs::List(const std::string& dir, std::vector<FileInfo>* children) {
         return false;
     }
     for (int i = 0; i < file_num; i++) {
-        children->push_back(FileInfo(file_list[i]));
+        children->push_back(FileInfo());
+        FileInfo& last = children->back();
+        last.kind = file_list[i].mKind;
+        last.name = file_list[i].mName;
+        last.size = file_list[i].mSize;
     }
     hdfsFreeFileInfo(file_list, file_num);
     return true;
@@ -333,7 +308,11 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
                 std::string cur_file;
                 ParseHdfsAddress(file_list[i].mName, NULL, NULL, &cur_file);
                 if (PatternMatch(cur_file, dir)) {
-                    children->push_back(FileInfo(file_list[i]));
+                    children->push_back(FileInfo());
+                    FileInfo& last = children->back();
+                    last.kind = file_list[i].mKind;
+                    last.name = file_list[i].mName;
+                    last.size = file_list[i].mSize;
                 }
             }
             hdfsFreeFileInfo(file_list, file_num);
@@ -354,8 +333,7 @@ LocalFs::LocalFs() : fd_(0) {
 
 }
 
-bool LocalFs::Open(const std::string& path,
-                   OpenMode mode) {
+bool LocalFs::Open(const std::string& path, OpenMode mode) {
     path_ = path;
     mode_t acl = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH; 
     if (mode == kReadFile) {
@@ -375,12 +353,6 @@ bool LocalFs::Open(const std::string& path,
         return false;
     }
     return true;
-}
-
-bool LocalFs::Open(const std::string& path, 
-                   Param& /*param*/,
-                   OpenMode mode) {
-    return Open(path, mode);
 }
 
 bool LocalFs::Close() {
@@ -414,12 +386,12 @@ bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
     return ::rename(old_name.c_str(), new_name.c_str()) == 0;
 }
 
-FileSystemHub* FileSystemHub::GetHub() {
-    return new FileSystemHubImpl();
+FileHub* FileHub::GetHub() {
+    return new FileHubImpl();
 }
 
-FileSystem::Param FileSystemHub::BuildFileParam(DfsInfo& info) {
-    FileSystem::Param param;
+File::Param FileHub::BuildFileParam(DfsInfo& info) {
+    File::Param param;
     if(!info.user().empty() && !info.password().empty()) {
         param["user"] = info.user();
         param["password"] = info.password();
@@ -442,8 +414,8 @@ FileSystem::Param FileSystemHub::BuildFileParam(DfsInfo& info) {
 
 }
 
-FileSystem* FileSystemHubImpl::BuildFs(DfsInfo& info) {
-    FileSystem::Param param = BuildFileParam(info);
+File* FileHubImpl::BuildFs(DfsInfo& info) {
+    File::Param param = BuildFileParam(info);
     const std::string& host = info.host();
     if (host.empty() || info.port().empty()) {
         return NULL;
@@ -453,7 +425,7 @@ FileSystem* FileSystemHubImpl::BuildFs(DfsInfo& info) {
     MutexLock lock(&mu_);
     if (fs_map_.find(key) == fs_map_.end()) {
         LOG(DEBUG, "get fs, host: %s, param.size(): %d", host.c_str(), param.size());
-        FileSystem* fs = FileSystem::CreateInfHdfs(param);
+        File* fs = File::Create(kInfHdfs, param);
         fs_map_[key].reset(fs);
         param_map_[key] = param;
         return fs;
@@ -461,7 +433,7 @@ FileSystem* FileSystemHubImpl::BuildFs(DfsInfo& info) {
     return fs_map_[key].get();
 }
 
-FileSystem* FileSystemHubImpl::GetFs(const std::string& address) {
+File* FileHubImpl::GetFs(const std::string& address) {
     std::string host;
     int port;
     ParseHdfsAddress(address, &host, &port, NULL);
@@ -474,7 +446,7 @@ FileSystem* FileSystemHubImpl::GetFs(const std::string& address) {
     return fs_map_[key].get();
 }
 
-FileSystem::Param FileSystemHubImpl::GetParam(const std::string& address) {
+File::Param FileHubImpl::GetParam(const std::string& address) {
     std::string host;
     int port;
     ParseHdfsAddress(address, &host, &port, NULL);
@@ -482,12 +454,12 @@ FileSystem::Param FileSystemHubImpl::GetParam(const std::string& address) {
 
     MutexLock lock(&mu_);
     if (param_map_.find(key) == param_map_.end()) {
-        return FileSystem::Param();
+        return File::Param();
     }
     return param_map_[key];
 }
 
-InfSeqFile::InfSeqFile() : fs_(NULL), sf_(NULL) {
+/*InfSeqFile::InfSeqFile() : fs_(NULL), sf_(NULL) {
 
 }
 
@@ -560,7 +532,7 @@ bool InfSeqFile::Seek(int64_t offset) {
 
 int64_t InfSeqFile::Tell() {
     return getSeqFilePos(sf_);
-}
+}*/
 
 } //namespace shuttle
 } //namespace baidu

@@ -1,15 +1,19 @@
-#ifndef _BAIDU_SHUTTLE_FILESYSTEM_H_
-#define _BAIDU_SHUTTLE_FILESYSTEM_H_
+#ifndef _BAIDU_SHUTTLE_FILE_H_
+#define _BAIDU_SHUTTLE_FILE_H_
 
 #include <stdint.h>
 #include <string>
 #include <map>
 #include <vector>
 #include "proto/shuttle.pb.h"
-#include "hdfs.h" //for hdfs of inf
 
 namespace baidu {
 namespace shuttle {
+
+enum FileType {
+    kLocalFs = 0,
+    kInfHdfs = 1,
+};
 
 enum OpenMode {
     kReadFile = 0,
@@ -20,26 +24,14 @@ struct FileInfo {
     char kind;
     std::string name;
     int64_t size;
-    FileInfo() { }
-    FileInfo(const hdfsFileInfo& hdfsfile) :
-            kind(hdfsfile.mKind),
-            name(hdfsfile.mName),
-            size(hdfsfile.mSize) {
-    }
 };
 
-class FileSystem {
+class File {
 public:
     typedef std::map<std::string, std::string> Param;
-    static FileSystem* CreateInfHdfs();
-    static FileSystem* CreateInfHdfs(Param& param);
-    static FileSystem* CreateLocalFs();
+    static File* Create(FileType type, Param& param);
 
-    virtual bool Open(const std::string& path,
-                      OpenMode mode) = 0;
-    virtual bool Open(const std::string& path,
-                      Param& param,
-                      OpenMode mode) = 0;
+    virtual bool Open(const std::string& path, OpenMode mode) = 0;
     virtual bool Close() = 0;
     virtual bool Seek(int64_t pos) = 0;
     virtual int32_t Read(void* buf, size_t len) = 0;
@@ -55,17 +47,17 @@ public:
     virtual bool Exist(const std::string& path) = 0;
 };
 
-class FileSystemHub {
+class FileHub {
 public:
-    virtual FileSystem* BuildFs(DfsInfo& info) = 0;
-    virtual FileSystem* GetFs(const std::string& address) = 0;
-    virtual FileSystem::Param GetParam(const std::string& address) = 0;
+    virtual File* BuildFs(DfsInfo& info) = 0;
+    virtual File* GetFs(const std::string& address) = 0;
+    virtual File::Param GetParam(const std::string& address) = 0;
 
-    static FileSystemHub* GetHub();
-    static FileSystem::Param BuildFileParam(DfsInfo& info);
+    static FileHub* GetHub();
+    static File::Param BuildFileParam(DfsInfo& info);
 };
 
-class InfSeqFile {
+/*class InfSeqFile {
 public:
     InfSeqFile();
     bool Open(const std::string& path, FileSystem::Param& param, OpenMode mode);
@@ -78,7 +70,7 @@ private:
     hdfsFS fs_;
     SeqFile sf_;
     std::string path_;
-};
+};*/
 
 } //namespace shuttle
 } //namespace baidu

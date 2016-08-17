@@ -13,7 +13,7 @@
 #include "galaxy_handler.h"
 #include "resource_manager.h"
 #include "dag_scheduler.h"
-#include "common/filesystem.h"
+#include "common/file.h"
 #include "common/rpc_client.h"
 #include "common/tools_util.h"
 #include "proto/minion.pb.h"
@@ -225,8 +225,8 @@ Status BasicGru::Start() {
     start_time_ = std::time(NULL);
 
     // Check the existence of output
-    FileSystem::Param param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_output()));
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    File::Param param = FileHub::BuildFileParam(*(cur_node_->mutable_output()));
+    File* fs = File::Create(kInfHdfs, param);
     if (fs->Exist(cur_node_->output().path())) {
         LOG(WARNING, "node %d output exists, failed: %s", node_, job_id_.c_str());
         cur_node_->set_total(0);
@@ -781,8 +781,8 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
         return;
     }
     DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
-    FileSystem::Param param = FileSystemHub::BuildFileParam(*output);
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    File::Param param = FileHub::BuildFileParam(*output);
+    File* fs = File::Create(kInfHdfs, param);
     std::string temp;
     ParseHdfsAddress(output->path(), NULL, NULL, &temp);
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
@@ -808,8 +808,8 @@ bool AlphaGru::CleanTempDir() {
     if (!cur_node_->output().path().find(FLAGS_temporary_dir) == std::string::npos) {
         return true;
     }
-    FileSystem::Param param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_output()));
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    File::Param param = FileHub::BuildFileParam(*(cur_node_->mutable_output()));
+    File* fs = File::Create(kInfHdfs, param);
     bool ok = fs->Remove(cur_node_->output().path());
     delete fs;
 
@@ -919,8 +919,8 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
         return;
     }
     DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
-    FileSystem::Param param = FileSystemHub::BuildFileParam(*output);
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    File::Param param = FileHub::BuildFileParam(*output);
+    File* fs = File::Create(kInfHdfs, param);
     std::string temp;
     ParseHdfsAddress(output->path(), NULL, NULL, &temp);
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
@@ -943,8 +943,8 @@ bool BetaGru::CleanTempDir() {
     if (!cur_node_->has_output()) {
         return true;
     }
-    FileSystem::Param param = FileSystemHub::BuildFileParam(*(cur_node_->mutable_output()));
-    FileSystem* fs = FileSystem::CreateInfHdfs(param);
+    File::Param param = FileHub::BuildFileParam(*(cur_node_->mutable_output()));
+    File* fs = File::Create(kInfHdfs, param);
     bool ok = fs->Remove(cur_node_->output().path());
     delete fs;
 
