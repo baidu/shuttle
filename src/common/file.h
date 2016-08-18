@@ -11,8 +11,8 @@ namespace baidu {
 namespace shuttle {
 
 enum FileType {
-    kLocalFs = 0,
-    kInfHdfs = 1,
+    kLocalFs = 1,
+    kInfHdfs = 2
 };
 
 enum OpenMode {
@@ -29,9 +29,9 @@ struct FileInfo {
 class File {
 public:
     typedef std::map<std::string, std::string> Param;
-    static File* Create(FileType type, Param& param);
+    static File* Create(FileType type, const Param& param);
 
-    virtual bool Open(const std::string& path, OpenMode mode) = 0;
+    virtual bool Open(const std::string& path, OpenMode mode, const Param& param) = 0;
     virtual bool Close() = 0;
     virtual bool Seek(int64_t pos) = 0;
     virtual int32_t Read(void* buf, size_t len) = 0;
@@ -57,22 +57,8 @@ public:
     static File::Param BuildFileParam(DfsInfo& info);
 };
 
-/*class InfSeqFile {
-public:
-    InfSeqFile();
-    bool Open(const std::string& path, FileSystem::Param& param, OpenMode mode);
-    bool Close();
-    bool ReadNextRecord(std::string* key, std::string* value, bool* eof);
-    bool WriteNextRecord(const std::string& key, const std::string& value);
-    bool Seek(int64_t offset);
-    int64_t Tell();
-private:
-    hdfsFS fs_;
-    SeqFile sf_;
-    std::string path_;
-};*/
-
 } //namespace shuttle
 } //namespace baidu
 
 #endif
+

@@ -23,25 +23,24 @@ class InfHdfs : public File {
 public:
     InfHdfs();
     virtual ~InfHdfs() { }
-    static void ConnectInfHdfs(Param& param, hdfsFS* fs);
-    void Connect(Param& param);
-    bool Open(const std::string& path,
+
+    void Connect(const Param& param);
+    virtual bool Open(const std::string& path,
               OpenMode mode);
-    bool Open(const std::string& path, 
-              Param& param,
-              OpenMode mode);
-    bool Close();
-    bool Seek(int64_t pos);
-    int32_t Read(void* buf, size_t len);
-    int32_t Write(void* buf, size_t len);
-    int64_t Tell();
-    int64_t GetSize();
-    bool Rename(const std::string& old_name, const std::string& new_name);
-    bool Remove(const std::string& path);
-    bool List(const std::string& dir, std::vector<FileInfo>* children);
-    bool Glob(const std::string& dir, std::vector<FileInfo>* children);
-    bool Mkdirs(const std::string& dir);
-    bool Exist(const std::string& path);
+    virtual bool Close();
+    virtual bool Seek(int64_t pos);
+    virtual int32_t Read(void* buf, size_t len);
+    virtual int32_t Write(void* buf, size_t len);
+    virtual int64_t Tell();
+    virtual int64_t GetSize();
+    virtual bool Rename(const std::string& old_name, const std::string& new_name);
+    virtual bool Remove(const std::string& path);
+    virtual bool List(const std::string& dir, std::vector<FileInfo>* children);
+    virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children);
+    virtual bool Mkdirs(const std::string& dir);
+    virtual bool Exist(const std::string& path);
+
+    static void ConnectInfHdfs(const Param& param, hdfsFS* fs);
 private:
     hdfsFS fs_;
     hdfsFile fd_;
@@ -53,35 +52,33 @@ class LocalFs : public File {
 public:
     LocalFs();
     virtual ~LocalFs() { }
-    bool Open(const std::string& path,
+
+    virtual bool Open(const std::string& path,
               OpenMode mode);
-    bool Open(const std::string& path, 
-              Param& param,
-              OpenMode mode);
-    bool Close();
-    bool Seek(int64_t pos);
-    int32_t Read(void* buf, size_t len);
-    int32_t Write(void* buf, size_t len);
-    int64_t Tell();
-    int64_t GetSize();
-    bool Rename(const std::string& old_name, const std::string& new_name);
-    bool Remove(const std::string& /*path*/) {
+    virtual bool Close();
+    virtual bool Seek(int64_t pos);
+    virtual int32_t Read(void* buf, size_t len);
+    virtual int32_t Write(void* buf, size_t len);
+    virtual int64_t Tell();
+    virtual int64_t GetSize();
+    virtual bool Rename(const std::string& old_name, const std::string& new_name);
+    virtual bool Remove(const std::string& /*path*/) {
         //TODO, not implementation
         return false;
     }
-    bool List(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
+    virtual bool List(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
         //TODO, not implementation
         return false;
     }
-    bool Glob(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
+    virtual bool Glob(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
         //TODO, not implementation
         return false;
     }
-    bool Mkdirs(const std::string& /*dir*/) {
+    virtual bool Mkdirs(const std::string& /*dir*/) {
         //TODO, not implementation
         return false;
     }
-    bool Exist(const std::string& /*path*/) {
+    virtual bool Exist(const std::string& /*path*/) {
         //TODO, not implementation
         return false;
     }
@@ -105,7 +102,7 @@ private:
     Mutex mu_;
 };
 
-File* File::Create(FileType type, Param& param) {
+File* File::Create(FileType type, const Param& param) {
     switch(type) {
     case kLocalFs:
         return new LocalFs();
@@ -134,7 +131,7 @@ InfHdfs::InfHdfs() : fs_(NULL), fd_(NULL) {
 
 }
 
-void InfHdfs::ConnectInfHdfs(Param& param, hdfsFS* fs) {
+void InfHdfs::ConnectInfHdfs(const Param& param, hdfsFS* fs) {
     if (param.find("user") != param.end()) {
         const std::string& user = param["user"];
         const std::string& password = param["password"];
@@ -156,7 +153,7 @@ void InfHdfs::ConnectInfHdfs(Param& param, hdfsFS* fs) {
     }
 }
 
-void InfHdfs::Connect(Param& param) {
+void InfHdfs::Connect(const Param& param) {
     ConnectInfHdfs(param, &fs_);
 }
 
@@ -203,7 +200,6 @@ bool InfHdfs::Seek(int64_t pos) {
 
 int32_t InfHdfs::Read(void* buf, size_t len) {
     int32_t ret = hdfsRead(fs_, fd_, buf, len);
-    // /LOG(INFO, "InfHdfs::Read, %d, %d", len ,ret);
     return ret;
 }
 
@@ -459,80 +455,6 @@ File::Param FileHubImpl::GetParam(const std::string& address) {
     return param_map_[key];
 }
 
-/*InfSeqFile::InfSeqFile() : fs_(NULL), sf_(NULL) {
-
-}
-
-bool InfSeqFile::Open(const std::string& path, FileSystem::Param& param, OpenMode mode) {
-    InfHdfs::ConnectInfHdfs(param, &fs_);
-    if (!fs_) {
-        LOG(WARNING, "connect hdfs fail, when try open: %s", path.c_str());
-        return false;
-    }
-    if (mode == kReadFile) {
-        sf_ = readSequenceFile(fs_, path.c_str());
-        if (!sf_) {
-            LOG(WARNING, "fail to read: %s", path.c_str());
-            return false;
-        }
-    } else if (mode == kWriteFile) {
-        sf_ = writeSequenceFile(fs_, path.c_str(), "BLOCK", "org.apache.hadoop.io.compress.LzoCodec");
-        if (!sf_) {
-            LOG(WARNING, "fail to write: %s", path.c_str());
-            return false;
-        }
-    } else {
-        LOG(FATAL, "unkown mode: %d", mode);
-    }
-    path_ = path;
-    return true;
-}
-
-bool InfSeqFile::Close() {
-    return closeSequenceFile(fs_, sf_) == 0;
-}
-
-bool InfSeqFile::ReadNextRecord(std::string* key, std::string* value, bool* eof) {
-    int key_len;
-    int value_len;
-    void* raw_key;
-    void* raw_value;
-    *eof = false;
-    int ret = readNextRecordFromSeqFile(fs_, sf_, &raw_key, &key_len, &raw_value, &value_len);
-    if (ret != 0 && ret != 1) {
-        LOG(WARNING, "fail to read next record: %s", path_.c_str());
-        return false;
-    }
-    if (ret == 1) {
-        *eof = true;
-        return true;
-    }
-    key->assign(static_cast<const char*>(raw_key), key_len);
-    value->assign(static_cast<const char*>(raw_value), value_len);
-    return true;
-}
-
-bool InfSeqFile::WriteNextRecord(const std::string& key, const std::string& value) {
-    int ret = writeRecordIntoSeqFile(fs_, sf_, key.data(), key.size(), value.data(), value.size());
-    if (ret != 0) {
-        LOG(WARNING, "fail to write next record: %s", path_.c_str());
-        return false;
-    }
-    return true;
-}
-
-bool InfSeqFile::Seek(int64_t offset) {
-    int64_t ret = syncSeqFile(sf_, offset);
-    if (ret < 0) {
-        LOG(WARNING, "fail to seek: %s, %ld", path_.c_str(), offset);
-        return false;
-    }
-    return true;
-}
-
-int64_t InfSeqFile::Tell() {
-    return getSeqFilePos(sf_);
-}*/
-
 } //namespace shuttle
 } //namespace baidu
+
