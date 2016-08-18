@@ -25,8 +25,7 @@ public:
     virtual ~InfHdfs() { }
 
     void Connect(const Param& param);
-    virtual bool Open(const std::string& path,
-              OpenMode mode);
+    virtual bool Open(const std::string& path, OpenMode mode);
     virtual bool Close();
     virtual bool Seek(int64_t pos);
     virtual int32_t Read(void* buf, size_t len);
@@ -53,8 +52,7 @@ public:
     LocalFs();
     virtual ~LocalFs() { }
 
-    virtual bool Open(const std::string& path,
-              OpenMode mode);
+    virtual bool Open(const std::string& path, OpenMode mode);
     virtual bool Close();
     virtual bool Seek(int64_t pos);
     virtual int32_t Read(void* buf, size_t len);

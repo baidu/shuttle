@@ -31,7 +31,7 @@ public:
     typedef std::map<std::string, std::string> Param;
     static File* Create(FileType type, const Param& param);
 
-    virtual bool Open(const std::string& path, OpenMode mode, const Param& param) = 0;
+    virtual bool Open(const std::string& path, OpenMode mode) = 0;
     virtual bool Close() = 0;
     virtual bool Seek(int64_t pos) = 0;
     virtual int32_t Read(void* buf, size_t len) = 0;
