@@ -60,10 +60,7 @@ public:
     virtual int64_t Tell();
     virtual int64_t GetSize();
     virtual bool Rename(const std::string& old_name, const std::string& new_name);
-    virtual bool Remove(const std::string& /*path*/) {
-        //TODO, not implementation
-        return false;
-    }
+    virtual bool Remove(const std::string& path);
     virtual bool List(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
         //TODO, not implementation
         return false;
@@ -72,14 +69,8 @@ public:
         //TODO, not implementation
         return false;
     }
-    virtual bool Mkdirs(const std::string& /*dir*/) {
-        //TODO, not implementation
-        return false;
-    }
-    virtual bool Exist(const std::string& /*path*/) {
-        //TODO, not implementation
-        return false;
-    }
+    virtual bool Mkdirs(const std::string& dir);
+    virtual bool Exist(const std::string& path);
 private:
     int fd_;
     std::string path_;
@@ -192,20 +183,19 @@ bool InfHdfs::Close() {
     return true;
 }
 
-bool InfHdfs::Seek(int64_t pos) {
+inline bool InfHdfs::Seek(int64_t pos) {
     return hdfsSeek(fs_, fd_, pos) == 0;
 }
 
-int32_t InfHdfs::Read(void* buf, size_t len) {
-    int32_t ret = hdfsRead(fs_, fd_, buf, len);
-    return ret;
+inline int32_t InfHdfs::Read(void* buf, size_t len) {
+    return hdfsRead(fs_, fd_, buf, len);
 }
 
-int32_t InfHdfs::Write(void* buf, size_t len) {
+inline int32_t InfHdfs::Write(void* buf, size_t len) {
     return hdfsWrite(fs_, fd_, buf, len);
 }
 
-int64_t InfHdfs::Tell() {
+inline int64_t InfHdfs::Tell() {
     return hdfsTell(fs_, fd_);
 }
 
@@ -221,11 +211,11 @@ int64_t InfHdfs::GetSize() {
     return file_size;
 }
 
-bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
+inline bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
     return hdfsRename(fs_, old_name.c_str(), new_name.c_str()) == 0;
 }
 
-bool InfHdfs::Remove(const std::string& path) {
+inline bool InfHdfs::Remove(const std::string& path) {
     return hdfsDelete(fs_, path.c_str()) == 0;
 }
 
@@ -315,11 +305,11 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
     return true;
 }
 
-bool InfHdfs::Mkdirs(const std::string& dir) {
+inline bool InfHdfs::Mkdirs(const std::string& dir) {
     return hdfsCreateDirectory(fs_, dir.c_str()) == 0;
 }
 
-bool InfHdfs::Exist(const std::string& path) {
+inline bool InfHdfs::Exist(const std::string& path) {
     return hdfsExists(fs_, path.c_str()) == 0;
 }
 
@@ -349,38 +339,51 @@ bool LocalFs::Open(const std::string& path, OpenMode mode) {
     return true;
 }
 
-bool LocalFs::Close() {
+inline bool LocalFs::Close() {
     return ::close(fd_) == 0;
 }
 
-bool LocalFs::Seek(int64_t pos) {
+inline bool LocalFs::Seek(int64_t pos) {
     return ::lseek(fd_, pos, SEEK_SET) >= 0; 
 }
 
-int32_t LocalFs::Read(void* buf, size_t len) {
+inline int32_t LocalFs::Read(void* buf, size_t len) {
     return ::read(fd_, buf, len);
 }
 
-int32_t LocalFs::Write(void* buf, size_t len) {
+inline int32_t LocalFs::Write(void* buf, size_t len) {
     return ::write(fd_, buf, len);
 }
 
-int64_t LocalFs::Tell() {
-    return lseek(fd_, 0, SEEK_CUR);
+inline int64_t LocalFs::Tell() {
+    return ::lseek(fd_, 0, SEEK_CUR);
 }
 
-int64_t LocalFs::GetSize() {
+inline int64_t LocalFs::GetSize() {
     struct stat buf;
     fstat(fd_, &buf);
     int64_t size = buf.st_size;
     return size;
 }
 
-bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
+inline bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
     return ::rename(old_name.c_str(), new_name.c_str()) == 0;
 }
 
-FileHub* FileHub::GetHub() {
+inline bool LocalFs::Remove(const std::string& path) {
+    return ::remove(path.c_str()) == 0;
+}
+
+inline bool LocalFs::Mkdirs(const std::string& dir) {
+    return ::mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
+}
+
+inline bool LocalFs::Exist(const std::string& path) {
+    struct stat buffer;
+    return ::stat(name.c_str(), &buffer) == 0;
+}
+
+inline FileHub* FileHub::GetHub() {
     return new FileHubImpl();
 }
 
