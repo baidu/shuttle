@@ -13,17 +13,24 @@ public:
     virtual ~PlainTextFile();
     virtual bool ReadRecord(std::string& record);
     virtual bool WriteRecord(const std::string& record);
+    virtual bool Locate(const std::string& key) {
+        // TODO not implement, not qualified to be internal sorted file
+        return false;
+    }
     virtual bool Seek(int64_t offset);
     virtual int64_t Tell();
 
     virtual bool Open(const std::string& path, OpenMode mode);
     virtual bool Close();
 
-    virtual bool ParseRecord(const std::string& record, std::string& key, std::string& value);
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
 
 private:
+    /*
+     * Line Buffer is used to temporary store the block of file
+     *   and provides line reading intefaces
+     */
     class LineBuffer {
     public:
         LineBuffer() : head_(0) { }
@@ -42,6 +49,7 @@ private:
                     return true;
                 }
             }
+            // Clean the buffer when there is no full line left
             if (head_ > 0) {
                 data.erase(0, head_);
                 head_ = 0;
@@ -54,6 +62,7 @@ private:
         size_t Size() {
             return data_.size() - head_;
         }
+        // GetRemain is used when there's no EOL in the end of file
         void GetRemain(std::string& data) {
             data.assign(data_, head_, data_.size() - head_);
         }
@@ -82,8 +91,7 @@ bool PlainTextFile::ReadRecord(std::string& record) {
         }
         delete[] buf;
         if (ret == 0) {
-            // In case some file do not have trailing blank line,
-            //   so no EOL in the end
+            // Some files do not have trailing blank line, which leads to no EOL in the end
             if (buf_.Size() > 0) {
                 buf_.GetRemain(record);
                 return true;
@@ -115,6 +123,10 @@ bool PlainTextFile::Seek(int64_t offset) {
             LOG(WARNING, "read prev byte fail");
             return false;
         }
+        if (!fp_->Seek(offset)) {
+            LOG(WARNING, "seek to %ld fail", offset);
+            return false;
+        }
     }
     // Throw out first incomplete line
     if (prev_byte != '\n') {
@@ -138,13 +150,6 @@ inline bool PlainTextFile::Open(const std::string& path, OpenMode mode) {
 
 inline bool PlainTextFile::Close() {
     return fp_->Close();
-}
-
-inline bool PlainTextFile::ParseRecord(const std::string& record,
-        std::string& key, std::string& value) {
-    key = "";
-    value = record;
-    return true;
 }
 
 inline bool PlainTextFile::BuildRecord(const std::string& /*key*/, const std::string& value,

@@ -16,6 +16,7 @@ struct UpdateItem {
     int capacity;
 };
 
+// Manage different phase of a job
 class JobTracker {
 
 public:
@@ -49,9 +50,11 @@ public:
     // Notice: Currently input info is not included
     Status GetTaskOverview(std::vector<TaskOverview>& tasks);
 
+    // Serialize and unserialize meta info
     Status Load(const std::string& serialized);
     std::string Dump();
 
+    // Register callback for MasterImpl to clean up garbage and deal with the status
     void RegisterFinishedCallback(boost::function<void ()> callback) {
         finished_callback_ = callback;
     }

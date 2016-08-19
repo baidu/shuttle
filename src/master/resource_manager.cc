@@ -19,6 +19,7 @@ DECLARE_int32(parallel_attempts);
 namespace baidu {
 namespace shuttle {
 
+// Used in listing directory. Determine the size of thread pool
 static const int parallel_level = 10;
 
 class ResourceManagerImpl : public ResourceManager {
@@ -57,9 +58,11 @@ public:
     virtual std::vector<ResourceItem> Dump();
 
 protected:
-    // All members need a careful initialization due to the absence of constructor
-    // Customer constructor should add proper item in resource pool and pending queue,
-    //   and set counters properly
+    /*
+     * All members need a careful initialization due to the absence of constructor
+     * Customer constructor should add proper item in resource pool and pending queue,
+     *   and set counters properly
+     */
     Mutex mu_;
     std::vector<ResourceItem*> resource_pool_;
     std::deque<ResourceItem*> pending_res_;
@@ -68,18 +71,21 @@ protected:
     int done_;
 };
 
+// Stores id information, not related with input files
 class IdManager : public ResourceManagerImpl {
 public:
     IdManager(int size);
     virtual ~IdManager() { }
 };
 
+// Stores information of block-splited files and ids
 class BlockManager : public ResourceManagerImpl {
 public:
     BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size);
     virtual ~BlockManager() { }
 };
 
+// Stores information of line-splited files and ids
 class NLineManager : public ResourceManagerImpl {
 public:
     NLineManager(std::vector<DfsInfo>& inputs);
@@ -300,6 +306,7 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
     std::vector<FileInfo> files;
     int i = 0;
     std::vector<std::string> expand_input_files;
+    // Preprocess middle wildcards to accelerate parallel listing
     for (size_t i = 0; i < inputs.size(); i++) {
         const std::string& file_name = inputs[i].path();
         size_t prefix_pos ;
@@ -321,6 +328,7 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
     }
     ::baidu::common::ThreadPool tp(parallel_level);
     std::vector<FileInfo> sub_files[parallel_level];
+    // Use thread pool to list directory concurrently
     for (std::vector<std::string>::const_iterator it = expand_input_files.begin();
             it != expand_input_files.end(); ++it) {
         LOG(INFO, "input file: %s", it->c_str());
@@ -334,6 +342,7 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
         i = (i + 1) % parallel_level;
     }
     tp.Stop(true);
+    // Merge all results
     for (int i = 0; i < parallel_level; ++i) {
         files.reserve(files.size() + sub_files[i].size());
         files.insert(files.end(), sub_files[i].begin(), sub_files[i].end());

@@ -29,14 +29,16 @@ JobTracker::~JobTracker() {
 Status JobTracker::Start() {
     // XXX Maybe set to running until some assignment is required
     state_ = kRunning;
-    Status ret_val = kOk;
     if (!scheduler_.Validate()) {
         LOG(WARNING, "job do not meet DAG limitation: %s", job_id_.c_str());
         return kInvalidArg;
     }
+
+    Status ret_val = kOk;
     const std::vector<int>& first = scheduler_.AvailableNodes();
     for (std::vector<int>::const_iterator it = first.begin();
             it != first.end(); ++it) {
+        // Build new grus
         int node = *it;
         Gru*& cur = grus_[node];
         cur = Gru::GetAlphaGru(job_, job_id_, node, &scheduler_);
@@ -55,6 +57,7 @@ Status JobTracker::Start() {
 
 Status JobTracker::Update(const std::string& priority, const std::vector<UpdateItem>& nodes) {
     int error_times = 0;
+    // Update priority
     if (!priority.empty()) {
         for (std::vector<Gru*>::iterator it = grus_.begin();
                 it != grus_.end(); ++it) {
@@ -71,6 +74,7 @@ Status JobTracker::Update(const std::string& priority, const std::vector<UpdateI
             }
         }
     }
+    // Update capacity
     for (std::vector<UpdateItem>::const_iterator it = nodes.begin();
             it != nodes.end(); ++it) {
         if (static_cast<size_t>(it->node) > grus_.size() || grus_[it->node] == NULL) {

@@ -21,6 +21,7 @@ enum OpenMode {
 };
 
 struct FileInfo {
+    // 'F' stands for file and 'D' stands for directory
     char kind;
     std::string name;
     int64_t size;
@@ -31,6 +32,7 @@ public:
     typedef std::map<std::string, std::string> Param;
     static File* Create(FileType type, const Param& param);
 
+    // Basic file IO interfaces
     virtual bool Open(const std::string& path, OpenMode mode) = 0;
     virtual bool Close() = 0;
     virtual bool Seek(int64_t pos) = 0;
@@ -40,11 +42,13 @@ public:
     virtual int64_t GetSize() = 0;
     virtual bool Rename(const std::string& old_name, const std::string& new_name) = 0;
     virtual bool Remove(const std::string& path) = 0;
-    bool WriteAll(void* buf, size_t len);
     virtual bool List(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Mkdirs(const std::string& dir) = 0;
     virtual bool Exist(const std::string& path) = 0;
+
+    // Used to ensure that all data in buf is written
+    bool WriteAll(void* buf, size_t len);
 };
 
 class FileHub {
@@ -57,8 +61,8 @@ public:
     static File::Param BuildFileParam(DfsInfo& info);
 };
 
-} //namespace shuttle
-} //namespace baidu
+}
+}
 
 #endif
 

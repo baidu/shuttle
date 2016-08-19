@@ -1,9 +1,6 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <assert.h>
-#include <algorithm>
-#include <vector>
 #include <sofa/pbrpc/pbrpc.h>
 #include <gflags/gflags.h>
 #include "logging.h"
@@ -12,7 +9,6 @@
 using baidu::common::Log;
 using baidu::common::FATAL;
 using baidu::common::INFO;
-using baidu::common::WARNING;
 
 DECLARE_string(master_port);
 
@@ -46,3 +42,4 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
+

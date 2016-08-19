@@ -13,6 +13,7 @@ DagScheduler::~DagScheduler() {
 }
 
 bool DagScheduler::Validate() {
+    // Remove every node from 0-indegree node and check if there's rest
     std::vector<int> indegree(indegree_);
     std::queue<int> working;
     do {
@@ -31,6 +32,7 @@ bool DagScheduler::Validate() {
             *cur = -1;
         }
     } while (!working.empty());
+    // Check the indegree to ensure no left nodes
     bool all_clear = true;
     for (std::vector<int>::iterator it = indegree.begin();
             it != indegree.end(); ++it) {

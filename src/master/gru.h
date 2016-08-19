@@ -36,8 +36,9 @@ struct AllocateItemComparator {
     }
 };
 
-class RpcClient;
-
+/**
+ * Gru is the boss of minions, control a phase of minions and manage tasks for them.
+ */
 class Gru {
 public:
     // Operations

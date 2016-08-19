@@ -13,6 +13,7 @@ struct DagNode {
     std::vector<int> next;
 };
 
+// Manage dependency map
 class DagScheduler {
 public:
     DagScheduler(const JobDescriptor& job);

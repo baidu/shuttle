@@ -1,6 +1,5 @@
 #ifndef  BAIDU_SHUTTLE_RPC_CLIENT_H_
 #define  BAIDU_SHUTTLE_RPC_CLIENT_H_
-
 #include <assert.h>
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
@@ -15,11 +14,13 @@ namespace shuttle {
 class RpcClient {
 public:
     RpcClient() {
-        // 定义 client 对象，一个 client 程序只需要一个 client 对象
-        // 可以通过 client_options 指定一些配置参数，譬如线程数、流控等
+		/*
+		 * Define client object, and only one client object is needed
+		 * client_options is used to define configures like threads number
+		 */
         sofa::pbrpc::RpcClientOptions options;
         options.max_pending_buffer_size = 128;
-        options.keep_alive_time = 1200;//seconds;
+        options.keep_alive_time = 1200; // In seconds;
         _rpc_client = new sofa::pbrpc::RpcClient(options);
     }
     ~RpcClient() {
@@ -33,8 +34,10 @@ public:
         if (it != _host_map.end()) {
             channel = it->second;
         } else {
-            // 定义 channel，代表通讯通道，每个服务器地址对应一个 channel
-            // 可以通过 channel_options 指定一些配置参数
+			/*
+			 * Define channel, representing a communcation passage
+			 * A server address matches a channel
+			 */
             sofa::pbrpc::RpcChannelOptions channel_options;
             channel = new sofa::pbrpc::RpcChannel(_rpc_client, server, channel_options);
             _host_map[server] = channel;
@@ -48,7 +51,7 @@ public:
                     const Request*, Response*, Callback*),
                     const Request* request, Response* response,
                     int32_t rpc_timeout, int retry_times) {
-        // 定义 controller 用于控制本次调用，并设定超时时间（也可以不设置，缺省为10s）
+		// Define controller to control the RPC, and set timeout(default 10s)
         sofa::pbrpc::RpcController controller;
         controller.SetTimeout(rpc_timeout * 1000L);
         for (int32_t retry = 0; retry < retry_times; ++retry) {
@@ -94,7 +97,7 @@ public:
             if (error != sofa::pbrpc::RPC_ERROR_SEND_BUFFER_FULL) {
                 LOG(WARNING, "RpcCallback: %s\n", rpc_controller->ErrorText().c_str());
             } else {
-                ///TODO: Retry
+                // TODO Retry
             }
         }
         delete rpc_controller;
@@ -107,8 +110,8 @@ private:
     Mutex _host_map_lock;
 };
 
-} // namespace galaxy
-} // namespace baidu
+}
+}
 
-#endif  // BAIDU_SHUTTLE_RPC_CLIENT_H_
+#endif
 

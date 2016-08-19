@@ -46,7 +46,6 @@ private:
     std::string path_;
 };
 
-
 class LocalFs : public File {
 public:
     LocalFs();
@@ -62,11 +61,11 @@ public:
     virtual bool Rename(const std::string& old_name, const std::string& new_name);
     virtual bool Remove(const std::string& path);
     virtual bool List(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
-        //TODO, not implementation
+        // TODO, not implement, not important for online functions
         return false;
     }
     virtual bool Glob(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
-        //TODO, not implementation
+        // TODO, not implement, not important for online functions
         return false;
     }
     virtual bool Mkdirs(const std::string& dir);
@@ -456,6 +455,6 @@ File::Param FileHubImpl::GetParam(const std::string& address) {
     return param_map_[key];
 }
 
-} //namespace shuttle
-} //namespace baidu
+}
+}
 

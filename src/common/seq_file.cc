@@ -6,19 +6,27 @@
 namespace baidu {
 namespace shuttle {
 
+/*
+ * Sequence file is a binary file format in libhdfs,
+ *   which can be compressed to save storage.
+ *   This class is a wrapper for libhdfs C functions
+ */
 class InfSeqFile : public FormattedFile {
 public:
     InfSeqFile() { }
 
     virtual bool ReadRecord(std::string& record);
     virtual bool WriteRecord(const std::string& record);
+    virtual bool Locate(const std::string& key) {
+        // TODO not implement, not qualified to be internal sorted file
+        return false;
+    }
     virtual bool Seek(int64_t offset);
     virtual int64_t Tell();
 
     virtual bool Open(const std::string& path, OpenMode mode);
     virtual bool Close();
 
-    virtual bool ParseRecord(const std::string& record, std::string& key, std::string& value);
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
 private:
@@ -95,12 +103,6 @@ bool InfSeqFile::Open(const std::string& path, OpenMode mode) {
 
 inline bool InfSeqFile::Close() {
     return closeSequenceFile(fs_, sf_) == 0;
-}
-
-bool InfSeqFile::ParseRecord(const std::string& record,
-        std::string& key, std::string& value) {
-    // TODO
-    return false;
 }
 
 inline bool InfSeqFile::BuildRecord(const std::string& key, const std::string& value,

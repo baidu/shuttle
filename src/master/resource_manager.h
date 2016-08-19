@@ -34,21 +34,29 @@ public:
 
 class ResourceManager {
 public:
+    // Manage resource items
     virtual ResourceItem* GetItem() = 0;
     virtual ResourceItem* GetCertainItem(int no) = 0;
     virtual ResourceItem* CheckCertainItem(int no) = 0;
     virtual void ReturnBackItem(int no) = 0;
+
+    // Status query
     virtual bool FinishItem(int no) = 0;
     virtual bool IsAllocated(int no) = 0;
     virtual bool IsDone(int no) = 0;
+
+    // Statistics interfaces
     virtual int SumOfItem() = 0;
     virtual int Pending() = 0;
     virtual int Allocated() = 0;
     virtual int Done() = 0;
+
+    // For backup and recovery
     virtual void Load(const std::vector<ResourceItem>& data) = 0;
     virtual std::vector<ResourceItem> Dump() = 0;
     virtual ~ResourceManager() { }
 
+    // Factory methods
     static ResourceManager* GetIdManager(int n);
     static ResourceManager* GetBlockManager(
             std::vector<DfsInfo>& inputs, int64_t split_size);

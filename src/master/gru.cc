@@ -32,7 +32,7 @@ DECLARE_string(temporary_dir);
 namespace baidu {
 namespace shuttle {
 
-// Interface Gru
+// Interface Gru, implement common functions
 class BasicGru : public Gru {
 public:
     // General initialization
@@ -354,6 +354,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
                 node_, no, attempt, job_id_.c_str());
         return kNoMore;
     }
+
     LOG(INFO, "node %d finish a task: < no - %d, attempt - %d >, state %s: %s",
             node_, cur->no, cur->attempt, TaskState_Name(state).c_str(), job_id_.c_str());
     if (state == kTaskMoveOutputFailed) {
@@ -367,12 +368,14 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
     switch (state) {
     case kTaskCompleted:
         if (!manager_->FinishItem(cur->no)) {
+            // Maybe this item has been finished or killed
             LOG(WARNING, "node %d ignores finish request < no - %d, attempt - %d >: %s",
                     node_, cur->no, cur->attempt, job_id_.c_str());
             state = kTaskCanceled;
             break;
         }
         int completed = manager_->Done();
+        // Free some minions to release some resources when phase is coming to an end
         meta_mu_.Lock();
         need_dismissed_ = cur_node_->capacity() - static_cast<int>(
                 ::ceil((cur_node_->total() - completed) * FLAGS_left_percent / 100.0));
@@ -381,12 +384,14 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
         LOG(INFO, "node %d complete No.%d task(%d/%d): %s", node_, cur->no,
                 completed, total_tasks_, job_id_.c_str());
         if (completed == next_phase_begin_) {
+            // Pull up next phase and let next phase's minion prepare environment in advance
             LOG(INFO, "node %d nearly ends, pull up next phase in advance: %s",
                     node_, job_id_.c_str());
             if (nearly_finish_callback_ != 0) {
                 nearly_finish_callback_();
             }
         } else if (completed == total_tasks_) {
+            // Finish the whole phase
             LOG(INFO, "node %d is finished, kill minions: %s", node_, job_id_.c_str());
             meta_mu_.Lock();
             state_ = kCompleted;
@@ -978,6 +983,6 @@ void OmegaGru::LoadResourceManager(const GruCollection& /*backup*/) {
     manager_ = ResourceManager::GetIdManager(cur_node_->total());
 }
 
-} // namespace shuttle
-} // namespace baidu
+}
+}
 
