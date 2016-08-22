@@ -102,12 +102,35 @@ File* File::Create(FileType type, const Param& param) {
     return NULL;
 }
 
+size_t File::ReadAll(void* buf, size_t len) {
+    if (buf == NULL) {
+        return -1;
+    }
+    size_t cnt = 0;
+    while (cnt < len) {
+        // Read 40kBi block at most
+        size_t size = (len - cnt < 40960) ? (len - cnt) : 40960;
+        int ret = Read(buf + cnt, size);
+        if (ret < 0) {
+            return -1;
+        }
+        if (ret == 0) {
+            return cnt;
+        }
+        cnt += ret;
+    }
+    return cnt;
+}
+
 bool File::WriteAll(void* buf, size_t len) {
+    if (buf == NULL) {
+        return false;
+    }
     size_t start = 0;
     char* str = (char*)buf;
     while (start < len) {
-        int write_bytes = Write(&str[start], len - start);
-        if ( write_bytes < 0){
+        int write_bytes = Write(str + start, len - start);
+        if (write_bytes < 0){
             return false;
         }
         start += write_bytes;
