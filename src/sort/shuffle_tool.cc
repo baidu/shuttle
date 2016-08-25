@@ -276,6 +276,7 @@ int MergeTuo() {
                 LOG(WARNING, "two many workers on this tuo!: %d", tuo_now);
                 double rn = rand() / (RAND_MAX+0.0);
                 if (rn < 0.99) {
+                    sleep(1);
                     continue;
                 }
             }
@@ -294,6 +295,7 @@ int MergeTuo() {
             } else {
                 g_fs->Remove(my_lock_flag.str());
             }
+            sleep(3);
         } // end of for
         sleep(5);
     }// end of while
