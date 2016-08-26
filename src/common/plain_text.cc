@@ -20,7 +20,7 @@ public:
     virtual bool Seek(int64_t offset);
     virtual int64_t Tell();
 
-    virtual bool Open(const std::string& path, OpenMode mode);
+    virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
     virtual bool Close();
 
     virtual bool BuildRecord(const std::string& key, const std::string& value,
@@ -140,12 +140,12 @@ inline int64_t PlainTextFile::Tell() {
     return fp_->Tell();
 }
 
-inline bool PlainTextFile::Open(const std::string& path, OpenMode mode) {
+inline bool PlainTextFile::Open(const std::string& path, OpenMode mode, const Param& param) {
     if (fp_ == NULL) {
         LOG(WARNING, "empty local file handler");
         return false;
     }
-    return fp_->Open(path, mode);
+    return fp_->Open(path, mode, param);
 }
 
 inline bool PlainTextFile::Close() {

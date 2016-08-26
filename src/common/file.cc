@@ -5,11 +5,11 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
-#include <fcntl.h> 
-#include <stdio.h> 
-#include <sys/stat.h> 
-#include <sys/types.h> 
-#include <unistd.h> 
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "hdfs.h"
 #include "logging.h"
@@ -25,7 +25,7 @@ public:
     virtual ~InfHdfs() { }
 
     void Connect(const Param& param);
-    virtual bool Open(const std::string& path, OpenMode mode);
+    virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
     virtual bool Close();
     virtual bool Seek(int64_t pos);
     virtual int32_t Read(void* buf, size_t len);
@@ -51,7 +51,7 @@ public:
     LocalFs();
     virtual ~LocalFs() { }
 
-    virtual bool Open(const std::string& path, OpenMode mode);
+    virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
     virtual bool Close();
     virtual bool Seek(int64_t pos);
     virtual int32_t Read(void* buf, size_t len);
@@ -164,20 +164,44 @@ void InfHdfs::ConnectInfHdfs(const Param& param, hdfsFS* fs) {
     }
 }
 
-void InfHdfs::Connect(const Param& param) {
+inline void InfHdfs::Connect(const Param& param) {
     ConnectInfHdfs(param, &fs_);
 }
 
-bool InfHdfs::Open(const std::string& path, OpenMode mode) {
+bool InfHdfs::Open(const std::string& path, OpenMode mode, const Param& param) {
     LOG(INFO, "try to open: %s", path.c_str());
     path_ = path;
     if (!fs_) {
         return false;
     }
     if (mode == kReadFile) {
-        fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
+        if (param.find("decompress") != param.end() && param["decompress"] == "true") {
+            CompressType type = gzip;
+            if (param.find("decompress_format") != param.end()) {
+                const std::string& fmt = param["decompress_format"];
+                if (fmt == "gzip") {
+                    type = gzip;
+                } else if (fmt == "bz") {
+                    type = bzip;
+                } else if (fmt == "lzma") {
+                    type = lzma;
+                } else if (fmt == "lzo") {
+                    type = lzo;
+                } else if (fmt == "qz") {
+                    type = quicklz;
+                } else {
+                    LOG(WARNING, "unknown format: %s", fmt.c_str());
+                }
+            }
+            fd_ = hdfsOpenFileWithDeCompress(fs, path.c_str(), O_RDONLY, 0, 0, 0, type);
+        } else {
+            fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
+        }
     } else if (mode == kWriteFile) {
         short replica = 3;
+        if (param.find("replica") != param.end()) {
+            replica = atoi(param["replica"].c_str());
+        }
         fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
     } else {
         LOG(WARNING, "unknown open mode.");

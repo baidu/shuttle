@@ -24,7 +24,7 @@ public:
     virtual bool Seek(int64_t offset);
     virtual int64_t Tell();
 
-    virtual bool Open(const std::string& path, OpenMode mode);
+    virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
     virtual bool Close();
 
     virtual bool BuildRecord(const std::string& key, const std::string& value,
@@ -77,7 +77,7 @@ inline int64_t InfSeqFile::Tell() {
     return getSeqFilePos(sf_);
 }
 
-bool InfSeqFile::Open(const std::string& path, OpenMode mode) {
+bool InfSeqFile::Open(const std::string& path, OpenMode mode, const Param& /*param*/) {
     if (fs_ != NULL) {
         LOG(WARNING, "empty hdfs handler, fail");
         return false;

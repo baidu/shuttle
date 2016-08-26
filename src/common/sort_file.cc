@@ -37,7 +37,7 @@ public:
     virtual bool Seek(int64_t offset);
     virtual int64_t Tell();
 
-    virtual bool Open(const std::string& path, OpenMode mode);
+    virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
     virtual bool Close();
 
     virtual bool ParseRecord(const std::string& record, std::string& key, std::string& value);
@@ -163,11 +163,11 @@ bool SortFile::Locate(const std::string& key) {
     return true;
 }
 
-bool SortFile::Open(const std::string& path, OpenMode mode) {
+bool SortFile::Open(const std::string& path, OpenMode mode, const Param& param) {
     LOG(INFO, "try to open: %s", path.c_str());
     path_ = path;
     mode_ = mode;
-    return fp_->Open(path, mode);
+    return fp_->Open(path, mode, param);
 }
 
 bool SortFile::Close() {
