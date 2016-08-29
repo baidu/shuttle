@@ -2,6 +2,7 @@
 #define _BAIDU_SHUTTLE_FILEFORMAT_H_
 #include <stdint.h>
 #include "file.h"
+#include "shuttle.pb.h"
 
 namespace baidu {
 namespace shuttle {
@@ -42,6 +43,11 @@ public:
 
     virtual bool Open(const std::string& path, OpenMode mode) = 0;
     virtual bool Close() = 0;
+
+    /*
+     * Get current status, influenced by lastest operation
+     */
+    virtual Status Status() = 0;
 
     /*
      * Parsing a record, which is currently not used

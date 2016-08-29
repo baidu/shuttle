@@ -11,8 +11,8 @@ class PlainTextFile : public FormattedFile {
 public:
     PlainTextFile();
     virtual ~PlainTextFile();
-    virtual bool ReadRecord(std::string& record);
-    virtual bool WriteRecord(const std::string& record);
+    virtual bool ReadRecord(std::string& key, std::string& value);
+    virtual bool WriteRecord(const std::string& key, const std::string& value);
     virtual bool Locate(const std::string& key) {
         // TODO not implement, not qualified to be internal sorted file
         return false;
@@ -22,6 +22,10 @@ public:
 
     virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
     virtual bool Close();
+
+    virtual Status Status() {
+        return status_;
+    }
 
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
@@ -74,10 +78,11 @@ private:
 private:
     File* fp_;
     LineBuffer buf_;
+    Status status_;
 };
 
-bool PlainTextFile::ReadRecord(std::string& record) {
-    if (!buf_.ReadLine(record)) {
+bool PlainTextFile::ReadRecord(std::string& key, std::string& value) {
+    if (!buf_.ReadLine(value)) {
         // Read 40kBi every time from file
         int size = 40960;
         char* buf = new char[size];
@@ -93,23 +98,31 @@ bool PlainTextFile::ReadRecord(std::string& record) {
         if (ret == 0) {
             // Some files do not have trailing blank line, which leads to no EOL in the end
             if (buf_.Size() > 0) {
-                buf_.GetRemain(record);
+                buf_.GetRemain(value);
+                key = "";
+                status_ = kOk;
                 return true;
             } else {
+                status_ = kNoMore;
                 return false;
             }
         } else if (ret < 0) {
+            status_ = kReadFileFail;
             return false;
         } else {
             // After all the check this time has to be correct
             assert(buf_.ReadLine(record));
         }
     }
+    key = "";
+    status_ = kOk;
     return true;
 }
 
-inline bool PlainTextFile::WriteRecord(const std::string& record) {
-    return fp_->WriteAll(record.data(), record.size());
+inline bool PlainTextFile::WriteRecord(const std::string& /*key*/, const std::string& value) {
+    bool ok = fp_->WriteAll(value.data(), value.size());
+    status_ = ok ? kOk : kWriteFileFail;
+    return ok;
 }
 
 bool PlainTextFile::Seek(int64_t offset) {
@@ -117,14 +130,17 @@ bool PlainTextFile::Seek(int64_t offset) {
     if (offset > 0) {
         if (fp_->Seek(offset - 1)) {
             LOG(WARNING, "seek to %ld fail", offset - 1);
+            status_ = kReadFileFail;
             return false;
         }
         if (!fp_->Read((void*)&prev_byte, sizeof(prev_byte))) {
             LOG(WARNING, "read prev byte fail");
+            status_ = kReadFileFail;
             return false;
         }
         if (!fp_->Seek(offset)) {
             LOG(WARNING, "seek to %ld fail", offset);
+            status_ = kReadFileFail;
             return false;
         }
     }
@@ -133,6 +149,7 @@ bool PlainTextFile::Seek(int64_t offset) {
         std::string temp;
         ReadRecord(temp);
     }
+    status_ = kOk;
     return true;
 }
 
@@ -145,16 +162,19 @@ inline bool PlainTextFile::Open(const std::string& path, OpenMode mode, const Pa
         LOG(WARNING, "empty local file handler");
         return false;
     }
-    return fp_->Open(path, mode, param);
+    bool ok = fp_->Open(path, mode, param);
+    status_ = ok ? kOk : kReadFileFail;
 }
 
 inline bool PlainTextFile::Close() {
-    return fp_->Close();
+    bool ok = fp_->Close();
+    status_ = ok ? kOk : kCloseFileFail;
 }
 
 inline bool PlainTextFile::BuildRecord(const std::string& /*key*/, const std::string& value,
         std::string& record) {
     record = value;
+    status_ = kOk;
     return true;
 }
 
