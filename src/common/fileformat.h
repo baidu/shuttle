@@ -2,7 +2,7 @@
 #define _BAIDU_SHUTTLE_FILEFORMAT_H_
 #include <stdint.h>
 #include "file.h"
-#include "shuttle.pb.h"
+#include "proto/shuttle.pb.h"
 
 namespace baidu {
 namespace shuttle {
@@ -18,6 +18,8 @@ enum FileFormat {
 
 class FormattedFile {
 public:
+    static FormattedFile* Get(File* fp, FileFormat format);
+    static FormattedFile* Create(FileType type, FileFormat format, const File::Param& param);
     /*
      * Record here is automatically aligned, which means if specified offset is in the middle
      *   of a record, ReadRecord will ignore the rest of current record and
@@ -41,13 +43,13 @@ public:
     virtual bool Seek(int64_t offset) = 0;
     virtual int64_t Tell();
 
-    virtual bool Open(const std::string& path, OpenMode mode) = 0;
+    virtual bool Open(const std::string& path, OpenMode mode, const File::Param& param) = 0;
     virtual bool Close() = 0;
 
     /*
      * Get current status, influenced by lastest operation
      */
-    virtual Status Status() = 0;
+    virtual Status Error() = 0;
 
     virtual std::string GetFileName() = 0;
 
@@ -60,6 +62,8 @@ public:
      */
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record) = 0;
+
+    virtual ~FormattedFile() { }
 };
 
 }

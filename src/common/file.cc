@@ -116,15 +116,16 @@ File* File::Create(FileType type, const Param& param) {
 
 size_t File::ReadAll(void* buf, size_t len) {
     if (buf == NULL) {
-        return -1;
+        return (size_t)-1;
     }
     size_t cnt = 0;
+    char* str = (char*)buf;
     while (cnt < len) {
         // Read 40kBi block at most
         size_t size = (len - cnt < 40960) ? (len - cnt) : 40960;
-        int ret = Read(buf + cnt, size);
+        int ret = Read(str + cnt, size);
         if (ret < 0) {
-            return -1;
+            return (size_t)-1;
         }
         if (ret == 0) {
             return cnt;
@@ -134,7 +135,7 @@ size_t File::ReadAll(void* buf, size_t len) {
     return cnt;
 }
 
-bool File::WriteAll(void* buf, size_t len) {
+bool File::WriteAll(const void* buf, size_t len) {
     if (buf == NULL) {
         return false;
     }
@@ -150,7 +151,7 @@ bool File::WriteAll(void* buf, size_t len) {
     return true;
 }
 
-Param File::BuildParam(DfsInfo& info) {
+File::Param File::BuildParam(DfsInfo& info) {
     Param param;
     if(!info.user().empty() && !info.password().empty()) {
         param["user"] = info.user();
@@ -207,25 +208,29 @@ bool File::ParseFullAddress(const std::string& address,
 }
 
 bool File::ConnectInfHdfs(const Param& param, void** fs) {
+    if (fs == NULL) {
+        return false;
+    }
     if (param.find("user") != param.end()) {
-        const std::string& user = param["user"];
-        const std::string& password = param["password"];
-        const std::string& host = param["host"];
-        const std::string& port = param["port"];
+        const std::string& user = param.find("user")->second;
+        const std::string& password = param.find("password")->second;
+        const std::string& host = param.find("host")->second;
+        const std::string& port = param.find("port")->second;
         *fs = hdfsConnectAsUser(host.c_str(), atoi(port.c_str()),
                                 user.c_str(),
                                 password.c_str());
         LOG(INFO, "hdfsConnectAsUser: %s:%d, %s", host.c_str(),
             atoi(port.c_str()), user.c_str());
     } else if (param.find("host") != param.end()) {
-        const std::string& host = param["host"];
-        const std::string& port = param["port"];
+        const std::string& host = param.find("host")->second;
+        const std::string& port = param.find("port")->second;
         *fs = hdfsConnect(host.c_str(), atoi(port.c_str()));
         LOG(INFO, "hdfsConnect: %s:%d", host.c_str(), atoi(port.c_str()));
     } else {
         *fs = hdfsConnect("default", 0);
         LOG(INFO, "hdfsConnect: default user");
     }
+    return *fs != NULL;
 }
 
 bool File::PatternMatch(const std::string& origin, const std::string& pattern) {
@@ -264,7 +269,7 @@ bool File::PatternMatch(const std::string& origin, const std::string& pattern) {
     return !*pat;
 }
 
-inline bool InfHdfs::Connect(const Param& param) {
+bool InfHdfs::Connect(const Param& param) {
     return ConnectInfHdfs(param, &fs_);
 }
 
@@ -275,10 +280,12 @@ bool InfHdfs::Open(const std::string& path, OpenMode mode, const Param& param) {
         return false;
     }
     if (mode == kReadFile) {
-        if (param.find("decompress") != param.end() && param["decompress"] == "true") {
+        Param::const_iterator decompress_iter = param.find("decompress");
+        if (decompress_iter != param.end() && decompress_iter->second == "true") {
             CompressType type = gzip;
-            if (param.find("decompress_format") != param.end()) {
-                const std::string& fmt = param["decompress_format"];
+            Param::const_iterator format_iter = param.find("decompress_format");
+            if (format_iter != param.end()) {
+                const std::string& fmt = format_iter->second;
                 if (fmt == "gzip") {
                     type = gzip;
                 } else if (fmt == "bz") {
@@ -293,14 +300,15 @@ bool InfHdfs::Open(const std::string& path, OpenMode mode, const Param& param) {
                     LOG(WARNING, "unknown format: %s", fmt.c_str());
                 }
             }
-            fd_ = hdfsOpenFileWithDeCompress(fs, path.c_str(), O_RDONLY, 0, 0, 0, type);
+            fd_ = hdfsOpenFileWithDeCompress(fs_, path.c_str(), O_RDONLY, 0, 0, 0, type);
         } else {
             fd_ = hdfsOpenFile(fs_, path.c_str(), O_RDONLY, 0, 0, 0);
         }
     } else if (mode == kWriteFile) {
         short replica = 3;
-        if (param.find("replica") != param.end()) {
-            replica = atoi(param["replica"].c_str());
+        Param::const_iterator replica_iter = param.find("replica");
+        if (replica_iter != param.end()) {
+            replica = atoi(replica_iter->second.c_str());
         }
         fd_ = hdfsOpenFile(fs_, path.c_str(), O_WRONLY|O_CREAT, 0, replica, 0);
     } else {
@@ -329,19 +337,19 @@ bool InfHdfs::Close() {
     return true;
 }
 
-inline bool InfHdfs::Seek(int64_t pos) {
+bool InfHdfs::Seek(int64_t pos) {
     return hdfsSeek(fs_, fd_, pos) == 0;
 }
 
-inline int32_t InfHdfs::Read(void* buf, size_t len) {
+int32_t InfHdfs::Read(void* buf, size_t len) {
     return hdfsRead(fs_, fd_, buf, len);
 }
 
-inline int32_t InfHdfs::Write(void* buf, size_t len) {
+int32_t InfHdfs::Write(void* buf, size_t len) {
     return hdfsWrite(fs_, fd_, buf, len);
 }
 
-inline int64_t InfHdfs::Tell() {
+int64_t InfHdfs::Tell() {
     return hdfsTell(fs_, fd_);
 }
 
@@ -357,11 +365,11 @@ int64_t InfHdfs::GetSize() {
     return file_size;
 }
 
-inline bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
+bool InfHdfs::Rename(const std::string& old_name, const std::string& new_name) {
     return hdfsRename(fs_, old_name.c_str(), new_name.c_str()) == 0;
 }
 
-inline bool InfHdfs::Remove(const std::string& path) {
+bool InfHdfs::Remove(const std::string& path) {
     return hdfsDelete(fs_, path.c_str()) == 0;
 }
 
@@ -451,11 +459,11 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
     return true;
 }
 
-inline bool InfHdfs::Mkdirs(const std::string& dir) {
+bool InfHdfs::Mkdirs(const std::string& dir) {
     return hdfsCreateDirectory(fs_, dir.c_str()) == 0;
 }
 
-inline bool InfHdfs::Exist(const std::string& path) {
+bool InfHdfs::Exist(const std::string& path) {
     return hdfsExists(fs_, path.c_str()) == 0;
 }
 
@@ -463,7 +471,7 @@ LocalFs::LocalFs() : fd_(0) {
 
 }
 
-bool LocalFs::Open(const std::string& path, OpenMode mode) {
+bool LocalFs::Open(const std::string& path, OpenMode mode, const Param& /*param*/) {
     LOG(INFO, "try to open: %s", path.c_str());
     path_ = path;
     mode_t acl = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH; 
@@ -486,57 +494,57 @@ bool LocalFs::Open(const std::string& path, OpenMode mode) {
     return true;
 }
 
-inline bool LocalFs::Close() {
+bool LocalFs::Close() {
     LOG(INFO, "try close file: %s", path_.c_str());
     return ::close(fd_) == 0;
 }
 
-inline bool LocalFs::Seek(int64_t pos) {
+bool LocalFs::Seek(int64_t pos) {
     return ::lseek(fd_, pos, SEEK_SET) >= 0; 
 }
 
-inline int32_t LocalFs::Read(void* buf, size_t len) {
+int32_t LocalFs::Read(void* buf, size_t len) {
     return ::read(fd_, buf, len);
 }
 
-inline int32_t LocalFs::Write(void* buf, size_t len) {
+int32_t LocalFs::Write(void* buf, size_t len) {
     return ::write(fd_, buf, len);
 }
 
-inline int64_t LocalFs::Tell() {
+int64_t LocalFs::Tell() {
     return ::lseek(fd_, 0, SEEK_CUR);
 }
 
-inline int64_t LocalFs::GetSize() {
+int64_t LocalFs::GetSize() {
     struct stat buf;
     fstat(fd_, &buf);
     int64_t size = buf.st_size;
     return size;
 }
 
-inline bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
+bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
     return ::rename(old_name.c_str(), new_name.c_str()) == 0;
 }
 
-inline bool LocalFs::Remove(const std::string& path) {
+bool LocalFs::Remove(const std::string& path) {
     return ::remove(path.c_str()) == 0;
 }
 
-inline bool LocalFs::Mkdirs(const std::string& dir) {
-    return ::mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
+bool LocalFs::Mkdirs(const std::string& dir) {
+    return ::mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
 }
 
-inline bool LocalFs::Exist(const std::string& path) {
+bool LocalFs::Exist(const std::string& path) {
     struct stat buffer;
-    return ::stat(name.c_str(), &buffer) == 0;
+    return ::stat(path.c_str(), &buffer) == 0;
 }
 
-inline FileHub* FileHub::GetHub() {
+FileHub* FileHub::GetHub() {
     return new FileHubImpl();
 }
 
 File* FileHubImpl::BuildFs(DfsInfo& info) {
-    File::Param param = BuildFileParam(info);
+    File::Param param = File::BuildParam(info);
     const std::string& host = info.host();
     if (host.empty() || info.port().empty()) {
         return NULL;

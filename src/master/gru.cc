@@ -225,7 +225,7 @@ Status BasicGru::Start() {
     start_time_ = std::time(NULL);
 
     // Check the existence of output
-    File::Param param = FileHub::BuildFileParam(*(cur_node_->mutable_output()));
+    File::Param param = File::BuildParam(*(cur_node_->mutable_output()));
     File* fs = File::Create(kInfHdfs, param);
     if (fs->Exist(cur_node_->output().path())) {
         LOG(WARNING, "node %d output exists, failed: %s", node_, job_id_.c_str());
@@ -786,7 +786,7 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
         return;
     }
     DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
-    File::Param param = FileHub::BuildFileParam(*output);
+    File::Param param = File::BuildParam(*output);
     File* fs = File::Create(kInfHdfs, param);
     std::string temp;
     ParseHdfsAddress(output->path(), NULL, NULL, &temp);
@@ -813,7 +813,7 @@ bool AlphaGru::CleanTempDir() {
     if (!cur_node_->output().path().find(FLAGS_temporary_dir) == std::string::npos) {
         return true;
     }
-    File::Param param = FileHub::BuildFileParam(*(cur_node_->mutable_output()));
+    File::Param param = File::BuildParam(*(cur_node_->mutable_output()));
     File* fs = File::Create(kInfHdfs, param);
     bool ok = fs->Remove(cur_node_->output().path());
     delete fs;
@@ -924,7 +924,7 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
         return;
     }
     DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
-    File::Param param = FileHub::BuildFileParam(*output);
+    File::Param param = File::BuildParam(*output);
     File* fs = File::Create(kInfHdfs, param);
     std::string temp;
     ParseHdfsAddress(output->path(), NULL, NULL, &temp);
@@ -948,7 +948,7 @@ bool BetaGru::CleanTempDir() {
     if (!cur_node_->has_output()) {
         return true;
     }
-    File::Param param = FileHub::BuildFileParam(*(cur_node_->mutable_output()));
+    File::Param param = File::BuildParam(*(cur_node_->mutable_output()));
     File* fs = File::Create(kInfHdfs, param);
     bool ok = fs->Remove(cur_node_->output().path());
     delete fs;

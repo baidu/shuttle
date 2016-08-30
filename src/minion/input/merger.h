@@ -4,6 +4,7 @@
 #include "common/fileformat.h"
 #include <queue>
 #include <vector>
+#include "mutex.h"
 
 namespace baidu {
 namespace shuttle {
@@ -16,7 +17,10 @@ public:
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key);
     virtual Status Open(const std::string& path, const File::Param& param);
     virtual Status Close();
-    virtual std::string GetFileName();
+    virtual std::string GetFileName() {
+        // Not Implement, inherited from scanner interface
+        return "";
+    }
 
     static const int PARALLEL_LEVEL = 12;
 
@@ -32,7 +36,7 @@ public:
         }
     };
 
-    class Iterator : public Iterator {
+    class Iterator : public KVScanner::Iterator {
     public:
         Iterator(const std::vector<FormattedFile*>& files, const std::string& end_key);
         virtual ~Iterator();
@@ -47,19 +51,27 @@ public:
         virtual const std::string& Value() {
             return value_;
         }
-        virtual std::string GetFileName();
+        // Use this interface to return err file
+        virtual std::string GetFileName() {
+            return GetErrorFile();
+        }
+
+        std::string GetErrorFile() {
+            return err_file_;
+        }
     private:
         std::string end_key_;
         std::string key_;
         std::string value_;
         Status status_;
+        std::string err_file_;
         std::priority_queue<MergeItem> queue_;
         std::vector<FormattedFile*> sortfiles_;
     };
 
 private:
     void AddProvedFile(const std::string& start_key, FormattedFile* fp,
-            std::vector<FormattedFile*>& to_be_scanned, Mutex& vec_mu);
+            std::vector<FormattedFile*>& to_be_scanned, Mutex* vec_mu);
 
 private:
     std::vector<FormattedFile*> sortfiles_;

@@ -9,21 +9,24 @@ namespace shuttle {
 
 class PlainTextFile : public FormattedFile {
 public:
-    PlainTextFile();
-    virtual ~PlainTextFile();
+    PlainTextFile(File* fp) : fp_(fp) { }
+    virtual ~PlainTextFile() {
+        delete fp_;
+    }
+
     virtual bool ReadRecord(std::string& key, std::string& value);
     virtual bool WriteRecord(const std::string& key, const std::string& value);
-    virtual bool Locate(const std::string& key) {
+    virtual bool Locate(const std::string& /*key*/) {
         // TODO not implement, not qualified to be internal sorted file
         return false;
     }
     virtual bool Seek(int64_t offset);
     virtual int64_t Tell();
 
-    virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
+    virtual bool Open(const std::string& path, OpenMode mode, const File::Param& param);
     virtual bool Close();
 
-    virtual Status Status() {
+    virtual Status Error() {
         return status_;
     }
 
@@ -48,7 +51,7 @@ private:
             if (head_ == data_.size()) {
                 return false;
             }
-            for (size_t i = head_; i < data.size(); ++i) {
+            for (size_t i = head_; i < data_.size(); ++i) {
                 if (data_[i] == '\n') {
                     line.assign(data_, head_, i - head_);
                     head_ = i + 1;
@@ -57,7 +60,7 @@ private:
             }
             // Clean the buffer when there is no full line left
             if (head_ > 0) {
-                data.erase(0, head_);
+                data_.erase(0, head_);
                 head_ = 0;
             }
             return false;
@@ -78,6 +81,7 @@ private:
     };
 
 private:
+    // Non-Nullpointer ensured
     File* fp_;
     LineBuffer buf_;
     Status status_;
@@ -113,7 +117,7 @@ bool PlainTextFile::ReadRecord(std::string& key, std::string& value) {
             return false;
         } else {
             // After all the check this time has to be correct
-            assert(buf_.ReadLine(record));
+            assert(buf_.ReadLine(value));
         }
     }
     key = "";
@@ -121,7 +125,7 @@ bool PlainTextFile::ReadRecord(std::string& key, std::string& value) {
     return true;
 }
 
-inline bool PlainTextFile::WriteRecord(const std::string& /*key*/, const std::string& value) {
+bool PlainTextFile::WriteRecord(const std::string& /*key*/, const std::string& value) {
     bool ok = fp_->WriteAll(value.data(), value.size());
     status_ = ok ? kOk : kWriteFileFail;
     return ok;
@@ -148,42 +152,48 @@ bool PlainTextFile::Seek(int64_t offset) {
     }
     // Throw out first incomplete line
     if (prev_byte != '\n') {
-        std::string temp;
-        ReadRecord(temp);
+        std::string key, value;
+        ReadRecord(key, value);
     }
     status_ = kOk;
     return true;
 }
 
-inline int64_t PlainTextFile::Tell() {
+int64_t PlainTextFile::Tell() {
     return fp_->Tell();
 }
 
-inline bool PlainTextFile::Open(const std::string& path, OpenMode mode, const Param& param) {
-    if (fp_ == NULL) {
-        LOG(WARNING, "empty local file handler");
-        return false;
-    }
+bool PlainTextFile::Open(const std::string& path, OpenMode mode, const File::Param& param) {
     bool ok = fp_->Open(path, mode, param);
     status_ = ok ? kOk : kReadFileFail;
+    return ok;
 }
 
-inline bool PlainTextFile::Close() {
+bool PlainTextFile::Close() {
     bool ok = fp_->Close();
     status_ = ok ? kOk : kCloseFileFail;
+    return ok;
 }
 
-inline std::string PlainTextFile::GetFileName() {
+std::string PlainTextFile::GetFileName() {
     return fp_->GetFileName();
 }
 
-inline bool PlainTextFile::BuildRecord(const std::string& /*key*/, const std::string& value,
+bool PlainTextFile::BuildRecord(const std::string& /*key*/, const std::string& value,
         std::string& record) {
     record = value;
     status_ = kOk;
     return true;
 }
 
+namespace factory {
+
+FormattedFile* GetPlainTextFile(File* fp) {
+    return new PlainTextFile(fp);
 }
-}
+
+} // namespace factory
+
+} // namespace shuttle
+} // namespace baidu
 

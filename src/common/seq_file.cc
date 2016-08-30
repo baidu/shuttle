@@ -13,21 +13,25 @@ namespace shuttle {
  */
 class InfSeqFile : public FormattedFile {
 public:
-    InfSeqFile() { }
+    InfSeqFile(hdfsFS fs) : fs_(fs), sf_(NULL), status_(kOk) { }
+    virtual ~InfSeqFile() {
+        Close();
+        hdfsDisconnect(fs_);
+    }
 
     virtual bool ReadRecord(std::string& key, std::string& value);
     virtual bool WriteRecord(const std::string& key, const std::string& value);
-    virtual bool Locate(const std::string& key) {
+    virtual bool Locate(const std::string& /*key*/) {
         // TODO not implement, not qualified to be internal sorted file
         return false;
     }
     virtual bool Seek(int64_t offset);
     virtual int64_t Tell();
 
-    virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
+    virtual bool Open(const std::string& path, OpenMode mode, const File::Param& param);
     virtual bool Close();
 
-    virtual Status status() {
+    virtual Status Error() {
         return status_;
     }
 
@@ -44,7 +48,7 @@ private:
     Status status_;
 };
 
-bool InfSeqFile::ReadNextRecord(std::string& key, std::string& value) {
+bool InfSeqFile::ReadRecord(std::string& key, std::string& value) {
     int key_len, value_len;
     void *raw_key = NULL, *raw_value = NULL;
     int ret = readNextRecordFromSeqFile(fs_, sf_, &raw_key, &key_len, &raw_value, &value_len);
@@ -57,8 +61,8 @@ bool InfSeqFile::ReadNextRecord(std::string& key, std::string& value) {
         status_ = kNoMore;
         return false;
     }
-    key.assign(raw_key, key_len);
-    value.assign(raw_value, value_len);
+    key.assign(static_cast<char*>(raw_key), key_len);
+    value.assign(static_cast<char*>(raw_value), value_len);
     status_ = kOk;
     return true;
 }
@@ -75,7 +79,7 @@ bool InfSeqFile::WriteRecord(const std::string& key, const std::string& value) {
     return true;
 }
 
-inline bool InfSeqFile::Seek(int64_t offset) {
+bool InfSeqFile::Seek(int64_t offset) {
     int64_t ret = syncSeqFile(sf_, offset);
     if (ret < 0) {
         LOG(WARNING, "seek to %ld fail: %s", offset, path_.c_str());
@@ -86,16 +90,11 @@ inline bool InfSeqFile::Seek(int64_t offset) {
     return true;
 }
 
-inline int64_t InfSeqFile::Tell() {
+int64_t InfSeqFile::Tell() {
     return getSeqFilePos(sf_);
 }
 
-bool InfSeqFile::Open(const std::string& path, OpenMode mode, const Param& /*param*/) {
-    if (fs_ != NULL) {
-        LOG(WARNING, "empty hdfs handler, fail");
-        status_ = kOpenFileFail;
-        return false;
-    }
+bool InfSeqFile::Open(const std::string& path, OpenMode mode, const File::Param& /*param*/) {
     path_ = path;
     if (mode == kReadFile) {
         sf_ = readSequenceFile(fs_, path.c_str());
@@ -119,13 +118,13 @@ bool InfSeqFile::Open(const std::string& path, OpenMode mode, const Param& /*par
     return true;
 }
 
-inline bool InfSeqFile::Close() {
+bool InfSeqFile::Close() {
     bool ok = (closeSequenceFile(fs_, sf_) == 0);
     status_ = ok ? kOk : kCloseFileFail;
     return ok;
 }
 
-inline bool InfSeqFile::BuildRecord(const std::string& key, const std::string& value,
+bool InfSeqFile::BuildRecord(const std::string& key, const std::string& value,
         std::string& record) {
     size_t key_len = key.size();
     size_t value_len = value.size();
@@ -137,6 +136,14 @@ inline bool InfSeqFile::BuildRecord(const std::string& key, const std::string& v
     return true;
 }
 
+namespace factory {
+
+FormattedFile* GetInfSeqFile(hdfsFS fs) {
+    return new InfSeqFile(fs);
 }
-}
+
+} // namespace factory
+
+} // namespace shuttle
+} // namespace baidu
 
