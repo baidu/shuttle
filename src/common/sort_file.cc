@@ -37,8 +37,14 @@ public:
      */
     virtual bool WriteRecord(const std::string& key, const std::string& value);
     virtual bool Locate(const std::string& key);
-    virtual bool Seek(int64_t offset);
-    virtual int64_t Tell();
+    virtual bool Seek(int64_t offset) {
+        // TODO not implement, not qualified to be input file
+        return false;
+    }
+    virtual int64_t Tell() {
+        // TODO not implement, not qualified to be input file
+        return -1;
+    }
 
     virtual bool Open(const std::string& path, OpenMode mode, const File::Param& param);
     virtual bool Close();

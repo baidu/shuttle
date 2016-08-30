@@ -8,7 +8,7 @@
 namespace baidu {
 namespace shuttle {
 
-KVScanner::Iterator* Merger::Scan(const std::string& start_key, const std::string& end_key) {
+Scanner::Iterator* Merger::Scan(const std::string& start_key, const std::string& end_key) {
     std::vector<FormattedFile*> scanning;
     Mutex mu;
     ThreadPool tp(PARALLEL_LEVEL);

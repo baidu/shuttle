@@ -1,6 +1,6 @@
 #ifndef _BAIDU_SHUTTLE_MERGER_H_
 #define _BAIDU_SHUTTLE_MERGER_H_
-#include "common/io_type.h"
+#include "common/scanner.h"
 #include "common/fileformat.h"
 #include <queue>
 #include <vector>
@@ -9,7 +9,7 @@
 namespace baidu {
 namespace shuttle {
 
-class Merger : public KVScanner {
+class Merger : public Scanner {
 public:
     Merger();
     virtual ~Merger();
@@ -36,7 +36,7 @@ public:
         }
     };
 
-    class Iterator : public KVScanner::Iterator {
+    class Iterator : public Scanner::Iterator {
     public:
         Iterator(const std::vector<FormattedFile*>& files, const std::string& end_key);
         virtual ~Iterator();

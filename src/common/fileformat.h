@@ -18,6 +18,10 @@ enum FileFormat {
 
 class FormattedFile {
 public:
+    /*
+     * 1. Ownership of file pointer is changed to FormattedFile, so it will be deleted automatically
+     * 2. Since InfSeqFile has to be on HDFS, this interface returns NULL when format == kInfSeqFile
+     */
     static FormattedFile* Get(File* fp, FileFormat format);
     static FormattedFile* Create(FileType type, FileFormat format, const File::Param& param);
     /*
