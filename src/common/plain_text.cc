@@ -27,6 +27,8 @@ public:
         return status_;
     }
 
+    virtual std::string GetFileName();
+
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
 
@@ -169,6 +171,10 @@ inline bool PlainTextFile::Open(const std::string& path, OpenMode mode, const Pa
 inline bool PlainTextFile::Close() {
     bool ok = fp_->Close();
     status_ = ok ? kOk : kCloseFileFail;
+}
+
+inline std::string PlainTextFile::GetFileName() {
+    return fp_->GetFileName();
 }
 
 inline bool PlainTextFile::BuildRecord(const std::string& /*key*/, const std::string& value,

@@ -49,6 +49,8 @@ public:
      */
     virtual Status Status() = 0;
 
+    virtual std::string GetFileName() = 0;
+
     /*
      * Parsing a record, which is currently not used
      */

@@ -46,6 +46,7 @@ public:
     virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Mkdirs(const std::string& dir) = 0;
     virtual bool Exist(const std::string& path) = 0;
+    virtual std::string GetFileName() = 0;
 
     // Used to ensure that all data in buf is written or buf already has all the required data
     size_t ReadAll(void* buf, size_t len);

@@ -44,6 +44,10 @@ public:
         return status_;
     }
 
+    virtual std::string GetFileName() {
+        return path_;
+    }
+
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
 

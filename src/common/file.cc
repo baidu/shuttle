@@ -38,6 +38,9 @@ public:
     virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children);
     virtual bool Mkdirs(const std::string& dir);
     virtual bool Exist(const std::string& path);
+    virtual std::string GetFileName() {
+        return path_;
+    }
 
     static void ConnectInfHdfs(const Param& param, hdfsFS* fs);
 private:
@@ -70,6 +73,9 @@ public:
     }
     virtual bool Mkdirs(const std::string& dir);
     virtual bool Exist(const std::string& path);
+    virtual std::string GetFileName() {
+        return path_;
+    }
 private:
     int fd_;
     std::string path_;
@@ -364,6 +370,7 @@ LocalFs::LocalFs() : fd_(0) {
 }
 
 bool LocalFs::Open(const std::string& path, OpenMode mode) {
+    LOG(INFO, "try to open: %s", path.c_str());
     path_ = path;
     mode_t acl = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH; 
     if (mode == kReadFile) {
@@ -386,6 +393,7 @@ bool LocalFs::Open(const std::string& path, OpenMode mode) {
 }
 
 inline bool LocalFs::Close() {
+    LOG(INFO, "try close file: %s", path_.c_str());
     return ::close(fd_) == 0;
 }
 

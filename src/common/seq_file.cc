@@ -31,11 +31,16 @@ public:
         return status_;
     }
 
+    virtual std::string GetFileName() {
+        return path_;
+    }
+
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
 private:
     hdfsFS fs_;
     SeqFile sf_;
+    std::string path_;
     Status status_;
 };
 
@@ -44,7 +49,7 @@ bool InfSeqFile::ReadNextRecord(std::string& key, std::string& value) {
     void *raw_key = NULL, *raw_value = NULL;
     int ret = readNextRecordFromSeqFile(fs_, sf_, &raw_key, &key_len, &raw_value, &value_len);
     if (ret != 0 && ret != 1) {
-        LOG(WARNING, "fail to read next record");
+        LOG(WARNING, "fail to read next record: %s", path_.c_str());
         status_ = kReadFileFail;
         return false;
     }
@@ -62,7 +67,7 @@ bool InfSeqFile::WriteRecord(const std::string& key, const std::string& value) {
     int ret = writeRecordIntoSeqFile(fs_, sf_, key.data(), key.size(),
             value.data(), value.size());
     if (ret != 0) {
-        LOG(WARNING, "write next record fail");
+        LOG(WARNING, "write next record fail: %s", path_.c_str());
         status_ = kWriteFileFail;
         return false;
     }
@@ -73,7 +78,7 @@ bool InfSeqFile::WriteRecord(const std::string& key, const std::string& value) {
 inline bool InfSeqFile::Seek(int64_t offset) {
     int64_t ret = syncSeqFile(sf_, offset);
     if (ret < 0) {
-        LOG(WARNING, "seek to %ld fail", offset);
+        LOG(WARNING, "seek to %ld fail: %s", offset, path_.c_str());
         status_ = kReadFileFail;
         return false;
     }
@@ -91,6 +96,7 @@ bool InfSeqFile::Open(const std::string& path, OpenMode mode, const Param& /*par
         status_ = kOpenFileFail;
         return false;
     }
+    path_ = path;
     if (mode == kReadFile) {
         sf_ = readSequenceFile(fs_, path.c_str());
         if (!sf_) {
