@@ -1,5 +1,5 @@
-#ifndef _BAIDU_SHUTTLE_COMMON_TOOLS_UTIL_H_
-#define _BAIDU_SHUTTLE_COMMON_TOOLS_UTIL_H_
+#ifndef _BAIDU_SHUTTLE_LOG_NAME_H_
+#define _BAIDU_SHUTTLE_LOG_NAME_H_
 #include <string>
 #include "timer.h"
 
@@ -13,10 +13,8 @@ static inline std::string GetLogName(const char* prefix) {
     return buf;
 }
 
-void ParseHdfsAddress(const std::string& address, std::string* host, int* port, std::string* path);
-bool PatternMatch(const std::string& origin, const std::string& pattern);
-
 }
 }
 
 #endif
+

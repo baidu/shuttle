@@ -21,10 +21,15 @@ namespace shuttle {
 
 class InfHdfs : public File {
 public:
-    InfHdfs();
-    virtual ~InfHdfs() { }
+    InfHdfs() : fs_(NULL), fd_(NULL) { }
+    virtual ~InfHdfs() {
+        Close();
+        if (!fs_) {
+            hdfsDisconnect(fs_);
+        }
+    }
 
-    void Connect(const Param& param);
+    bool Connect(const Param& param);
     virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
     virtual bool Close();
     virtual bool Seek(int64_t pos);
@@ -42,7 +47,6 @@ public:
         return path_;
     }
 
-    static void ConnectInfHdfs(const Param& param, hdfsFS* fs);
 private:
     hdfsFS fs_;
     hdfsFile fd_;
@@ -102,8 +106,10 @@ File* File::Create(FileType type, const Param& param) {
         return new LocalFs();
     case kInfHdfs:
         InfHdfs* fs = new InfHdfs();
-        fs->Connect(param);
-        return fs;
+        if (fs->Connect(param)) {
+            return fs;
+        }
+        delete fs;
     }
     return NULL;
 }
@@ -144,11 +150,63 @@ bool File::WriteAll(void* buf, size_t len) {
     return true;
 }
 
-InfHdfs::InfHdfs() : fs_(NULL), fd_(NULL) {
-
+Param File::BuildParam(DfsInfo& info) {
+    Param param;
+    if(!info.user().empty() && !info.password().empty()) {
+        param["user"] = info.user();
+        param["password"] = info.password();
+    }
+    std::string host, port, path;
+    if (ParseFullAddress(info.path(), &host, &port, &path)) {
+        info.set_host(host);
+        info.set_port(port);
+        info.set_path(path);
+    }
+    param["host"] = info.host();
+    param["port"] = info.port();
+    return param;
 }
 
-void InfHdfs::ConnectInfHdfs(const Param& param, hdfsFS* fs) {
+bool File::ParseFullAddress(const std::string& address,
+        std::string* host, std::string* port, std::string* path) {
+    FileType type;
+    size_t header_len = 0;
+    if (boost::starts_with(address, "file://")) {
+        type = kLocalFs;
+        header_len = 7; // strlen("file://") == 7
+    } else if (boost::starts_with(address, "hdfs://")) {
+        type = kInfHdfs;
+        header_len = 7; // strlen("hdfs://") == 7
+    } else {
+        LOG(DEBUG, "Not a full formatted address: %s", address.c_str());
+        return false;
+    }
+
+    size_t server_path_separator = address.find_first_of('/', header_len);
+    const std::string& server = address.substr(header_len, server_path_separator - header_len);
+    size_t last_colon = server.find_last_of(':');
+    if (last_colon == std::string::npos) {
+        if (host != NULL) {
+            *host = server;
+        }
+        if (port != NULL) {
+            *port = "";
+        }
+    } else {
+        if (host != NULL) {
+            *host = server.substr(0, last_colon);
+        }
+        if (port != NULL) {
+            *port = server.substr(last_colon + 1);
+        }
+    }
+    if (path != NULL) {
+        *path = address.substr(server_path_separator);
+    }
+    return true;
+}
+
+bool File::ConnectInfHdfs(const Param& param, void** fs) {
     if (param.find("user") != param.end()) {
         const std::string& user = param["user"];
         const std::string& password = param["password"];
@@ -170,8 +228,44 @@ void InfHdfs::ConnectInfHdfs(const Param& param, hdfsFS* fs) {
     }
 }
 
-inline void InfHdfs::Connect(const Param& param) {
-    ConnectInfHdfs(param, &fs_);
+bool File::PatternMatch(const std::string& origin, const std::string& pattern) {
+    const char* str = origin.c_str();
+    const char* pat = pattern.c_str();
+    const char* cp = NULL;
+    const char* mp = NULL;
+
+    while (*str && *pat != '*') {
+        if (*pat != *str && *pat != '?') {
+            return false;
+        }
+        ++str;
+        ++pat;
+    }
+
+    while (*str) {
+        if (*pat == '*') {
+            if (!*++pat) {
+                return true;
+            }
+            mp = pat;
+            cp = str + 1;
+        } else if (*pat == *str || *pat == '?') {
+            ++pat;
+            ++str;
+        } else {
+            pat = mp;
+            str = cp++;
+        }
+    }
+
+    while (*pat == '*') {
+        ++pat;
+    }
+    return !*pat;
+}
+
+inline bool InfHdfs::Connect(const Param& param) {
+    return ConnectInfHdfs(param, &fs_);
 }
 
 bool InfHdfs::Open(const std::string& path, OpenMode mode, const Param& param) {
@@ -221,13 +315,13 @@ bool InfHdfs::Open(const std::string& path, OpenMode mode, const Param& param) {
 }
 
 bool InfHdfs::Close() {
-    LOG(INFO, "try close file: %s", path_.c_str());
     if (!fs_) {
         return false;
     }
     if (!fd_) {
         return false;
     }
+    LOG(INFO, "try close file: %s", path_.c_str());
     int ret = hdfsCloseFile(fs_, fd_);
     if (ret != 0) {
         return false;
@@ -439,30 +533,6 @@ inline bool LocalFs::Exist(const std::string& path) {
 
 inline FileHub* FileHub::GetHub() {
     return new FileHubImpl();
-}
-
-File::Param FileHub::BuildFileParam(DfsInfo& info) {
-    File::Param param;
-    if(!info.user().empty() && !info.password().empty()) {
-        param["user"] = info.user();
-        param["password"] = info.password();
-    }
-    if (boost::starts_with(info.path(), "hdfs://")) {
-        std::string host;
-        int port;
-        std::string path;
-        ParseHdfsAddress(info.path(), &host, &port, &path);
-        param["host"] = host;
-        param["port"] = boost::lexical_cast<std::string>(port);
-        info.set_path(path);
-        info.set_host(host);
-        info.set_port(boost::lexical_cast<std::string>(port));
-    } else if (!info.host().empty() && !info.port().empty()) {
-        param["host"] = info.host();
-        param["port"] = info.port();
-    }
-    return param;
-
 }
 
 File* FileHubImpl::BuildFs(DfsInfo& info) {

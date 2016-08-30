@@ -30,6 +30,9 @@ struct FileInfo {
 class File {
 public:
     typedef std::map<std::string, std::string> Param;
+    /*
+     * Create file pointer of specific type. May return NULL
+     */
     static File* Create(FileType type, const Param& param);
 
     // Basic file IO interfaces
@@ -51,6 +54,29 @@ public:
     // Used to ensure that all data in buf is written or buf already has all the required data
     size_t ReadAll(void* buf, size_t len);
     bool WriteAll(void* buf, size_t len);
+
+    // File-related tools
+    /*
+     * Use information from DfsInfo to build file param
+     */
+    static Param BuildParam(DfsInfo& info);
+    /*
+     * Extract information from a full address, now support hdfs/local format
+     *   Address format: [type]://[hostname/ip]:[port][absolute path]
+     *   e.g.: hdfs://localhost:9999/home/test/hdfs.file
+     *         file:///home/test/local.file
+     */
+    static bool ParseFullAddress(const std::string& address,
+            std::string* host, std::string* port, std::string* path);
+    /*
+     * Connect to HDFS. caller has to include hdfs sdk header for hdfsFS struct
+     */
+    static bool ConnectInfHdfs(const Param& param, void** fs);
+    /*
+     * Check if a path match with a wildcard-included pattern
+     *   Support: * - any character for 0 or more times, ? - any character for 1 time
+     */
+    static bool PatternMatch(const std::string& origin, const std::string& pattern);
 };
 
 class FileHub {
@@ -60,7 +86,6 @@ public:
     virtual File::Param GetParam(const std::string& address) = 0;
 
     static FileHub* GetHub();
-    static File::Param BuildFileParam(DfsInfo& info);
 };
 
 }
