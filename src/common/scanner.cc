@@ -8,9 +8,7 @@ namespace shuttle {
 class InputReader : public Scanner {
 public:
     InputReader(FormattedFile* fp) : fp_(fp) { }
-    virtual ~InputReader() {
-        delete fp_;
-    }
+    virtual ~InputReader() { }
 
     virtual Iterator* Scan(int64_t offset, int64_t len);
     virtual std::string GetFileName() {
@@ -51,7 +49,6 @@ public:
     };
 
 private:
-    // Owner of the pointer. Responsible to delete it
     // Non-Nullpointer garanteed
     FormattedFile* fp_;
 };
@@ -99,7 +96,6 @@ public:
     };
 
 private:
-    // Owner of the pointer. Responsible to delete it
     // Non-Nullpointer garanteed
     FormattedFile* fp_;
 };

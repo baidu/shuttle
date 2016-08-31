@@ -11,12 +11,12 @@ namespace shuttle {
 
 class Merger : public Scanner {
 public:
-    Merger();
-    virtual ~Merger();
+    // Merger requires opened files
+    Merger(const std::vector<FormattedFile*> files);
+    // Merger is not the owner of files. Caller must delete them by himself
+    virtual ~Merger() { }
 
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key);
-    virtual Status Open(const std::string& path, const File::Param& param);
-    virtual Status Close();
     virtual std::string GetFileName() {
         // Not Implement, inherited from scanner interface
         return "";
@@ -38,7 +38,7 @@ public:
 
     class Iterator : public Scanner::Iterator {
     public:
-        Iterator(const std::vector<FormattedFile*>& files, const std::string& end_key);
+        Iterator(const std::vector<Scanner::Iterator*>& iters);
         virtual ~Iterator();
         virtual bool Done();
         virtual void Next();
@@ -60,18 +60,17 @@ public:
             return err_file_;
         }
     private:
-        std::string end_key_;
         std::string key_;
         std::string value_;
         Status status_;
         std::string err_file_;
         std::priority_queue<MergeItem> queue_;
-        std::vector<FormattedFile*> sortfiles_;
+        std::vector<Scanner::Iterator*> iters_;
     };
 
 private:
-    void AddProvedFile(const std::string& start_key, FormattedFile* fp,
-            std::vector<FormattedFile*>& to_be_scanned, Mutex* vec_mu);
+    void AddProvedIter(const std::string& start_key, const std::string& end_key,
+            FormattedFile* fp, std::vector<Scanner::Iterator*>& to_be_scanned, Mutex* vec_mu);
 
 private:
     std::vector<FormattedFile*> sortfiles_;

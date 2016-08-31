@@ -19,7 +19,10 @@ enum ScannerType {
  */
 class Scanner {
 public:
-    // Scanner requires an opened formatted file
+    /*
+     * Scanner requires an opened formatted file, but scanner do not change
+     *   the ownership of the pointer. Caller must delete it by himself
+     */
     static Scanner* Get(FormattedFile* fp, ScannerType type);
 
     class Iterator {
