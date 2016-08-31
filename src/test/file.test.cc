@@ -210,8 +210,8 @@ protected:
         } else if (FLAGS_type == "hdfs") {
             type = kInfHdfs;
         } else {
-            // Assert anyway
-            ASSERT_EQ(FLAGS_type, "local");
+            // Invalid type
+            ASSERT_TRUE(false);
         }
         File::Param param;
         FillParam(param);
@@ -228,8 +228,6 @@ protected:
 };
 
 TEST_F(FileIOTest, OpenCloseNameTest) {
-    EXPECT_EQ(fp->GetFileName(), "");
-
     File::Param param;
     std::string path;
     ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
