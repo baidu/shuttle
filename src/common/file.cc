@@ -14,7 +14,6 @@
 #include "hdfs.h"
 #include "logging.h"
 #include "mutex.h"
-#include "common/tools_util.h"
 
 namespace baidu {
 namespace shuttle {
@@ -170,13 +169,10 @@ File::Param File::BuildParam(DfsInfo& info) {
 
 bool File::ParseFullAddress(const std::string& address,
         std::string* host, std::string* port, std::string* path) {
-    FileType type;
     size_t header_len = 0;
     if (boost::starts_with(address, "file://")) {
-        type = kLocalFs;
         header_len = 7; // strlen("file://") == 7
     } else if (boost::starts_with(address, "hdfs://")) {
-        type = kInfHdfs;
         header_len = 7; // strlen("hdfs://") == 7
     } else {
         LOG(DEBUG, "Not a full formatted address: %s", address.c_str());
