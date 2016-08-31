@@ -37,7 +37,7 @@ public:
      */
     virtual bool WriteRecord(const std::string& key, const std::string& value);
     virtual bool Locate(const std::string& key);
-    virtual bool Seek(int64_t offset) {
+    virtual bool Seek(int64_t /*offset*/) {
         // TODO not implement, not qualified to be input file
         return false;
     }
@@ -352,7 +352,8 @@ bool SortFile::FlushIdxBlock() {
         return false;
     }
 
-    if (!fp_->WriteAll(&MAGIC_NUMBER, sizeof(MAGIC_NUMBER))) {
+	int32_t magic_number = MAGIC_NUMBER;
+    if (!fp_->WriteAll(&magic_number, sizeof(magic_number))) {
         LOG(WARNING, "fail to write magic number: %s", path_.c_str());
         status_ = kWriteFileFail;
         return false;

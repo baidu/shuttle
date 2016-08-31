@@ -9,12 +9,15 @@ namespace shuttle {
 namespace factory {
 
 FormattedFile* GetPlainTextFile(File* fp);
-FormattedFile* GetSeqFile(hdfsFS fs);
+FormattedFile* GetInfSeqFile(hdfsFS fs);
 FormattedFile* GetSortFile(File* fp);
 
 }
 
 FormattedFile* FormattedFile::Get(File* fp, FileFormat format) {
+    if (fp == NULL) {
+        return NULL;
+    }
     switch(format) {
     case kPlainText:
         return factory::GetPlainTextFile(fp);
@@ -40,7 +43,7 @@ FormattedFile* FormattedFile::Create(FileType type, FileFormat format,
         }
         hdfsFS fs = NULL;
         if (File::ConnectInfHdfs(param, &fs)) {
-            return factory::GetSeqFile(fs);
+            return factory::GetInfSeqFile(fs);
         }
     }
     return NULL;

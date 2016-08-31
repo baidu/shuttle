@@ -45,7 +45,7 @@ public:
      *   since input files will be divided by size in master's resource manager
      */
     virtual bool Seek(int64_t offset) = 0;
-    virtual int64_t Tell();
+    virtual int64_t Tell() = 0;
 
     virtual bool Open(const std::string& path, OpenMode mode, const File::Param& param) = 0;
     virtual bool Close() = 0;
