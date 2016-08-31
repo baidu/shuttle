@@ -40,7 +40,7 @@ public:
     virtual bool Remove(const std::string& path);
     virtual bool List(const std::string& dir, std::vector<FileInfo>* children);
     virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children);
-    virtual bool Mkdirs(const std::string& dir);
+    virtual bool Mkdir(const std::string& dir);
     virtual bool Exist(const std::string& path);
     virtual std::string GetFileName() {
         return path_;
@@ -74,7 +74,7 @@ public:
         // TODO, not implement, not important for online functions
         return false;
     }
-    virtual bool Mkdirs(const std::string& dir);
+    virtual bool Mkdir(const std::string& dir);
     virtual bool Exist(const std::string& path);
     virtual std::string GetFileName() {
         return path_;
@@ -162,8 +162,12 @@ File::Param File::BuildParam(DfsInfo& info) {
         info.set_port(port);
         info.set_path(path);
     }
-    param["host"] = info.host();
-    param["port"] = info.port();
+    if (info.has_host()) {
+        param["host"] = info.host();
+    }
+    if (info.has_port()) {
+        param["port"] = info.port();
+    }
     return param;
 }
 
@@ -417,7 +421,7 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
             }
             for (int j = 0; j < file_num; ++j) {
                 std::string cur_file;
-                ParseHdfsAddress(file_list[j].mName, NULL, NULL, &cur_file);
+                ParseFullAddress(file_list[j].mName, NULL, NULL, &cur_file);
                 if (!PatternMatch(cur_file, prefix + "/" + pattern)) {
                     continue;
                 }
@@ -440,7 +444,7 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
             }
             for (int i = 0; i < file_num; ++i) {
                 std::string cur_file;
-                ParseHdfsAddress(file_list[i].mName, NULL, NULL, &cur_file);
+                ParseFullAddress(file_list[i].mName, NULL, NULL, &cur_file);
                 if (PatternMatch(cur_file, dir)) {
                     children->push_back(FileInfo());
                     FileInfo& last = children->back();
@@ -455,7 +459,7 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
     return true;
 }
 
-bool InfHdfs::Mkdirs(const std::string& dir) {
+bool InfHdfs::Mkdir(const std::string& dir) {
     return hdfsCreateDirectory(fs_, dir.c_str()) == 0;
 }
 
@@ -526,7 +530,7 @@ bool LocalFs::Remove(const std::string& path) {
     return ::remove(path.c_str()) == 0;
 }
 
-bool LocalFs::Mkdirs(const std::string& dir) {
+bool LocalFs::Mkdir(const std::string& dir) {
     return ::mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
 }
 
@@ -559,10 +563,9 @@ File* FileHubImpl::BuildFs(DfsInfo& info) {
 }
 
 File* FileHubImpl::GetFs(const std::string& address) {
-    std::string host;
-    int port;
-    ParseHdfsAddress(address, &host, &port, NULL);
-    std::string key = host + ":" + boost::lexical_cast<std::string>(port);
+    std::string host, port;
+    File::ParseFullAddress(address, &host, &port, NULL);
+    std::string key = host + ":" + port;
 
     MutexLock lock(&mu_);
     if (fs_map_.find(key) == fs_map_.end()) {
@@ -572,10 +575,9 @@ File* FileHubImpl::GetFs(const std::string& address) {
 }
 
 File::Param FileHubImpl::GetParam(const std::string& address) {
-    std::string host;
-    int port;
-    ParseHdfsAddress(address, &host, &port, NULL);
-    std::string key = host + ":" + boost::lexical_cast<std::string>(port);
+    std::string host, port;
+    File::ParseFullAddress(address, &host, &port, NULL);
+    std::string key = host + ":" + port;
 
     MutexLock lock(&mu_);
     if (param_map_.find(key) == param_map_.end()) {
