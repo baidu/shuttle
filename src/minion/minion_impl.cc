@@ -90,13 +90,13 @@ void MinionImpl::WatchDogTask() {
         }
         task_frozen_ = true;
         over_loaded_ =  true;
-        system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
+        system("killall -SIGSTOP input_tool shuffle_tool tuo_merger 2>/dev/null");
     } else if (netstat_.GetSendSpeed() > network_limit ||
                netstat_.GetRecvSpeed() > network_limit) {
         LOG(WARNING, "traffic tx:%lld, rx:%lld",
             netstat_.GetSendSpeed(), netstat_.GetRecvSpeed());
         LOG(WARNING, "network traffic is busy, so froze the task");
-        system("killall -SIGSTOP input_tool shuffle_tool 2>/dev/null");
+        system("killall -SIGSTOP input_tool shuffle_tool tuo_merger 2>/dev/null");
         if (!task_frozen_) {
             frozen_time_ = std::time(NULL);
         }
@@ -104,12 +104,12 @@ void MinionImpl::WatchDogTask() {
     } else {
         if (task_frozen_ && minute_load < 0.8 * numCPU) {
             LOG(INFO, "machine seems healthy, so resume the task");
-            system("killall -SIGCONT input_tool shuffle_tool 2>/dev/null");
+            system("killall -SIGCONT input_tool shuffle_tool tuo_merger 2>/dev/null");
             task_frozen_ = false;
             over_loaded_ = false;
         }
     }
-    watch_dog_.DelayTask(5000, boost::bind(&MinionImpl::WatchDogTask, this));
+    watch_dog_.DelayTask(1000, boost::bind(&MinionImpl::WatchDogTask, this));
 }
 
 void MinionImpl::Query(::google::protobuf::RpcController* controller,

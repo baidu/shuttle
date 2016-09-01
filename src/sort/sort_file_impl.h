@@ -3,6 +3,7 @@
 
 #include "sort_file.h"
 #include "common/filesystem.h"
+#include <vector>
 
 namespace baidu {
 namespace shuttle {
@@ -52,6 +53,16 @@ private:
     FileSystem* fs_;
 };
 
+struct IndexSampleOrder{
+   const bool operator()(const KeyOffset& x , const KeyOffset& y) {
+       if (x.key() < y.key()) {
+            return true;
+       } else {
+            return x.offset() < y.offset(); 
+       }
+   } 
+};
+
 class SortFileWriterImpl : public SortFileWriter {
 public:
     SortFileWriterImpl(FileSystem* fs);
@@ -65,10 +76,13 @@ private:
     void MakeIndexSparse();
     DataBlock cur_block_;
     IndexBlock idx_block_;
+    std::vector<KeyOffset> idx_buffer_;
     int32_t cur_block_size_;
     std::string last_key_;
     FileSystem* fs_;
     std::string path_;
+    int32_t data_block_count_;
+
 };
 
 } //namespace shuttle

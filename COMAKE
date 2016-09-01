@@ -108,6 +108,10 @@ shuffle_tool_src = 'src/sort/shuffle_tool.cc \
                     src/sort/sort_file_impl.cc \
                     src/sort/merge_file_impl.cc '
 
+tuo_merger_src = 'src/sort/tuo_merger.cc \
+                    src/sort/sort_file_impl.cc \
+                    src/sort/merge_file_impl.cc '
+
 combine_tool_src = 'src/sort/combine_tool.cc \
                     src/sort/sort_file_impl.cc \
                     src/minion/partition.cc \
@@ -146,6 +150,7 @@ Application('input_test', Sources(input_test_src, input_reader_src))
 Application('partition_test', Sources(partition_src, partition_test_src))
 Application('resourcemanager_test', Sources(resourcemanager_test_src, input_reader_src))
 Application('shuffle_tool', Sources(sort_src, shuffle_tool_src))
+Application('tuo_merger', Sources(sort_src, tuo_merger_src))
 Application('combine_tool', Sources(sort_src, combine_tool_src))
 Application('partition_tool', Sources(partition_src, partition_tool_src))
 

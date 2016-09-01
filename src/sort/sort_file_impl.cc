@@ -354,7 +354,8 @@ Status SortFileReaderImpl::Close() {
 }
 
 SortFileWriterImpl::SortFileWriterImpl(FileSystem* fs) : cur_block_size_(0),
-                                                         fs_(fs) {
+                                                         fs_(fs),
+                                                         data_block_count_(0) {
 
 }
 
@@ -387,6 +388,10 @@ Status SortFileWriterImpl::Put(const std::string& key, const std::string& value)
 }
 
 Status SortFileWriterImpl::FlushIdxBlock() {
+    std::sort(idx_buffer_.begin(), idx_buffer_.end(), IndexSampleOrder());
+    for (size_t i = 0; i < idx_buffer_.size(); i++) {
+        idx_block_.add_items()->CopyFrom(idx_buffer_[i]);
+    }
     while (idx_block_.items_size() > sMaxIndexSize) {
         MakeIndexSparse();
     }
@@ -474,9 +479,19 @@ Status SortFileWriterImpl::FlushCurBlock() {
         return kWriteFileFail;
     }
 
-    KeyOffset* item = idx_block_.add_items();
-    item->set_key(cur_block_.items(0).key());
-    item->set_offset(offset);
+    data_block_count_++;
+    KeyOffset sample_item;
+    sample_item.set_key(cur_block_.items(0).key());
+    sample_item.set_offset(offset);
+
+    if ((int)idx_buffer_.size() < sMaxIndexSize) {
+        idx_buffer_.push_back(sample_item);
+    } else {
+        int rnd_k = (int) ( ((double)rand()  / RAND_MAX) * data_block_count_ );
+        if (rnd_k < sMaxIndexSize && rnd_k > 0) {
+            idx_buffer_[rnd_k] = sample_item; 
+        }    
+    }
 
     cur_block_.Clear();
     cur_block_size_ = 0;
