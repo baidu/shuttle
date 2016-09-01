@@ -38,6 +38,7 @@ public:
     virtual std::string GetFileName() {
         return path_;
     }
+    virtual int64_t GetSize();
 
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
@@ -122,6 +123,18 @@ bool InfSeqFile::Close() {
     bool ok = (closeSequenceFile(fs_, sf_) == 0);
     status_ = ok ? kOk : kCloseFileFail;
     return ok;
+}
+
+int64_t InfSeqFile::GetSize() {
+    hdfsFileInfo* info = NULL;
+    info = hdfsGetPathInfo(fs_, path_.c_str());
+    if (info == NULL) {
+        LOG(WARNING, "failed to get info of %s", path_.c_str());
+        return -1;
+    }
+    int64_t file_size = info->mSize;
+    hdfsFreeFileInfo(info, 1);
+    return file_size;
 }
 
 bool InfSeqFile::BuildRecord(const std::string& key, const std::string& value,

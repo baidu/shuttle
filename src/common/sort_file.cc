@@ -56,6 +56,7 @@ public:
     virtual std::string GetFileName() {
         return path_;
     }
+    virtual int64_t GetSize();
 
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
@@ -212,6 +213,10 @@ bool SortFile::Close() {
     return ok;
 }
 
+int64_t SortFile::GetSize() {
+    return fp_->GetSize();
+}
+
 bool SortFile::LoadIndexBlock(IndexBlock& index) {
     int64_t file_size = fp_->GetSize();
     int64_t index_offset = 0;
@@ -352,7 +357,7 @@ bool SortFile::FlushIdxBlock() {
         return false;
     }
 
-	int32_t magic_number = MAGIC_NUMBER;
+    int32_t magic_number = MAGIC_NUMBER;
     if (!fp_->WriteAll(&magic_number, sizeof(magic_number))) {
         LOG(WARNING, "fail to write magic number: %s", path_.c_str());
         status_ = kWriteFileFail;

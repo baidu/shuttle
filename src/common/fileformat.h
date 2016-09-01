@@ -56,6 +56,7 @@ public:
     virtual Status Error() = 0;
 
     virtual std::string GetFileName() = 0;
+    virtual int64_t GetSize() = 0;
 
     /*
      * Parsing a record, which is currently not used

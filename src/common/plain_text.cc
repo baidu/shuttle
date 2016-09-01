@@ -31,6 +31,7 @@ public:
     }
 
     virtual std::string GetFileName();
+    virtual int64_t GetSize();
 
     virtual bool BuildRecord(const std::string& key, const std::string& value,
             std::string& record);
@@ -134,7 +135,7 @@ bool PlainTextFile::WriteRecord(const std::string& /*key*/, const std::string& v
 bool PlainTextFile::Seek(int64_t offset) {
     char prev_byte = 0;
     if (offset > 0) {
-        if (fp_->Seek(offset - 1)) {
+        if (!fp_->Seek(offset - 1)) {
             LOG(WARNING, "seek to %ld fail", offset - 1);
             status_ = kReadFileFail;
             return false;
@@ -177,6 +178,10 @@ bool PlainTextFile::Close() {
 
 std::string PlainTextFile::GetFileName() {
     return fp_->GetFileName();
+}
+
+int64_t PlainTextFile::GetSize() {
+    return fp_->GetSize();
 }
 
 bool PlainTextFile::BuildRecord(const std::string& /*key*/, const std::string& value,
