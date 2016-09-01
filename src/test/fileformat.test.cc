@@ -179,7 +179,7 @@ TEST_F(FormattedFileTest, LocationChangeTest) {
         EXPECT_TRUE(fp->ReadRecord(key, value));
         EXPECT_EQ(fp->Error(), kOk);
         EXPECT_EQ(key, "key050000");
-        EXPECT_EQ(value, "value050000");
+        EXPECT_EQ(value, "value050000\n");
     }
 
     key = "";
@@ -196,7 +196,7 @@ TEST_F(FormattedFileTest, LocationChangeTest) {
         EXPECT_TRUE(last_no == -1 || cur_no_value == last_no + 1);
         last_no = cur_no_value;
     }
-    EXPECT_EQ(value, "value099999");
+    EXPECT_EQ(value, "value099999\n");
     EXPECT_EQ(fp->Error(), kNoMore);
     ASSERT_TRUE(fp->Close());
     EXPECT_EQ(fp->Error(), kOk);

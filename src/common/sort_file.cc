@@ -37,6 +37,10 @@ public:
      *   the file format and do not handle sorting
      */
     virtual bool WriteRecord(const std::string& key, const std::string& value);
+    /*
+     * Since index block may be sparse so the function will iterate over file to locate
+     *   the key and might be a little bit long when data is remotely read via network
+     */
     virtual bool Locate(const std::string& key);
     virtual bool Seek(int64_t /*offset*/) {
         // TODO not implement, not qualified to be input file
@@ -141,6 +145,7 @@ bool SortFile::WriteRecord(const std::string& key, const std::string& value) {
 }
 
 bool SortFile::Locate(const std::string& key) {
+    // Load index block to quick search keys in file
     IndexBlock idx_block;
     LOG(INFO, "try to load index of: %s", path_.c_str());
     if (!LoadIndexBlock(idx_block)) {
@@ -178,15 +183,25 @@ bool SortFile::Locate(const std::string& key) {
             offset = idx_block.items(0).offset();
         }
     }
-
     if (!fp_->Seek(offset)) {
         LOG(WARNING, "fail to seek the data block at %ld: %s", offset, path_.c_str());
         status_ = kReadFileFail;
         return false;
     }
-    // Force ReadRecord to read a new block since (size_t)-1 beats size of any data block
-    cur_block_offset_ = (size_t)-1;
+
     status_ = kOk;
+    cur_block_offset_ = (size_t)-1 - 1;
+    do {
+        ++cur_block_offset_;
+        if (cur_block_offset_ >= static_cast<size_t>(cur_block_.items_size())) {
+            // Load next block since key is not in this block due to the sparseness of index
+            if (!LoadDataBlock(cur_block_)) {
+                LOG(DEBUG, "unable to load next block, maybe meet EOF or an error");
+                break;
+            }
+            cur_block_offset_ = 0;
+        }
+    } while (cur_block_.items(cur_block_offset_).key() < key);
     return true;
 }
 
