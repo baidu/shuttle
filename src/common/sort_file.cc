@@ -10,15 +10,15 @@ namespace shuttle {
 
 /*
  * Sortfile is an internal compressed binary file format, the file format is as following
- * +-----------------------------+
- * |    Data Block(compressed)   |
- * +-----------------------------+
- * |             ...             |
- * +-----------------------------+
- * |   Index Block(compressed)   |
- * +-----------------------------+
- * | Index offset | Magic number |
- * +-----------------------------+
+ * +---------------------------------------+
+ * | Block size |  Data Block(compressed)  |
+ * +---------------------------------------+
+ * |                  ...                  |
+ * +---------------------------------------+
+ * | Block size | Index Block(compressed)  |
+ * +---------------------------------------+
+ * |   Index offset   |    Magic number    |
+ * +---------------------------------------+
  * Index block is composed by first entries of every data block, as content of block
  * Magic number is to check the completion of a file
  */
@@ -30,6 +30,7 @@ public:
         delete fp_;
     }
 
+    // Before reading a record, Locate() must be called first
     virtual bool ReadRecord(std::string& key, std::string& value);
     /*
      * WriteRecord needs that caller provides sorted KV data, this is only
@@ -101,7 +102,7 @@ bool SortFile::ReadRecord(std::string& key, std::string& value) {
         status_ = kReadFileFail;
         return false;
     }
-    if (cur_block_offset_ > static_cast<size_t>(cur_block_.items_size())) {
+    if (cur_block_offset_ >= static_cast<size_t>(cur_block_.items_size())) {
         if (!LoadDataBlock(cur_block_)) {
             LOG(DEBUG, "unable to load next block, maybe meet EOF or an error");
             return false;
@@ -150,13 +151,13 @@ bool SortFile::Locate(const std::string& key) {
     // Bi-search to location the key in index block
     int low = 0;
     int high = idx_block.items_size() - 1;
-    if (low > high || (key <= idx_block.items(low).key() && !key.empty())) {
+    if (low > high || (key < idx_block.items(low).key() && !key.empty())) {
         LOG(WARNING, "key `%s' does not exist in index block: %s", key.c_str(), path_.c_str());
         status_ = kInvalidArg;
         return false;
     }
     while (low < high) {
-        int mid = low + high / 2;
+        int mid = (low + high) / 2;
         const std::string& mid_key = idx_block.items(mid).key();
         if (mid_key < key) {
             low = mid + 1;
@@ -194,6 +195,8 @@ bool SortFile::Open(const std::string& path, OpenMode mode, const File::Param& p
     path_ = path;
     mode_ = mode;
     bool ok = fp_->Open(path, mode, param);
+    // Force ReadRecord to read a new block since (size_t)-1 beats size of any data block
+    cur_block_offset_ = (size_t)-1;
     status_ = ok ? kOk : kReadFileFail;
     return ok;
 }
@@ -353,7 +356,20 @@ bool SortFile::FlushIdxBlock() {
         return false;
     }
 
+    int64_t offset = fp_->Tell();
+    if (offset == -1) {
+        LOG(WARNING, "fail to get current offset: %s", path_.c_str());
+        status_ = kWriteFileFail;
+        return false;
+    }
+
     if (!WriteSerializedBlock(serialized)) {
+        return false;
+    }
+
+    if (!fp_->WriteAll(&offset, sizeof(offset))) {
+        LOG(WARNING, "fail to write index offset: %s", path_.c_str());
+        status_ = kWriteFileFail;
         return false;
     }
 
@@ -372,13 +388,8 @@ bool SortFile::WriteSerializedBlock(const std::string& block) {
     std::string compressed_buf;
     snappy::Compress(block.data(), block.size(), &compressed_buf);
     int32_t block_size = compressed_buf.size();
-    int64_t offset = fp_->Tell();
-    if (offset == -1) {
-        LOG(WARNING, "fail to get current offset: %s", path_.c_str());
-        status_ = kWriteFileFail;
-        return false;
-    }
     LOG(DEBUG, "current block_size: %ld", block_size);
+
     // Write data
     if (!fp_->WriteAll(&block_size, sizeof(block_size))) {
         LOG(WARNING, "fail to write block size: %s", path_.c_str());

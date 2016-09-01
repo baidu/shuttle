@@ -102,8 +102,10 @@ private:
 
 Scanner* Scanner::Get(FormattedFile* fp, ScannerType type) {
     return fp == NULL ? NULL : (
-            type == kInputScanner ? static_cast<Scanner*>(new InputReader(fp)) :
-                static_cast<Scanner*>(new InternalReader(fp))
+            type == kInputScanner ? static_cast<Scanner*>(new InputReader(fp)) : (
+                type == kInternalScanner ? static_cast<Scanner*>(new InternalReader(fp)) :
+                    NULL
+            )
         );
 }
 

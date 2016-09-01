@@ -120,19 +120,20 @@ TEST_F(FormattedFileTest, ReadWriteTest) {
     std::string value("value");
     for (int i = 0; i < 100000; ++i) {
         std::stringstream ss;
+        ss << std::setw(6) << std::setfill('0') << i;
         // Add endline to be friendly with line-based format
-        ss << std::setw(6) << std::setfill('0') << i << std::endl;
-        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str()));
+        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str() + '\n'));
         EXPECT_EQ(fp->Error(), kOk);
     }
     ASSERT_TRUE(fp->Close());
     EXPECT_EQ(fp->Error(), kOk);
 
     ASSERT_TRUE(fp->Open(path, kReadFile, param));
+    ASSERT_TRUE(fp->Locate("key000000"));
     EXPECT_EQ(fp->Error(), kOk);
     key = "";
-    for (int i = 0; i < 100; ++i) {
-        EXPECT_TRUE(fp->ReadRecord(key, value));
+    for (int i = 0; i < 100000; ++i) {
+        ASSERT_TRUE(fp->ReadRecord(key, value));
         EXPECT_EQ(fp->Error(), kOk);
         EXPECT_TRUE(key == "" || atoi(key.substr(3).c_str()) == i);
         EXPECT_EQ(atoi(value.substr(5).c_str()), i);
@@ -150,9 +151,9 @@ TEST_F(FormattedFileTest, LocationChangeTest) {
     std::string value("value");
     for (int i = 0; i < 100000; ++i) {
         std::stringstream ss;
+        ss << std::setw(6) << std::setfill('0') << i;
         // Add endline to be friendly with line-based format
-        ss << std::setw(6) << std::setfill('0') << i << std::endl;
-        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str()));
+        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str() + '\n'));
         EXPECT_EQ(fp->Error(), kOk);
     }
     ASSERT_TRUE(fp->Close());
@@ -195,6 +196,7 @@ TEST_F(FormattedFileTest, LocationChangeTest) {
         EXPECT_TRUE(last_no == -1 || cur_no_value == last_no + 1);
         last_no = cur_no_value;
     }
+    EXPECT_EQ(value, "value099999");
     EXPECT_EQ(fp->Error(), kNoMore);
     ASSERT_TRUE(fp->Close());
     EXPECT_EQ(fp->Error(), kOk);
