@@ -3,26 +3,21 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
+#include <sstream>
 #include <algorithm>
 #include <cstdlib>
 
 using namespace baidu::shuttle;
 
-/*
- * Notice: Test here will use a certain test location to validate the output
- *   The test directory should contain a sequence of integers named files starting from 1,
- *   containing n lines. Each filename is an integer, 1 bigger than the previous file
- */
-
 DEFINE_string(type, "local", "set file type, local/hdfs is acceptable");
 DEFINE_string(address, "", "full address to the test file");
-DEFINE_string(empty_path, "", "path for remove test, must have same configs with address");
-DEFINE_string(test_dir, "", "dir path as notice");
-DEFINE_string(hdfs_user, "", "username to HDFS, empty means default");
-DEFINE_string(hdfs_pass, "", "password to HDFS, empty only when username is empty");
+DEFINE_string(user, "", "username to FS, empty means default");
+DEFINE_string(password, "", "password to FS, empty only when username is empty");
 
 // Global file pointer for FileIOTest, will be automatically initialized and released
 static File* fp = NULL;
+// Path information in address. Initialized when FileIOTest environments set up
+static std::string path;
 
 void FillParam(File::Param& param) {
     std::string host, port;
@@ -36,11 +31,11 @@ void FillParam(File::Param& param) {
     if (port != "") {
         param["port"] = port;
     }
-    if (FLAGS_hdfs_user != "") {
-        param["user"] = FLAGS_hdfs_user;
+    if (FLAGS_user != "") {
+        param["user"] = FLAGS_user;
     }
-    if (FLAGS_hdfs_pass != "") {
-        param["password"] = FLAGS_hdfs_pass;
+    if (FLAGS_password != "") {
+        param["password"] = FLAGS_password;
     }
 }
 
@@ -204,6 +199,7 @@ protected:
             return;
         }
         ASSERT_TRUE(FLAGS_address != "");
+        ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
         FileType type = kLocalFs;
         if (FLAGS_type == "local") {
             type = kLocalFs;
@@ -229,47 +225,85 @@ protected:
 
 TEST_F(FileIOTest, OpenCloseNameTest) {
     File::Param param;
-    std::string path;
-    ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
+
+    // Create or truncate file
+    ASSERT_TRUE(fp->Open(path, kWriteFile, param));
+    EXPECT_EQ(fp->GetFileName(), path);
+    ASSERT_TRUE(fp->Close());
 
     ASSERT_TRUE(fp->Open(path, kReadFile, param));
     EXPECT_EQ(fp->GetFileName(), path);
     ASSERT_TRUE(fp->Close());
-
-    // Check write-only open after file existence garanteed by operations above
-    ASSERT_TRUE(fp->Open(path, kWriteFile, param));
-    EXPECT_EQ(fp->GetFileName(), path);
-    ASSERT_TRUE(fp->Close());
+    // Leave a test file in path
 }
 
 TEST_F(FileIOTest, ReadWriteTest) {
     File::Param param;
-    std::string path;
-    ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
-
+    ASSERT_TRUE(fp->Open(path, kWriteFile, param));
     std::string write_buf;
     for (int i = 0; i < 100; ++i) {
         write_buf += "this is a test string\n";
     }
-    ASSERT_TRUE(fp->Open(path, kWriteFile, param));
     ASSERT_TRUE(fp->WriteAll(write_buf.data(), write_buf.size()));
     ASSERT_TRUE(fp->Close());
 
-    char* read_buf = new char[write_buf.size() + 1];
     ASSERT_TRUE(fp->Open(path, kReadFile, param));
-    size_t read_n = fp->ReadAll(read_buf, write_buf.size() + 1);
+    size_t read_buf_size = write_buf.size() + 1;
+    char* read_buf = new char[read_buf_size];
+    size_t read_n = fp->ReadAll(read_buf, read_buf_size);
     std::string read_str;
     read_str.assign(read_buf, read_n);
     EXPECT_EQ(write_buf, read_str);
     ASSERT_TRUE(fp->Close());
+    // Leave a test file in path
+}
+
+TEST_F(FileIOTest, RenameRemoveExistTest) {
+    File::Param param;
+    // Create or truncate file
+    ASSERT_TRUE(fp->Open(path, kWriteFile, param));
+    ASSERT_TRUE(fp->Close());
+    // Assertion here may leave a test file
+
+    // Existence of path is garanteed
+    ASSERT_TRUE(fp->Exist(path));
+
+    // Rename twice and check existence
+    std::string new_path = path + "_test_newfile";
+    // In case of overwriting
+    ASSERT_TRUE(!fp->Exist(new_path));
+    EXPECT_TRUE(fp->Rename(path, new_path));
+    EXPECT_TRUE(!fp->Exist(path));
+    EXPECT_TRUE(fp->Exist(new_path));
+    EXPECT_TRUE(fp->Rename(new_path, path));
+    EXPECT_TRUE(!fp->Exist(new_path));
+    EXPECT_TRUE(fp->Exist(path));
+
+    // Remove file test
+    EXPECT_TRUE(fp->Remove(path));
+    EXPECT_TRUE(!fp->Exist(path));
+
+    // Remove directory test
+    EXPECT_TRUE(fp->Mkdir(path));
+    EXPECT_TRUE(fp->Exist(path));
+    EXPECT_TRUE(fp->Remove(path));
+    EXPECT_TRUE(!fp->Exist(path));
+    // No test file is left
 }
 
 TEST_F(FileIOTest, TellSeekTest) {
+    // Rebuild a test file
     File::Param param;
-    std::string path;
-    ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
-    ASSERT_TRUE(fp->Open(path, kReadFile, param));
+    // Create or truncate file. Fail if there's a directory
+    ASSERT_TRUE(fp->Open(path, kWriteFile, param));
+    std::string write_buf;
+    for (int i = 0; i < 100; ++i) {
+        write_buf += "this is a test string\n";
+    }
+    ASSERT_TRUE(fp->WriteAll(write_buf.data(), write_buf.size()));
+    ASSERT_TRUE(fp->Close());
 
+    ASSERT_TRUE(fp->Open(path, kReadFile, param));
     size_t size = fp->GetSize();
     EXPECT_TRUE(size != 0);
 
@@ -278,27 +312,7 @@ TEST_F(FileIOTest, TellSeekTest) {
     EXPECT_EQ(fp->Tell(), static_cast<int>(size >> 1));
 
     ASSERT_TRUE(fp->Close());
-}
-
-TEST_F(FileIOTest, RenameRemoveExistTest) {
-    std::string path;
-    ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
-    ASSERT_TRUE(fp->Exist(path));
-
-    std::string new_path = path + "_new";
-    EXPECT_TRUE(!fp->Exist(new_path));
-    EXPECT_TRUE(fp->Rename(path, new_path));
-    EXPECT_TRUE(!fp->Exist(path));
-    EXPECT_TRUE(fp->Rename(new_path, path));
-    EXPECT_TRUE(!fp->Exist(new_path));
-    EXPECT_TRUE(fp->Exist(path));
-
-    EXPECT_TRUE(fp->Exist(FLAGS_empty_path));
-    EXPECT_TRUE(fp->Remove(FLAGS_empty_path));
-    EXPECT_TRUE(!fp->Exist(FLAGS_empty_path));
-
-    EXPECT_TRUE(fp->Mkdir(FLAGS_empty_path));
-    EXPECT_TRUE(fp->Exist(FLAGS_empty_path));
+    // Leave a test file in path
 }
 
 struct FileInfoComparator {
@@ -315,30 +329,46 @@ bool isFileInfoEqual(const FileInfo& lhs, const FileInfo& rhs) {
 }
 
 TEST_F(FileIOTest, ListGlobTest) {
+    // Clean up test path and prepare testcase for list/glob
+    // No need to check the return value since path might refers nothing
+    fp->Remove(path);
+    ASSERT_TRUE(fp->Mkdir(path));
+    std::string testdir = *path.rbegin() == '/' ? path : path + '/';
+    for (int i = 0; i < 1000; ++i) {
+        std::stringstream ss;
+        ss << std::setw(4) << std::setfill('0') << i;
+        ASSERT_TRUE(fp->Mkdir(testdir + ss.str()));
+        // Assertion here may leave files
+    }
+
     std::vector<FileInfo> list_children;
-    std::string path = FLAGS_test_dir;
-
     EXPECT_TRUE(fp->List(path, &list_children));
-
     std::sort(list_children.begin(), list_children.end(), FileInfoComparator());
+
+    // Check list result
     int size = static_cast<int>(list_children.size());
     for (int i = 0; i < size; ++i) {
         const FileInfo& info = list_children[i];
-        EXPECT_EQ(info.kind, 'F');
+        EXPECT_EQ(info.kind, 'D');
         std::string file_num = info.name.substr(info.name.find_last_of('/') + 1);
-        EXPECT_EQ(atoi(file_num.c_str()), i + 1);
+        EXPECT_EQ(atoi(file_num.c_str()), i);
     }
 
     std::vector<FileInfo> glob_children;
-    if (*path.rbegin() != '/') {
-        path.push_back('/');
-    }
-    path.push_back('*');
-    EXPECT_TRUE(fp->Glob(path, &glob_children));
-
+    EXPECT_TRUE(fp->Glob(testdir + '*', &glob_children));
     std::sort(glob_children.begin(), glob_children.end(), FileInfoComparator());
+
+    // Glob should behave the same as list here
     EXPECT_TRUE(std::equal(list_children.begin(), list_children.end(),
             glob_children.begin(), isFileInfoEqual));
+
+    for (int i = 0; i < 1000; ++i) {
+        std::stringstream ss;
+        ss << std::setw(4) << std::setfill('0') << i;
+        EXPECT_TRUE(fp->Remove(testdir + ss.str()));
+    }
+    EXPECT_TRUE(fp->Remove(path));
+    // No test file is left
 }
 
 int main(int argc, char** argv) {
