@@ -9,6 +9,14 @@
 
 using namespace baidu::shuttle;
 
+/*
+ * Test need an address to an inexist location, and will automatically create testcase file
+ *   and destroy them after all test if tests run as ordered
+ * User must manually delete left test file when:
+ *   1. Random call all there testcases: Some testcases may not clean the test file
+ *   2. Meet assertions: Test file WILL NOT be destroyed when test environment tears down
+ */
+
 DEFINE_string(type, "local", "set file type, local/hdfs is acceptable");
 DEFINE_string(address, "", "full address to the test file");
 DEFINE_string(user, "", "username to FS, empty means default");
@@ -305,7 +313,7 @@ TEST_F(FileIOTest, TellSeekTest) {
 
     ASSERT_TRUE(fp->Open(path, kReadFile, param));
     size_t size = fp->GetSize();
-    EXPECT_TRUE(size != 0);
+    EXPECT_TRUE(size > 0);
 
     EXPECT_EQ(fp->Tell(), 0);
     EXPECT_TRUE(fp->Seek(size >> 1));
