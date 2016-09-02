@@ -1,17 +1,12 @@
 #include "resource_manager.h"
 
-#include <boost/algorithm/string.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/bind.hpp>
-#include <algorithm>
 #include <gflags/gflags.h>
-#include <assert.h>
 #include "logging.h"
 #include "thread_pool.h"
 #include "mutex.h"
-#include "sort/input_reader.h"
 #include "common/file.h"
-#include "common/tools_util.h"
+#include "common/scanner.h"
 
 DECLARE_int32(input_block_size);
 DECLARE_int32(parallel_attempts);
@@ -298,9 +293,14 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
     if (inputs.size() == 0) {
         return;
     }
-    FileHub* hub = FileHub::GetHub();
+    FileHub<File>* hub = FileHub<File>::GetHub();
     for (std::vector<DfsInfo>::iterator it = inputs.begin(); it != inputs.end(); ++it) {
-        hub->BuildFs(*it);
+        const File::Param& param = File::BuildParam(*it);
+        File* fp = File::Create(kInfHdfs, param);
+        File* ret = hub->Store(param, fp);
+        if (ret == NULL || ret != fp) {
+            LOG(WARNING, "fail to store in file hub, param size: %d", param.size());
+        }
     }
 
     std::vector<FileInfo> files;
@@ -314,7 +314,8 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
             const std::string& prefix = file_name.substr(0, prefix_pos);
             const std::string& suffix = file_name.substr(prefix_pos + 3);
             std::vector<FileInfo> children;
-            bool ok = hub->GetFs(file_name)->List(prefix, &children);
+            File* fp = hub->Get(file_name);
+            bool ok = fp != NULL && fp->List(prefix, &children);
             if (!ok) {
                 expand_input_files.push_back(file_name);
             } else {
@@ -331,17 +332,23 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
     // Use thread pool to list directory concurrently
     for (std::vector<std::string>::const_iterator it = expand_input_files.begin();
             it != expand_input_files.end(); ++it) {
-        LOG(INFO, "input file: %s", it->c_str());
+        LOG(DEBUG, "input file: %s", it->c_str());
         std::string path;
-        ParseHdfsAddress(*it, NULL, NULL, &path);
+        File::ParseFullAddress(*it, NULL, NULL, &path);
+        File* fp = hub->Get(*it);
+        if (fp == NULL) {
+            LOG(WARNING, "got empty file pointer: %s", it->c_str());
+            continue;
+        }
         if (path.find('*') == std::string::npos) {
-            tp.AddTask(boost::bind(&File::List, hub->GetFs(*it), path, &sub_files[i]));
+            tp.AddTask(boost::bind(&File::List, fp, path, &sub_files[i]));
         } else {
-            tp.AddTask(boost::bind(&File::Glob, hub->GetFs(*it), path, &sub_files[i]));
+            tp.AddTask(boost::bind(&File::Glob, fp, path, &sub_files[i]));
         }
         i = (i + 1) % parallel_level;
     }
     tp.Stop(true);
+    delete hub;
     // Merge all results
     for (int i = 0; i < parallel_level; ++i) {
         files.reserve(files.size() + sub_files[i].size());
@@ -380,32 +387,45 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
 }
 
 NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
-    FileHub* hub = FileHub::GetHub();
+    FileHub<File>* hub = FileHub<File>::GetHub();
     std::vector<FileInfo> files;
     std::string path;
     for (std::vector<DfsInfo>::iterator it = inputs.begin();
             it != inputs.end(); ++it) {
-        ParseHdfsAddress(it->path(), NULL, NULL, &path);
+        File::Param param = File::BuildParam(*it);
+        File* fp = File::Create(kInfHdfs, param);
+        if (fp == NULL) {
+            LOG(WARNING, "cannot build file pointer, param size: %d", param.size());
+            continue;
+        }
+        File::ParseFullAddress(it->path(), NULL, NULL, &path);
         if (path.find('*') == std::string::npos) {
-            hub->BuildFs(*it)->List(path, &files);
+            hub->Store(param, fp)->List(path, &files);
         } else {
-            hub->BuildFs(*it)->Glob(path, &files);
+            hub->Store(param, fp)->Glob(path, &files);
         }
     }
     int counter = 0;
     for (std::vector<FileInfo>::iterator it = files.begin();
             it != files.end(); ++it) {
         std::string path;
-        ParseHdfsAddress(it->name, NULL, NULL, &path);
-        InputReader* reader = InputReader::CreateHdfsTextReader();
-        if (reader->Open(path, hub->GetParam(it->name)) != kOk) {
-            LOG(WARNING, "set n line file error: %s", it->name.c_str());
+        File::ParseFullAddress(it->name, NULL, NULL, &path);
+        FormattedFile* fp = FormattedFile::Get(hub->Get(it->name), kPlainText);
+        if (fp == NULL) {
+            LOG(WARNING, "fail to get formatted file: %s", it->name.c_str());
             continue;
         }
+        if (!fp->Open(path, kReadFile, hub->GetParam(it->name))) {
+            LOG(WARNING, "cannot open formatted file: %s", it->name.c_str());
+            delete fp;
+            continue;
+        }
+        Scanner* scanner = Scanner::Get(fp, kInputScanner);
+        Scanner::Iterator* read_it = scanner->Scan(0, Scanner::SCAN_MAX_LEN);
         int64_t offset = 0;
-        for (InputReader::Iterator* read_it = reader->Read(0, ((unsigned long)~0l) >> 1);
-                !read_it->Done(); read_it->Next()) {
-            const std::string& line = read_it->Record();
+        for (; !read_it->Done(); read_it->Next()) {
+            // Line-based file format stores line in value
+            const std::string& line = read_it->Value();
             ResourceItem* item = new ResourceItem();
             item->no = counter++;
             item->attempt = 0;
@@ -418,7 +438,10 @@ NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
             resource_pool_.push_back(item);
             pending_res_.push_back(item);
         }
+        delete read_it;
+        delete scanner;
     }
+    delete hub;
     pending_ = static_cast<int>(resource_pool_.size());
 }
 
