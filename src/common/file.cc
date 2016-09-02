@@ -84,17 +84,20 @@ private:
     std::string path_;
 };
 
-class FileHubImpl : public FileHub {
+template <class FileType>
+class FileHubImpl : public FileHub<FileType> {
 public:
     FileHubImpl() { }
     virtual ~FileHubImpl() { }
 
-    virtual File* BuildFs(DfsInfo& info);
-    virtual File* GetFs(const std::string& address);
+    virtual FileType* Store(const File::Param& param, FileType* fp);
+    virtual FileType* Get(const std::string& address);
+    virtual FileType* Get(const std::string& host, const std::string& port);
     virtual File::Param GetParam(const std::string& address);
+    virtual File::Param GetParam(const std::string& host, const std::string& port);
 
 private:
-    std::map< std::string, boost::shared_ptr<File> > fs_map_;
+    std::map< std::string, boost::shared_ptr<FileType> > fmap_;
     std::map< std::string, File::Param > param_map_;
     Mutex mu_;
 };
@@ -539,44 +542,57 @@ bool LocalFs::Exist(const std::string& path) {
     return ::stat(path.c_str(), &buffer) == 0;
 }
 
-FileHub* FileHub::GetHub() {
-    return new FileHubImpl();
+template <class FileType>
+FileHub<FileType>* FileHub<FileType>::GetHub() {
+    return new FileHubImpl<FileType>();
 }
 
-File* FileHubImpl::BuildFs(DfsInfo& info) {
-    File::Param param = File::BuildParam(info);
-    const std::string& host = info.host();
-    if (host.empty() || info.port().empty()) {
+template <class FileType>
+FileType* FileHubImpl<FileType>::Store(const File::Param& param, FileType* fp) {
+    if (param.find("host") == param.end() || param.find("port") == param.end()) {
         return NULL;
     }
-    std::string key = host + ":" + info.port();
-
-    MutexLock lock(&mu_);
-    if (fs_map_.find(key) == fs_map_.end()) {
-        LOG(DEBUG, "get fs, host: %s, param.size(): %d", host.c_str(), param.size());
-        File* fs = File::Create(kInfHdfs, param);
-        fs_map_[key].reset(fs);
-        param_map_[key] = param;
-        return fs;
-    }
-    return fs_map_[key].get();
-}
-
-File* FileHubImpl::GetFs(const std::string& address) {
-    std::string host, port;
-    File::ParseFullAddress(address, &host, &port, NULL);
+    const std::string& host = param.find("host")->second;
+    const std::string& port = param.find("port")->second;
     std::string key = host + ":" + port;
 
     MutexLock lock(&mu_);
-    if (fs_map_.find(key) == fs_map_.end()) {
-        return NULL;
+    if (fmap_.find(key) == fmap_.end()) {
+        LOG(DEBUG, "get fs, host: %s, param.size(): %d", host.c_str(), param.size());
+        fmap_[key].reset(fp);
+        param_map_[key] = param;
+        return fp;
     }
-    return fs_map_[key].get();
+    return fmap_[key].get();
 }
 
-File::Param FileHubImpl::GetParam(const std::string& address) {
+template <class FileType>
+FileType* FileHubImpl<FileType>::Get(const std::string& address) {
     std::string host, port;
     File::ParseFullAddress(address, &host, &port, NULL);
+    return Get(host, port);
+}
+
+template <class FileType>
+FileType* FileHubImpl<FileType>::Get(const std::string& host, const std::string& port) {
+    std::string key = host + ":" + port;
+
+    MutexLock lock(&mu_);
+    if (fmap_.find(key) == fmap_.end()) {
+        return NULL;
+    }
+    return fmap_[key].get();
+}
+
+template <class FileType>
+File::Param FileHubImpl<FileType>::GetParam(const std::string& address) {
+    std::string host, port;
+    File::ParseFullAddress(address, &host, &port, NULL);
+    return GetParam(host, port);
+}
+
+template <class FileType>
+File::Param FileHubImpl<FileType>::GetParam(const std::string& host, const std::string& port) {
     std::string key = host + ":" + port;
 
     MutexLock lock(&mu_);

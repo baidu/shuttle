@@ -77,15 +77,22 @@ public:
      *   Support: * - any character for 0 or more times, ? - any character for 1 time
      */
     static bool PatternMatch(const std::string& origin, const std::string& pattern);
+
+    virtual ~File() { }
 };
 
+template <class FileType>
 class FileHub {
 public:
-    virtual File* BuildFs(DfsInfo& info) = 0;
-    virtual File* GetFs(const std::string& address) = 0;
-    virtual File::Param GetParam(const std::string& address) = 0;
+    static FileHub<FileType>* GetHub();
 
-    static FileHub* GetHub();
+    virtual FileType* Store(const File::Param& param, FileType* fp) = 0;
+    virtual FileType* Get(const std::string& address) = 0;
+    virtual FileType* Get(const std::string& host, const std::string& port) = 0;
+    virtual File::Param GetParam(const std::string& address) = 0;
+    virtual File::Param GetParam(const std::string& host, const std::string& port) = 0;
+
+    virtual ~FileHub() { }
 };
 
 }
