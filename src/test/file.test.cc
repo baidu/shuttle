@@ -379,6 +379,43 @@ TEST_F(FileIOTest, ListGlobTest) {
     // No test file is left
 }
 
+TEST(FileHubTest, FileHubSaveLoadTest) {
+    // Prepare testcases
+    std::vector<File::Param> params;
+    std::vector<int*> ints;
+    std::string host("test_host");
+    FileHub<int>* hub = FileHub<int>::GetHub();
+    for (int i = 0; i < 100; ++i) {
+        File::Param param;
+        std::stringstream ss;
+        ss << i;
+        param["host"] = host;
+        param["port"] = ss.str();
+        params.push_back(param);
+        int* p = new int;
+        *p = i;
+        ints.push_back(p);
+        hub->Store(param, p);
+    }
+    // Check all stored pointers and params
+    for (int i = 0; i < 100; ++i) {
+        std::stringstream ss;
+        ss << i;
+        int* p = hub->Get(host, ss.str());
+        ASSERT_TRUE(p != NULL);
+        EXPECT_EQ(*p, i);
+
+        File::Param param = hub->GetParam(host, ss.str());
+        EXPECT_EQ(param["host"], host);
+        EXPECT_EQ(param["port"], ss.str());
+    }
+    // Check inexist pointer
+    EXPECT_TRUE(hub->Get("unknown-host", "0") == NULL);
+    EXPECT_TRUE(hub->Get(host, "invalid-port") == NULL);
+    // Hub should automatically delete int pointers since it uses scoped pointer inside
+    delete hub;
+}
+
 int main(int argc, char** argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);

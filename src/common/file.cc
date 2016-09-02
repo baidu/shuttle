@@ -272,6 +272,11 @@ bool File::PatternMatch(const std::string& origin, const std::string& pattern) {
     return !*pat;
 }
 
+template <class FileType>
+FileHub<FileType>* FileHub<FileType>::GetHub() {
+    return new FileHubImpl<FileType>();
+}
+
 bool InfHdfs::Connect(const Param& param) {
     return ConnectInfHdfs(param, &fs_);
 }
@@ -540,11 +545,6 @@ bool LocalFs::Mkdir(const std::string& dir) {
 bool LocalFs::Exist(const std::string& path) {
     struct stat buffer;
     return ::stat(path.c_str(), &buffer) == 0;
-}
-
-template <class FileType>
-FileHub<FileType>* FileHub<FileType>::GetHub() {
-    return new FileHubImpl<FileType>();
 }
 
 template <class FileType>
