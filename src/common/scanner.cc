@@ -5,6 +5,8 @@
 namespace baidu {
 namespace shuttle {
 
+const std::string Scanner::SCAN_ALL_KEY = "";
+
 class InputReader : public Scanner {
 public:
     InputReader(FormattedFile* fp) : fp_(fp) { }
@@ -66,7 +68,7 @@ public:
     class Iterator : public Scanner::Iterator {
     public:
         Iterator(FormattedFile* fp, const std::string& end_key) :
-                fp_(fp), end_(end_key) { }
+                fp_(fp), end_(end_key), scan_all_(end_ == SCAN_ALL_KEY) { }
         virtual ~Iterator() { }
 
         virtual bool Done() {
@@ -93,6 +95,7 @@ public:
         std::string key_;
         std::string value_;
         std::string end_;
+        bool scan_all_;
     };
 
 private:
@@ -110,6 +113,9 @@ Scanner* Scanner::Get(FormattedFile* fp, ScannerType type) {
 }
 
 Scanner::Iterator* InputReader::Scan(int64_t offset, int64_t len) {
+    if (len == Scanner::SCAN_MAX_LEN) {
+        len = fp_->GetSize();
+    }
     if (!fp_->Seek(offset)) {
         return NULL;
     }
@@ -140,7 +146,10 @@ Scanner::Iterator* InternalReader::Scan(const std::string& start_key,
 }
 
 void InternalReader::Iterator::Next() {
-    if (key_ > end_) {
+    if (status_ == kNoMore) {
+        return;
+    }
+    if (!scan_all_ && key_ > end_) {
         status_ = kNoMore;
         return;
     }

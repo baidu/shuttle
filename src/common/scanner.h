@@ -46,6 +46,10 @@ public:
     }
     virtual std::string GetFileName() = 0;
     virtual ~Scanner() { }
+
+    // For scanning to the end of file
+    static const int64_t SCAN_MAX_LEN = -1;
+    static const std::string SCAN_ALL_KEY;
 };
 
 }
