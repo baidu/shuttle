@@ -190,6 +190,7 @@ bool SortFile::Locate(const std::string& key) {
     }
 
     status_ = kOk;
+    // Set offset to 1 before max to force update data block
     cur_block_offset_ = (size_t)-1 - 1;
     do {
         ++cur_block_offset_;

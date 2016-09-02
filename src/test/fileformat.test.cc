@@ -129,7 +129,9 @@ TEST_F(FormattedFileTest, ReadWriteTest) {
     EXPECT_EQ(fp->Error(), kOk);
 
     ASSERT_TRUE(fp->Open(path, kReadFile, param));
-    ASSERT_TRUE(fp->Locate("key000000"));
+    if (isInternalFile) {
+        ASSERT_TRUE(fp->Locate("key000000"));
+    }
     EXPECT_EQ(fp->Error(), kOk);
     key = "";
     for (int i = 0; i < 100000; ++i) {
@@ -196,7 +198,7 @@ TEST_F(FormattedFileTest, LocationChangeTest) {
         EXPECT_TRUE(last_no == -1 || cur_no_value == last_no + 1);
         last_no = cur_no_value;
     }
-    EXPECT_EQ(value, "value099999\n");
+    EXPECT_EQ(value, key == "" ? "value099999" : "value099999\n");
     EXPECT_EQ(fp->Error(), kNoMore);
     ASSERT_TRUE(fp->Close());
     EXPECT_EQ(fp->Error(), kOk);

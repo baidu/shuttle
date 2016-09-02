@@ -140,7 +140,7 @@ Scanner::Iterator* InternalReader::Scan(const std::string& start_key,
 }
 
 void InternalReader::Iterator::Next() {
-    if (value_ > end_) {
+    if (key_ > end_) {
         status_ = kNoMore;
         return;
     }
