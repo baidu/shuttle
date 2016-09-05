@@ -72,8 +72,6 @@ TEST(FileToolsTest, BuildParamTest) {
     info.set_host("localhost");
     info.set_port("9999");
     const File::Param& param1 = File::BuildParam(info);
-    EXPECT_EQ(info.host(), "localhost");
-    EXPECT_EQ(info.port(), "9999");
     EXPECT_TRUE(param1.find("host") != param1.end());
     EXPECT_EQ(param1.find("host")->second, "localhost");
     EXPECT_TRUE(param1.find("port") != param1.end());
@@ -86,8 +84,6 @@ TEST(FileToolsTest, BuildParamTest) {
     const File::Param& param2 = File::BuildParam(info);
     EXPECT_EQ(param2.find("host")->second, "localhost");
     EXPECT_EQ(param2.find("port")->second, "9999");
-    EXPECT_EQ(info.user(), "me");
-    EXPECT_EQ(info.password(), "password");
     EXPECT_TRUE(param2.find("user") != param2.end());
     EXPECT_EQ(param2.find("user")->second, "me");
     EXPECT_TRUE(param2.find("password") != param2.end());
@@ -95,8 +91,6 @@ TEST(FileToolsTest, BuildParamTest) {
 
     info.set_path("hdfs://0.0.0.0:6666/whatever/file/is.file");
     const File::Param& param3 = File::BuildParam(info);
-    EXPECT_EQ(info.host(), "0.0.0.0");
-    EXPECT_EQ(info.port(), "6666");
     EXPECT_TRUE(param3.find("host") != param3.end());
     EXPECT_EQ(param3.find("host")->second, "0.0.0.0");
     EXPECT_TRUE(param3.find("port") != param3.end());

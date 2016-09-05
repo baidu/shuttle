@@ -59,7 +59,7 @@ public:
     /*
      * Use information from DfsInfo to build file param
      */
-    static Param BuildParam(DfsInfo& info);
+    static Param BuildParam(const DfsInfo& info);
     /*
      * Extract information from a full address, now support hdfs/local format
      *   Address format: [type]://[hostname/ip]:[port][absolute path]

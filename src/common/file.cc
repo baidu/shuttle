@@ -164,7 +164,7 @@ bool File::WriteAll(const void* buf, size_t len) {
     return true;
 }
 
-File::Param File::BuildParam(DfsInfo& info) {
+File::Param File::BuildParam(const DfsInfo& info) {
     Param param;
     if(!info.user().empty() && !info.password().empty()) {
         param["user"] = info.user();
@@ -172,15 +172,15 @@ File::Param File::BuildParam(DfsInfo& info) {
     }
     std::string host, port, path;
     if (ParseFullAddress(info.path(), &host, &port, &path)) {
-        info.set_host(host);
-        info.set_port(port);
-        info.set_path(path);
-    }
-    if (info.has_host()) {
-        param["host"] = info.host();
-    }
-    if (info.has_port()) {
-        param["port"] = info.port();
+        param["host"] = host;
+        param["port"] = port;
+    } else {
+        if (info.has_host()) {
+            param["host"] = info.host();
+        }
+        if (info.has_port()) {
+            param["port"] = info.port();
+        }
     }
     return param;
 }
