@@ -398,9 +398,13 @@ bool InfHdfs::List(const std::string& dir, std::vector<FileInfo>* children) {
     }
     int file_num = 0;
     hdfsFileInfo* file_list = hdfsListDirectory(fs_, dir.c_str(), &file_num);
-    if (file_list == NULL) {
+    if (file_num != 0 && file_list == NULL) {
         LOG(WARNING, "error in listing directory: %s", dir.c_str());
         return false;
+    }
+    if (file_num == 0) {
+        LOG(DEBUG, "listing an empty dir: %s", dir.c_str());
+        return true;
     }
     for (int i = 0; i < file_num; i++) {
         children->push_back(FileInfo());

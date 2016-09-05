@@ -296,7 +296,9 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
     FileHub<File>* hub = FileHub<File>::GetHub();
     for (std::vector<DfsInfo>::iterator it = inputs.begin(); it != inputs.end(); ++it) {
         const File::Param& param = File::BuildParam(*it);
-        if (hub->Get(it->host(), it->port()) != NULL) {
+        std::string host = param.find("host") == param.end() ? "" : param.find("host")->second;
+        std::string port = param.find("port") == param.end() ? "" : param.find("port")->second;
+        if (hub->Get(host, port) != NULL) {
             continue;
         }
         File* fp = File::Create(kInfHdfs, param);
@@ -399,9 +401,11 @@ NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
     std::string path;
     for (std::vector<DfsInfo>::iterator it = inputs.begin();
             it != inputs.end(); ++it) {
-        const File::Param param = File::BuildParam(*it);
+        const File::Param& param = File::BuildParam(*it);
+        std::string host = param.find("host") == param.end() ? "" : param.find("host")->second;
+        std::string port = param.find("port") == param.end() ? "" : param.find("port")->second;
         File* fp = NULL;
-        if (hub->Get(it->host(), it->port()) == NULL) {
+        if (hub->Get(host, port) == NULL) {
             fp = File::Create(kInfHdfs, param);
             if (fp == NULL) {
                 LOG(WARNING, "cannot build file pointer, param size: %d", param.size());
@@ -417,9 +421,9 @@ NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
             path = it->path();
         }
         if (path.find('*') == std::string::npos) {
-            hub->Get(it->host(), it->port())->List(path, &files);
+            hub->Get(host, port)->List(path, &files);
         } else {
-            hub->Get(it->host(), it->port())->Glob(path, &files);
+            hub->Get(host, port)->Glob(path, &files);
         }
     }
     int counter = 0;
