@@ -33,7 +33,7 @@ public:
     virtual bool IsAllocated(int no);
     virtual bool IsDone(int no);
 
-    virtual int SumOfItem() {
+    virtual int SumOfItems() {
         MutexLock lock(&mu_);
         return resource_pool_.size();
     }

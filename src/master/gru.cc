@@ -238,7 +238,7 @@ Status BasicGru::Start() {
     }
 
     // Limit capacity
-    int limit = manager_->SumOfItem();
+    int limit = manager_->SumOfItems();
     limit += limit / 2;
     if (cur_node_->capacity() > limit) {
         cur_node_->set_capacity(limit);
@@ -690,7 +690,7 @@ void BasicGru::BuildEndGameCounters() {
     if (manager_ == NULL) {
         return;
     }
-    total_tasks_ = manager_->SumOfItem();
+    total_tasks_ = manager_->SumOfItems();
     end_game_begin_ = total_tasks_ - FLAGS_replica_begin;
     int temp = total_tasks_ - total_tasks_ * FLAGS_replica_begin_percent / 100;
     if (end_game_begin_ > temp) {
@@ -864,7 +864,7 @@ ResourceManager* AlphaGru::BuildResourceManager() {
     } else {
         manager = ResourceManager::GetBlockManager(dfs_inputs, job_.split_size());
     }
-    if (manager == NULL || manager->SumOfItem() < 1) {
+    if (manager == NULL || manager->SumOfItems() < 1) {
         LOG(INFO, "node %d phase cannot divide input, which may not exist: %s",
                 node_, job_id_.c_str());
         cur_node_->set_total(0);
@@ -874,7 +874,7 @@ ResourceManager* AlphaGru::BuildResourceManager() {
         }
         return NULL;
     }
-    cur_node_->set_total(manager_->SumOfItem());
+    cur_node_->set_total(manager_->SumOfItems());
     return manager;
 }
 

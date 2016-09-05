@@ -46,7 +46,7 @@ public:
     virtual bool IsDone(int no) = 0;
 
     // Statistics interfaces
-    virtual int SumOfItem() = 0;
+    virtual int SumOfItems() = 0;
     virtual int Pending() = 0;
     virtual int Allocated() = 0;
     virtual int Done() = 0;
