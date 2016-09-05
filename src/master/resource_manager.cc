@@ -296,10 +296,16 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
     FileHub<File>* hub = FileHub<File>::GetHub();
     for (std::vector<DfsInfo>::iterator it = inputs.begin(); it != inputs.end(); ++it) {
         const File::Param& param = File::BuildParam(*it);
+        if (hub->Get(it->host(), it->port()) != NULL) {
+            continue;
+        }
         File* fp = File::Create(kInfHdfs, param);
-        File* ret = hub->Store(param, fp);
-        if (ret == NULL || ret != fp) {
-            LOG(WARNING, "fail to store in file hub, param size: %d", param.size());
+        if (fp == NULL) {
+            LOG(WARNING, "cannot build file pointer, param size: %d", param.size());
+            continue;
+        }
+        if (hub->Store(param, fp) != fp) {
+            LOG(WARNING, "fail to store in hub: %s", it->path().c_str());
         }
     }
 
@@ -308,13 +314,14 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
     std::vector<std::string> expand_input_files;
     // Preprocess middle wildcards to accelerate parallel listing
     for (size_t i = 0; i < inputs.size(); i++) {
+        LOG(INFO, "expanding: %s", inputs[i].path().c_str());
         const std::string& file_name = inputs[i].path();
         size_t prefix_pos ;
         if ((prefix_pos = file_name.find("/*/")) != std::string::npos) {
             const std::string& prefix = file_name.substr(0, prefix_pos);
             const std::string& suffix = file_name.substr(prefix_pos + 3);
             std::vector<FileInfo> children;
-            File* fp = hub->Get(file_name);
+            File* fp = hub->Get(inputs[i].host(), inputs[i].port());
             bool ok = fp != NULL && fp->List(prefix, &children);
             if (!ok) {
                 expand_input_files.push_back(file_name);
@@ -392,17 +399,27 @@ NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
     std::string path;
     for (std::vector<DfsInfo>::iterator it = inputs.begin();
             it != inputs.end(); ++it) {
-        File::Param param = File::BuildParam(*it);
-        File* fp = File::Create(kInfHdfs, param);
-        if (fp == NULL) {
-            LOG(WARNING, "cannot build file pointer, param size: %d", param.size());
-            continue;
+        const File::Param param = File::BuildParam(*it);
+        File* fp = NULL;
+        if (hub->Get(it->host(), it->port()) == NULL) {
+            fp = File::Create(kInfHdfs, param);
+            if (fp == NULL) {
+                LOG(WARNING, "cannot build file pointer, param size: %d", param.size());
+                continue;
+            }
+            if (hub->Store(param, fp) != fp) {
+                LOG(WARNING, "fail to store in hub: %s", it->path().c_str());
+                continue;
+            }
         }
-        File::ParseFullAddress(it->path(), NULL, NULL, &path);
+        std::string path;
+        if (!File::ParseFullAddress(it->path(), NULL, NULL, &path)) {
+            path = it->path();
+        }
         if (path.find('*') == std::string::npos) {
-            hub->Store(param, fp)->List(path, &files);
+            hub->Get(it->host(), it->port())->List(path, &files);
         } else {
-            hub->Store(param, fp)->Glob(path, &files);
+            hub->Get(it->host(), it->port())->Glob(path, &files);
         }
     }
     int counter = 0;

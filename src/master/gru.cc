@@ -2,7 +2,6 @@
 
 #include <vector>
 #include <queue>
-#include <map>
 #include <boost/bind.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/lexical_cast.hpp>
@@ -15,7 +14,6 @@
 #include "dag_scheduler.h"
 #include "common/file.h"
 #include "common/rpc_client.h"
-#include "common/tools_util.h"
 #include "proto/minion.pb.h"
 #include "proto/serialize.pb.h"
 #include "thread_pool.h"
@@ -225,7 +223,7 @@ Status BasicGru::Start() {
     start_time_ = std::time(NULL);
 
     // Check the existence of output
-    File::Param param = File::BuildParam(*(cur_node_->mutable_output()));
+    File::Param param = File::BuildParam(cur_node_->output());
     File* fs = File::Create(kInfHdfs, param);
     if (fs->Exist(cur_node_->output().path())) {
         LOG(WARNING, "node %d output exists, failed: %s", node_, job_id_.c_str());
@@ -785,22 +783,22 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
     if (!job.nodes(dest[0]).has_output()) {
         return;
     }
-    DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
-    File::Param param = File::BuildParam(*output);
+    const DfsInfo& output = job.nodes(dest[0]).output();
+    File::Param param = File::BuildParam(output);
     File* fs = File::Create(kInfHdfs, param);
     std::string temp;
-    ParseHdfsAddress(output->path(), NULL, NULL, &temp);
+    File::ParseFullAddress(output.path(), NULL, NULL, &temp);
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
-    fs->Mkdirs(temp);
+    fs->Mkdir(temp);
     delete fs;
 
-    cur_node_->mutable_output()->CopyFrom(*output);
+    cur_node_->mutable_output()->CopyFrom(output);
     cur_node_->mutable_output()->set_path(temp);
     const std::vector<int>& nexts = scheduler->NextNodes(node);
     for (std::vector<int>::const_iterator it = nexts.begin();
             it != nexts.end(); ++it) {
         DfsInfo* cur = job.mutable_nodes(*it)->add_inputs();
-        cur->CopyFrom(*output);
+        cur->CopyFrom(output);
         cur->set_path(temp);
     }
 }
@@ -813,7 +811,7 @@ bool AlphaGru::CleanTempDir() {
     if (!cur_node_->output().path().find(FLAGS_temporary_dir) == std::string::npos) {
         return true;
     }
-    File::Param param = File::BuildParam(*(cur_node_->mutable_output()));
+    File::Param param = File::BuildParam(cur_node_->output());
     File* fs = File::Create(kInfHdfs, param);
     bool ok = fs->Remove(cur_node_->output().path());
     delete fs;
@@ -830,11 +828,10 @@ void AlphaGru::NormalizeDfsinfo(std::vector<DfsInfo>& infos) {
             if (path.find_first_of(':', 7) == std::string::npos) {
                 it = infos.erase(it);
             } else {
-                std::string host;
-                int port;
-                ParseHdfsAddress(path, &host, &port, NULL);
+                std::string host, port;
+                File::ParseFullAddress(path, &host, &port, NULL);
                 it->set_host(host);
-                it->set_port(boost::lexical_cast<std::string>(port));
+                it->set_port(port);
                 ++it;
             }
         } else {
@@ -923,22 +920,22 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
     if (!job.nodes(dest[0]).has_output()) {
         return;
     }
-    DfsInfo* output = job.mutable_nodes(dest[0])->mutable_output();
-    File::Param param = File::BuildParam(*output);
+    const DfsInfo& output = job.nodes(dest[0]).output();
+    File::Param param = File::BuildParam(output);
     File* fs = File::Create(kInfHdfs, param);
     std::string temp;
-    ParseHdfsAddress(output->path(), NULL, NULL, &temp);
+    File::ParseFullAddress(output.path(), NULL, NULL, &temp);
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
-    fs->Mkdirs(temp);
+    fs->Mkdir(temp);
     delete fs;
 
-    cur_node_->mutable_output()->CopyFrom(*output);
+    cur_node_->mutable_output()->CopyFrom(output);
     cur_node_->mutable_output()->set_path(temp);
     const std::vector<int>& nexts = scheduler->NextNodes(node);
     for (std::vector<int>::const_iterator it = nexts.begin();
             it != nexts.end(); ++it) {
         DfsInfo* cur = job.mutable_nodes(*it)->add_inputs();
-        cur->CopyFrom(*output);
+        cur->CopyFrom(output);
         cur->set_path(temp);
     }
 }
@@ -948,7 +945,7 @@ bool BetaGru::CleanTempDir() {
     if (!cur_node_->has_output()) {
         return true;
     }
-    File::Param param = File::BuildParam(*(cur_node_->mutable_output()));
+    File::Param param = File::BuildParam(cur_node_->output());
     File* fs = File::Create(kInfHdfs, param);
     bool ok = fs->Remove(cur_node_->output().path());
     delete fs;
