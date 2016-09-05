@@ -35,8 +35,8 @@ protected:
             info.set_password(FLAGS_password);
         }
         std::vector<DfsInfo> inputs;
+        inputs.push_back(info);
         if (FLAGS_type == "block") {
-            inputs.push_back(info);
             manager = ResourceManager::GetBlockManager(inputs, FLAGS_split_size);
         } else if (FLAGS_type == "line") {
             manager = ResourceManager::GetNLineManager(inputs);
@@ -44,7 +44,7 @@ protected:
             ASSERT_TRUE(false);
         }
         ASSERT_TRUE(manager != NULL);
-        ASSERT_EQ(manager->SumOfItem(), FLAGS_items);
+        ASSERT_EQ(manager->SumOfItems(), FLAGS_items);
     }
 
     virtual void TearDown() {
@@ -55,11 +55,17 @@ protected:
     }
 };
 
-TEST_F(ResManTest, GetItemTest) {
-    int sum = manager->SumOfItem();
+TEST_F(ResManTest, BasicTest) {
+    int sum = manager->SumOfItems();
+    EXPECT_EQ(sum, manager->Pending());
+    EXPECT_EQ(manager->Allocated(), 0);
+    EXPECT_EQ(manager->Done(), 0);
     int64_t last_offset = 0;
     std::string last_input_file;
+    // Loop to exhaust items in pool
     for (int i = 0; i < sum; ++i) {
+        EXPECT_TRUE(!manager->IsAllocated(i));
+        EXPECT_TRUE(!manager->IsDone(i));
         ResourceItem* cur = manager->GetItem();
         if (last_input_file != cur->input_file) {
             last_input_file = cur->input_file;
@@ -68,14 +74,45 @@ TEST_F(ResManTest, GetItemTest) {
         EXPECT_EQ(cur->no, i);
         EXPECT_EQ(cur->attempt, 1);
         EXPECT_EQ(cur->offset, last_offset);
+        EXPECT_TRUE(manager->IsAllocated(i));
+        EXPECT_TRUE(!manager->IsDone(i));
         last_offset = cur->offset + cur->size;
         delete cur;
+        EXPECT_EQ(manager->Pending(), sum - i - 1);
+        EXPECT_EQ(manager->Allocated(), i + 1);
+        EXPECT_EQ(manager->Done(), 0);
     }
+    EXPECT_EQ(manager->Pending(), 0);
+    EXPECT_EQ(manager->Allocated(), manager->SumOfItems());
+    EXPECT_EQ(manager->Done(), 0);
+
+    // Loop to finish items
+    for (int i = 0; i < sum; ++i) {
+        EXPECT_TRUE(manager->IsAllocated(i));
+        EXPECT_TRUE(!manager->IsDone(i));
+        manager->FinishItem(i);
+        EXPECT_TRUE(!manager->IsAllocated(i));
+        EXPECT_TRUE(manager->IsDone(i));
+        EXPECT_EQ(manager->Pending(), 0);
+        EXPECT_EQ(manager->Allocated(), sum - i - 1);
+        EXPECT_EQ(manager->Done(), i + 1);
+    }
+    EXPECT_EQ(manager->Pending(), 0);
+    EXPECT_EQ(manager->Allocated(), 0);
+    EXPECT_EQ(manager->Done(), manager->SumOfItems());
 }
 
-TEST_F(ResManTest, GetCertainItemTest) {
+TEST_F(ResManTest, GetCheckCertainItemTest) {
     int64_t last_size = 0;
+
+    EXPECT_TRUE(!manager->IsAllocated(0));
+    EXPECT_TRUE(!manager->IsDone(0));
+    // Throw away the first item
     delete manager->GetItem();
+    EXPECT_TRUE(manager->IsAllocated(0));
+    EXPECT_TRUE(!manager->IsDone(0));
+
+    // Get certain item for 3 times
     for (int i = 2; i < 5; ++i) {
         ResourceItem* cur = manager->GetCertainItem(0);
         EXPECT_EQ(cur->no, 0);
@@ -85,19 +122,46 @@ TEST_F(ResManTest, GetCertainItemTest) {
         last_size = cur->size;
         delete cur;
     }
+    EXPECT_TRUE(manager->IsAllocated(0));
+    EXPECT_TRUE(!manager->IsDone(0));
+
+    // Check certain item for a few times
+    for (int i = 2; i < 5; ++i) {
+        ResourceItem* cur = manager->CheckCertainItem(0);
+        EXPECT_EQ(cur->no, 0);
+        EXPECT_EQ(cur->attempt, 4);
+        EXPECT_EQ(cur->offset, 0);
+        EXPECT_TRUE(last_size == 0 || cur->size == last_size);
+        last_size = cur->size;
+        delete cur;
+    }
+    EXPECT_TRUE(manager->IsAllocated(0));
+    EXPECT_TRUE(!manager->IsDone(0));
 }
 
 TEST_F(ResManTest, ReturnBackItemTest) {
     int64_t last_end = 0;
     std::string last_input_file;
+
+    EXPECT_TRUE(!manager->IsAllocated(0));
+    EXPECT_TRUE(!manager->IsDone(0));
+    // Get first item
     ResourceItem* cur = manager->GetItem();
+    EXPECT_TRUE(manager->IsAllocated(0));
+    EXPECT_TRUE(!manager->IsDone(0));
     EXPECT_EQ(cur->no, 0);
     EXPECT_EQ(cur->attempt, 1);
     EXPECT_EQ(cur->offset, 0);
     last_end = cur->size;
     last_input_file = cur->input_file;
     delete cur;
+
+    EXPECT_TRUE(!manager->IsAllocated(1));
+    EXPECT_TRUE(!manager->IsDone(1));
+    // Get second item
     cur = manager->GetItem();
+    EXPECT_TRUE(manager->IsAllocated(1));
+    EXPECT_TRUE(!manager->IsDone(1));
     if (cur->input_file != last_input_file) {
         last_end = 0;
     }
@@ -105,13 +169,47 @@ TEST_F(ResManTest, ReturnBackItemTest) {
     EXPECT_EQ(cur->attempt, 1);
     EXPECT_EQ(cur->offset, last_end);
     delete cur;
+
+    // Return the first item
+    EXPECT_TRUE(manager->IsAllocated(0));
+    EXPECT_TRUE(!manager->IsDone(0));
     manager->ReturnBackItem(0);
+    EXPECT_TRUE(!manager->IsAllocated(0));
+    EXPECT_TRUE(!manager->IsDone(0));
     cur = manager->GetItem();
     EXPECT_EQ(cur->no, 0);
     EXPECT_EQ(cur->attempt, 2);
     EXPECT_EQ(cur->offset, 0);
     EXPECT_EQ(cur->input_file, last_input_file);
     delete cur;
+}
+
+TEST_F(ResManTest, LoadDumpTest) {
+    int sum = manager->SumOfItems();
+    for (int i = 0; i < sum / 2; ++i) {
+        EXPECT_TRUE(!manager->IsAllocated(i));
+        EXPECT_TRUE(!manager->IsDone(i));
+        delete manager->GetItem();
+        EXPECT_TRUE(manager->IsAllocated(i));
+        EXPECT_TRUE(!manager->IsDone(i));
+    }
+
+    const std::vector<ResourceItem>& data = manager->Dump();
+    ResourceManager* copy = ResourceManager::BuildManagerFromBackup(data);
+    ASSERT_EQ(sum, manager->SumOfItems());
+    ASSERT_EQ(copy->SumOfItems(), manager->SumOfItems());
+    for (int i = 0; i < sum; ++i) {
+        ResourceItem* origin_item = manager->CheckCertainItem(i);
+        ResourceItem* copy_item = copy->CheckCertainItem(i);
+        EXPECT_EQ(origin_item->type, copy_item->type);
+        EXPECT_EQ(origin_item->no, copy_item->no);
+        EXPECT_EQ(origin_item->attempt, copy_item->attempt);
+        EXPECT_EQ(origin_item->status, copy_item->status);
+        EXPECT_EQ(origin_item->input_file, copy_item->input_file);
+        EXPECT_EQ(origin_item->offset, copy_item->offset);
+        EXPECT_EQ(origin_item->size, copy_item->size);
+        EXPECT_EQ(origin_item->allocated, copy_item->allocated);
+    }
 }
 
 int main(int argc, char** argv) {
