@@ -15,6 +15,10 @@
 #include "logging.h"
 #include "mutex.h"
 
+// For templatize FileHub
+#include "common/fileformat.h"
+#include "common/scanner.h"
+
 namespace baidu {
 namespace shuttle {
 
@@ -83,6 +87,13 @@ private:
     int fd_;
     std::string path_;
 };
+
+// For simple unittest testcases
+template class FileHub<int>;
+// For potential usage
+template class FileHub<File>;
+template class FileHub<FormattedFile>;
+template class FileHub<Scanner>;
 
 template <class FileType>
 class FileHubImpl : public FileHub<FileType> {
