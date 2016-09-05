@@ -1,8 +1,10 @@
+#include "minion/output/partition.h"
+
 #include <gtest/gtest.h>
+
+#include <string>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string>
-#include "partition.h"
 
 using namespace baidu::shuttle;
 
@@ -84,3 +86,4 @@ int main(int argc, char* argv[]) {
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+

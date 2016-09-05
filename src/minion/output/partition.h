@@ -1,6 +1,5 @@
 #ifndef _BAIDU_SHUTTLE_MINION_PARTITION_H_
 #define _BAIDU_SHUTTLE_MINION_PARTITION_H_
-
 #include <string>
 #include "proto/shuttle.pb.h"
 
@@ -9,37 +8,22 @@ namespace shuttle {
 
 class Partitioner {
 public:
+    // Factory method
+    static Partitioner* Get(Partition partitioner, const NodeConfig& node, int dest_num);
+
+    // Parse line to get key and calc partition result
     virtual int Calc(const std::string& line, std::string* key) const = 0;
+    // Get partition result from key itself
     virtual int Calc(const std::string& key) const = 0;
+
+    // String hash function used by paritioner
     int HashCode(const std::string& str) const;
+
     virtual ~Partitioner() { }
-};
-
-class KeyFieldBasedPartitioner : public Partitioner {
-public:
-    KeyFieldBasedPartitioner(const NodeConfig& node);
-    virtual ~KeyFieldBasedPartitioner(){};
-    int Calc(const std::string& line, std::string* key) const;
-    int Calc(const std::string& key) const;
-private:
-    int num_key_fields_;
-    int num_partition_fields_;
-    int reduce_total_;
-    std::string separator_;
-};
-
-class IntHashPartitioner : public Partitioner {
-public:
-    IntHashPartitioner(const NodeConfig& node);
-    virtual ~IntHashPartitioner(){};
-    int Calc(const std::string& line, std::string* key) const;
-    int Calc(const std::string& key) const;
-private:
-    int reduce_total_;
-    std::string separator_;
 };
 
 } //namespace shuttle
 } //namespace baidu
 
 #endif
+
