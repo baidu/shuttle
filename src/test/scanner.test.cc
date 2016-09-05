@@ -103,7 +103,10 @@ TEST_F(ScannerTest, ScanningTest) {
 
     Scanner::Iterator* it = NULL;
     if (scantype == kInputScanner) {
-        it = scanner->Scan(fp->GetSize() / 2, fp->GetSize());
+        it = scanner->Scan(0, fp->GetSize());
+        ASSERT_TRUE(it != NULL);
+        EXPECT_EQ(it->Key(), "");
+        EXPECT_EQ(it->Value(), "value000000");
     } else if (scantype == kInternalScanner) {
         it = scanner->Scan("key050000", "key099999");
         ASSERT_TRUE(it != NULL);
