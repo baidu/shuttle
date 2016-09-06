@@ -1,11 +1,10 @@
 #include "scanner.h"
 
-#include "logging.h"
-
 namespace baidu {
 namespace shuttle {
 
 const std::string Scanner::SCAN_ALL_KEY = "";
+const std::string Scanner::SCAN_KEY_BEGINNING = "";
 
 class InputReader : public Scanner {
 public:

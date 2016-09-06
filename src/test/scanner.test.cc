@@ -108,10 +108,10 @@ TEST_F(ScannerTest, ScanningTest) {
         EXPECT_EQ(it->Key(), "");
         EXPECT_EQ(it->Value(), "value000000");
     } else if (scantype == kInternalScanner) {
-        it = scanner->Scan("key050000", "key099999");
+        it = scanner->Scan(Scanner::SCAN_KEY_BEGINNING, Scanner::SCAN_ALL_KEY);
         ASSERT_TRUE(it != NULL);
-        EXPECT_EQ(it->Key(), "key050000");
-        EXPECT_EQ(it->Value(), "value050000\n");
+        EXPECT_EQ(it->Key(), "key000000");
+        EXPECT_EQ(it->Value(), "value000000\n");
     }
     ASSERT_TRUE(it != NULL);
     EXPECT_TRUE(!it->Done());
