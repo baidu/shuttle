@@ -145,11 +145,11 @@ bool PlainTextFile::Seek(int64_t offset) {
             status_ = kReadFileFail;
             return false;
         }
-        if (!fp_->Seek(offset)) {
-            LOG(WARNING, "seek to %ld fail", offset);
-            status_ = kReadFileFail;
-            return false;
-        }
+    }
+    if (!fp_->Seek(offset)) {
+        LOG(WARNING, "seek to %ld fail", offset);
+        status_ = kReadFileFail;
+        return false;
     }
     // Throw out first incomplete line
     if (prev_byte != '\n') {
