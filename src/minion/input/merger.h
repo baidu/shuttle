@@ -11,7 +11,7 @@ namespace shuttle {
 
 class Merger : public Scanner {
 public:
-    // Merger requires opened files
+    // Merger requires opened internal files
     Merger(const std::vector<FormattedFile*> files);
     // Merger is not the owner of files. Caller must delete them by himself
     virtual ~Merger() { }
@@ -70,7 +70,7 @@ public:
 
 private:
     void AddProvedIter(const std::string& start_key, const std::string& end_key,
-            FormattedFile* fp, std::vector<Scanner::Iterator*>& to_be_scanned, Mutex* vec_mu);
+            FormattedFile* fp, std::vector<Scanner::Iterator*>* to_be_scanned, Mutex* vec_mu);
 
 private:
     std::vector<FormattedFile*> sortfiles_;

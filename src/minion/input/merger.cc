@@ -27,7 +27,7 @@ Scanner::Iterator* Merger::Scan(const std::string& start_key, const std::string&
             it != sortfiles_.end(); ++it) {
         FormattedFile* fp = *it;
         tp.AddTask(boost::bind(&Merger::AddProvedIter, this,
-                start_key, end_key, fp, scanning, &mu));
+                start_key, end_key, fp, &scanning, &mu));
     }
     tp.Stop(true);
     LOG(DEBUG, "all internal files are ready");
@@ -35,12 +35,15 @@ Scanner::Iterator* Merger::Scan(const std::string& start_key, const std::string&
 }
 
 void Merger::AddProvedIter(const std::string& start_key, const std::string& end_key,
-        FormattedFile* fp, std::vector<Scanner::Iterator*>& to_be_scanned, Mutex* vec_mu) {
+        FormattedFile* fp, std::vector<Scanner::Iterator*>* to_be_scanned, Mutex* vec_mu) {
+    if (to_be_scanned == NULL) {
+        return;
+    }
     Scanner* scanner = Scanner::Get(fp, kInternalScanner);
     Scanner::Iterator* it = scanner->Scan(start_key, end_key);
     if (it != NULL && it->Error() == kOk) {
         MutexLock lock(vec_mu);
-        to_be_scanned.push_back(it);
+        to_be_scanned->push_back(it);
     } else {
         LOG(WARNING, "scanner report error: %s", it ? it->GetFileName().c_str() : "NULL");
         if (it != NULL) {
@@ -110,6 +113,8 @@ void Merger::Iterator::Next() {
     if (!queue_.empty()) {
         key_ = queue_.top().key;
         value_ = queue_.top().value;
+    } else {
+        status_ = kNoMore;
     }
 }
 
