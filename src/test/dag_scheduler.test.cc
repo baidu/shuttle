@@ -13,6 +13,34 @@
 
 using namespace baidu::shuttle;
 
+/*
+ * Test needs a valid DAG, but generating a random, valid DAG is tricky, so user
+ *   must provide a DAG by himself
+ * User may provide a parameter representing the file that contains the test data or
+ *   just use stdin by default
+ * Here's a valid input. And test file must be organized as following
+ * ----------
+ * 16
+ * 0 0 0 0 0 0 0 1 0 0 1 0 0 1 1 0
+ * 0 0 1 0 0 0 0 0 0 1 0 0 0 1 0 0
+ * 0 0 0 0 0 0 0 0 0 0 1 0 1 1 1 0
+ * 0 0 0 0 0 0 1 0 1 1 0 1 0 0 0 0
+ * 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0
+ * 0 0 0 0 0 0 1 1 0 1 1 0 0 0 0 0
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1
+ * 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ * 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ *
+ * ----------
+ */
+
 class DagSchedulerTest : public DagScheduler {
 public:
     virtual ~DagSchedulerTest() { }

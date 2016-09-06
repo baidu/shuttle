@@ -9,7 +9,7 @@
 using namespace baidu::shuttle;
 
 /*
- * Test need an address to an inexist location, and will automatically create testcase file
+ * Test needs an address to an inexist location, and will automatically create testcase file
  * But this test is not responsible for destroying test file and need manual operation
  * Scanner and underlying FormattedFile doesn't provide delete interface
  *   so it needs user to delete it
@@ -138,6 +138,7 @@ TEST_F(ScannerTest, ScanningTest) {
     delete scanner;
     ASSERT_TRUE(fp->Close());
     EXPECT_EQ(fp->Error(), kOk);
+    delete fp;
 }
 
 int main(int argc, char** argv) {

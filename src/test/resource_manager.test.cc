@@ -9,6 +9,12 @@
 
 using namespace baidu::shuttle;
 
+/*
+ * Test needs an address to an input file. The file must be big enough or have enough lines
+ * Resource manager will stat the file and divide them into pieces logically, but the result
+ *   needs to be validated by user
+ */
+
 DEFINE_string(type, "block", "set resource type, block/line is acceptable");
 DEFINE_string(address, "", "full address of the test file");
 DEFINE_string(user, "", "username to FS, empty meanse default");

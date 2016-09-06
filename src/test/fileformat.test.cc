@@ -9,7 +9,8 @@
 using namespace baidu::shuttle;
 
 /*
- * Test need an address to an inexist location, and will automatically create testcase file
+ :x
+
  * But this test is not responsible for destroying test file and need manual operation
  * FormattedFile doesn't provide delete interface so it needs user to delete it
  */

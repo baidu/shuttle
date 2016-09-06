@@ -10,7 +10,7 @@
 using namespace baidu::shuttle;
 
 /*
- * Test need an address to an inexist location, and will automatically create testcase file
+ * Test needs an address to an inexist location, and will automatically create testcase file
  *   and destroy them after all test if tests run as ordered
  * User must manually delete left test file when:
  *   1. Random call all there testcases: Some testcases may not clean the test file
