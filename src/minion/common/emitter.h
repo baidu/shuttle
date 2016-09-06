@@ -25,7 +25,7 @@ public:
     }
 
     virtual Status Flush() = 0;
-private:
+protected:
     size_t max_size_;
     size_t cur_size_;
     std::vector<EmitItem*> mem_table_;

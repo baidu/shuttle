@@ -27,10 +27,13 @@ public:
 class Hopper : public Emitter {
 public:
     // TODO
-    Hopper();
+    Hopper(const std::string& work_dir);
     virtual ~Hopper() { }
 
     virtual Status Flush();
+protected:
+    int file_no_;
+    std::string work_dir_;
 };
 
 }
