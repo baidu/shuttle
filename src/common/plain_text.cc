@@ -187,6 +187,9 @@ int64_t PlainTextFile::GetSize() {
 bool PlainTextFile::BuildRecord(const std::string& /*key*/, const std::string& value,
         std::string& record) {
     record = value;
+    if (*record.rbegin() != '\n') {
+        record.push_back('\n');
+    }
     status_ = kOk;
     return true;
 }
