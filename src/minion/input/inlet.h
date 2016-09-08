@@ -22,7 +22,9 @@ private:
     std::string type_;
     std::string format_;
     std::string file_;
+    std::string pipe_;
     bool is_nline_;
+    int64_t offset_;
 };
 
 class ShuffleInlet : public Inlet {
@@ -32,7 +34,11 @@ public:
 
     virtual int Flow();
 private:
-    
+    bool PreMerge(const std::vector<std::string>& files, const std::string& output);
+    bool FinalMerge(const std::vector<std::string>& files);
+private:
+    std::string pipe_;
+    int no_;
 };
 
 }
