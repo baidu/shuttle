@@ -63,9 +63,6 @@ public:
     }
     virtual int64_t GetSize();
 
-    virtual bool BuildRecord(const std::string& key, const std::string& value,
-            std::string& record);
-
     static const size_t BLOCK_SIZE = (64 << 10);
     static const int32_t MAX_INDEX_SIZE = 10000;
     static const int32_t MAGIC_NUMBER = 0x55aa;
@@ -429,18 +426,6 @@ bool SortFile::MakeIndexSparse() {
         KeyOffset* item = idx_block_.add_items();
         item->CopyFrom(temp_index.items(i));
     }
-    status_ = kOk;
-    return true;
-}
-
-bool SortFile::BuildRecord(const std::string& key, const std::string& value,
-        std::string& record) {
-    int32_t key_len = key.size();
-    int32_t value_len = value.size();
-    record.assign((const char*)(&key_len), sizeof(key_len));
-    record.append(key);
-    record.append((const char*)(&value_len), sizeof(value_len));
-    record.append(value);
     status_ = kOk;
     return true;
 }

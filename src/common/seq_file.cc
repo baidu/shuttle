@@ -39,9 +39,6 @@ public:
         return path_;
     }
     virtual int64_t GetSize();
-
-    virtual bool BuildRecord(const std::string& key, const std::string& value,
-            std::string& record);
 private:
     hdfsFS fs_;
     SeqFile sf_;
@@ -135,18 +132,6 @@ int64_t InfSeqFile::GetSize() {
     int64_t file_size = info->mSize;
     hdfsFreeFileInfo(info, 1);
     return file_size;
-}
-
-bool InfSeqFile::BuildRecord(const std::string& key, const std::string& value,
-        std::string& record) {
-    size_t key_len = key.size();
-    size_t value_len = value.size();
-    record.erase();
-    record.append((const char*)(&key_len), sizeof(key_len));
-    record.append(key);
-    record.append((const char*)(&value_len), sizeof(value_len));
-    record.append(value);
-    return true;
 }
 
 namespace factory {

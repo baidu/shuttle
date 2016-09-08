@@ -58,15 +58,19 @@ public:
     virtual std::string GetFileName() = 0;
     virtual int64_t GetSize() = 0;
 
-    /*
-     * Parsing a record, which is currently not used
-     */
-    // virtual bool ParseRecord(const std::string& record, std::string& key, std::string& value) = 0;
+    // Formatted file related tools
     /*
      * Build a record from k/v
+     *   plain text: if key is not empty, then key is considered as offset or number, record:
+     *               [no/offset]\t[line]\n
+     *               if key is empty, then the record is line iteself: [line]\n
+     *   inf seqfile: build a binary record:
+     *                [key_len(32bits)][key][value_len(32bits)][value]
+     *   sort file: [NOT USED] build a binary record using protobuf:
+     *              serialize({ key, value })
      */
-    virtual bool BuildRecord(const std::string& key, const std::string& value,
-            std::string& record) = 0;
+    static std::string BuildRecord(FileFormat format,
+            const std::string& key, const std::string& value);
 
     virtual ~FormattedFile() { }
 };

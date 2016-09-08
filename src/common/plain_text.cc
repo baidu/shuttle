@@ -33,9 +33,6 @@ public:
     virtual std::string GetFileName();
     virtual int64_t GetSize();
 
-    virtual bool BuildRecord(const std::string& key, const std::string& value,
-            std::string& record);
-
 private:
     /*
      * Line Buffer is used to temporary store the block of file
@@ -182,16 +179,6 @@ std::string PlainTextFile::GetFileName() {
 
 int64_t PlainTextFile::GetSize() {
     return fp_->GetSize();
-}
-
-bool PlainTextFile::BuildRecord(const std::string& /*key*/, const std::string& value,
-        std::string& record) {
-    record = value;
-    if (*record.rbegin() != '\n') {
-        record.push_back('\n');
-    }
-    status_ = kOk;
-    return true;
 }
 
 namespace factory {

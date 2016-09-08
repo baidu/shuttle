@@ -2,6 +2,7 @@
 
 #include "file.h"
 #include "hdfs.h"
+#include "proto/sortfile.pb.h"
 
 namespace baidu {
 namespace shuttle {
@@ -47,6 +48,39 @@ FormattedFile* FormattedFile::Create(FileType type, FileFormat format,
         }
     }
     return NULL;
+}
+
+std::string FormattedFile::BuildRecord(FileFormat format,
+        const std::string& key, const std::string& value) {
+    std::string record;
+    switch(format) {
+    case kPlainText:
+        if (!key.empty()) {
+            record += key;
+            record.push_back('\t');
+        }
+        record += value;
+        if (*record.rbegin() != '\n') {
+            record.push_back('\n');
+        }
+        break;
+    case kInfSeqFile:
+        uint32_t key_len = key.size();
+        uint32_t value_len = value.size();
+        record.append((const char*)&key_len, sizeof(key_len));
+        record.append(key);
+        record.append((const char*)&value_len, sizeof(value_len));
+        record.append(value);
+        break;
+    case kInternalSortedFile:
+        KeyValue rec;
+        rec.set_key(key);
+        rec.set_value(value);
+        rec.SerializeToString(&record);
+        break;
+    // leave record empty by default
+    }
+    return record;
 }
 
 }
