@@ -71,8 +71,7 @@ Merger::Iterator::Iterator(const std::vector<Scanner::Iterator*>& iters) {
             LOG(WARNING, "fail to merge %s, return %s",
                     err_file_.c_str(), Status_Name(status_).c_str());
             delete iter;
-            // TODO
-            // break;
+            break;
         }
     }
     if (!queue_.empty()) {
