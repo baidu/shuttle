@@ -67,7 +67,7 @@ public:
     class Iterator : public Scanner::Iterator {
     public:
         Iterator(FormattedFile* fp, const std::string& end_key) :
-                fp_(fp), end_(end_key), scan_all_(end_ == SCAN_ALL_KEY) { }
+                fp_(fp), status_(kOk), end_(end_key), scan_all_(end_ == SCAN_ALL_KEY) { }
         virtual ~Iterator() { }
 
         virtual bool Done() {
@@ -148,7 +148,7 @@ void InternalReader::Iterator::Next() {
     if (status_ == kNoMore) {
         return;
     }
-    if (!scan_all_ && key_ > end_) {
+    if (!scan_all_ && key_ >= end_) {
         status_ = kNoMore;
         return;
     }

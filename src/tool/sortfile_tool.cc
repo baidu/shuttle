@@ -12,6 +12,7 @@
 
 DEFINE_string(u, "", "username to login dfs");
 DEFINE_string(p, "", "password to login dfs");
+DEFINE_string(s, " ", "separator to split record");
 DEFINE_bool(v, false, "verbose mode to output everything");
 DEFINE_bool(verbose, false, "verbose mode to output everything");
 DEFINE_bool(i, false, "interactive mode");
@@ -23,7 +24,8 @@ const std::string helper = "Tricorder - a tool to access internal sort file\n"
     "Usage: tricorder read/write [options] file...\n\n"
     "Options:\n"
     "  -u <username>     username to login dfs\n"
-    "  -p <password>     password to login dfs\n\n"
+    "  -p <password>     password to login dfs\n"
+    "  -s <separator>    use <separator> to split record and get key/value\n"
     "  -v, --verbose     output every information and operation status\n"
     "                    all output except for file access result will use stderr\n"
     "  -i, --interact    will provide a interactive interface\n"
@@ -33,9 +35,43 @@ const std::string helper = "Tricorder - a tool to access internal sort file\n"
     "in write operation, and output every k/v in sortfile in read operation\n"
     "Notice: file must be full address followed address schema\n";
 
-static int InteractiveRead(baidu::shuttle::Scanner*) {
+static int InteractiveRead(baidu::shuttle::Scanner* scanner) {
     // scanner is non-null garanteed
-    return -1;
+    std::cout << "tricorder: interactive reader started" << std::endl
+        << "  available operation: scan, printall" << std::endl;
+    std::string operation;
+    while (std::cout << "operation > " && std::getline(std::cin, operation)) {
+        std::string start, end;
+        if (operation == "scan") {
+            std::cout << "start key > ";
+            std::getline(std::cin, start);
+            std::cout << "end key > ";
+            std::getline(std::cin, end);
+        } else if (operation == "printall") {
+            start = baidu::shuttle::Scanner::SCAN_KEY_BEGINNING;
+            end = baidu::shuttle::Scanner::SCAN_ALL_KEY;
+        } else if (operation == "quit" || operation == "exit") {
+            break;
+        } else {
+            std::cerr << "tricorder: no such operation" << std::endl;
+            continue;
+        }
+        baidu::shuttle::Scanner::Iterator* it = scanner->Scan(start, end);
+        if (it == NULL) {
+            std::cerr << "tricorder: create scan iterator failed, sorry Bones" << std::endl;
+            continue;
+        }
+        for (; !it->Done(); it->Next()) {
+            std::cout << "key: " << it->Key() << ", value: " << it->Value() << std::endl;
+        }
+        if (it->Error() != baidu::shuttle::kOk && it->Error() != baidu::shuttle::kNoMore) {
+            std::cerr << "[WARNING] iterate ends at " << it->GetFileName()
+                << ", status: " << baidu::shuttle::Status_Name(it->Error()) << std::endl;
+        }
+        delete it;
+    }
+    std::cout << "tricorder: bye" << std::endl;
+    return 0;
 }
 
 static int DirectRead(baidu::shuttle::Scanner* scanner) {
@@ -59,16 +95,31 @@ static int DirectRead(baidu::shuttle::Scanner* scanner) {
     return 0;
 }
 
-static int InteractiveWrite(baidu::shuttle::FormattedFile*) {
+static int InteractiveWrite(baidu::shuttle::FormattedFile* fp) {
     // fp is non-null garanteed
-    return -1;
+    std::cout << "tricorder: interactive writer started" << std::endl
+        << "  please offer sorted key/value data, use EOF to quit" << std::endl;
+    const std::string& info = "please offer the record:";
+    std::string key, value;
+    while (std::cout << info << std::endl << "key > " && std::getline(std::cin, key)) {
+        std::cout << "value > ";
+        std::getline(std::cin, value);
+        if (!fp->WriteRecord(key, value)) {
+            std::cerr << "[WARNING] write record failed, key=" <<
+                key << ", value=" << value << std::endl;
+        } else {
+            std::cout << "done" << std::endl;
+        }
+    }
+    std::cout << "tricorder: bye" << std::endl;
+    return 0;
 }
 
 static int DirectWrite(baidu::shuttle::FormattedFile* fp) {
     // fp is non-null garanteed
     std::string record, key, value;
     while (std::getline(std::cin, record)) {
-        size_t separator = record.find_first_of(' ');
+        size_t separator = record.find_first_of(FLAGS_s);
         key = record.substr(0, separator);
         if (separator >= record.size() - 1) {
             value = "";
