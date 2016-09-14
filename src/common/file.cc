@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #include "hdfs.h"
 #include "logging.h"
@@ -70,10 +71,7 @@ public:
     virtual int64_t GetSize();
     virtual bool Rename(const std::string& old_name, const std::string& new_name);
     virtual bool Remove(const std::string& path);
-    virtual bool List(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
-        // TODO, not implement, not important for online functions
-        return false;
-    }
+    virtual bool List(const std::string& dir, std::vector<FileInfo>* children);
     virtual bool Glob(const std::string& /*dir*/, std::vector<FileInfo>* /*children*/) {
         // TODO, not implement, not important for online functions
         return false;
@@ -551,6 +549,44 @@ bool LocalFs::Rename(const std::string& old_name, const std::string& new_name) {
 
 bool LocalFs::Remove(const std::string& path) {
     return ::remove(path.c_str()) == 0;
+}
+
+bool LocalFs::List(const std::string& dir, std::vector<FileInfo>* children) {
+    if (children == NULL) {
+        return false;
+    }
+    DIR* dp = ::opendir(dir.c_str());
+    if (dp == NULL) {
+        return false;
+    }
+    std::vector<std::string> files;
+    struct dirent* ent;
+    while ((ent = ::readdir(dp)) != NULL) {
+        files.push_back(ent->d_name);
+    }
+    ::closedir(dp);
+    for (std::vector<std::string>::iterator it = files.begin();
+            it != files.end(); ++it) {
+        if (*it == "." || *it == "..") {
+            continue;
+        }
+        FileInfo info;
+        struct stat st_buf;
+        if (stat(it->c_str(), &st_buf) != 0) {
+            continue;
+        }
+        info.name = *it;
+        info.size = st_buf.st_size;
+        if (S_ISREG(st_buf.st_mode)) {
+            info.kind = 'F';
+        } else if (S_ISDIR(st_buf.st_mode)) {
+            info.kind = 'D';
+        } else {
+            info.kind = 'F';
+        }
+        children->push_back(info);
+    }
+    return true;
 }
 
 bool LocalFs::Mkdir(const std::string& dir) {
