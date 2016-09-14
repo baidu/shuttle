@@ -4,6 +4,14 @@
 #include "common/fileformat.h"
 #include "common/scanner.h"
 #include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <algorithm>
+#include <set>
+#include <boost/algorithm/string.hpp>
+#include <cmath>
+#include <cstdlib>
+#include "logging.h"
 
 namespace baidu {
 namespace shuttle {
@@ -17,26 +25,24 @@ int SourceInlet::Flow() {
     } else if (type_ == "local") {
         type = kLocalFs;
     } else {
-        std::cerr << "unknown file system: " << type_ << std::endl;
+        LOG(WARNING, "unknown file system: %s", type_.c_str());
         return -1;
     }
     if (format_ == "text") {
         format = kPlainText;
-    } else if (format == "seq") {
+    } else if (format_ == "seq") {
         format = kInfSeqFile;
     } else {
-        std::cerr << "unknown file format: " << format_ << std::endl;
+        LOG(WARNING, "unknown file format: %s", format_.c_str());
         return -1;
     }
-    File::Param param;
-    // TODO Fill param
-    FormattedFile* fp = FormattedFile::Create(type, format, param);
-    if (!fp->Open(file_, kReadFile, param)) {
-        std::cerr << "fail to open: " << file_ << std::endl;
+    FormattedFile* fp = FormattedFile::Create(type, format, param_);
+    if (!fp->Open(file_, kReadFile, param_)) {
+        LOG(WARNING, "fail to open: %s", file_.c_str());
         return 1;
     }
     Scanner* scanner = Scanner::Get(fp, kInputScanner);
-    Scanner::Iterator* it = scanner->Scan();
+    Scanner::Iterator* it = scanner->Scan(offset_, len_);
 
     /*
      * The record send to user app is organized as following:
@@ -84,8 +90,8 @@ int SourceInlet::Flow() {
         std::cout << record;
     }
     if (it->Error() != kNoMore) {
-        std::cerr << "error occurs when reading: " << file_ << std::endl;
-        return -1;
+        LOG(WARNING, "error occurs when reading: ", file_.c_str());
+        return 1;
     }
 
     delete it;
@@ -96,70 +102,107 @@ int SourceInlet::Flow() {
 }
 
 int ShuffleInlet::Flow() {
-    // TODO
-    return -1;
+    srand(time(NULL));
+    // Create object-wide file pointer
+    if (type_ == "hdfs") {
+        file_type_ = kInfHdfs;
+    } else if (type_ == "local") {
+        file_type_ = kLocalFs;
+    } else {
+        LOG(WARNING, "unknown file system: %s", type_.c_str());
+        return -1;
+    }
+    fp_ = File::Create(file_type_, param_);
+    if (fp_ == NULL) {
+        LOG(WARNING, "fail to create file pointer");
+        return -1;
+    }
+    if (pile_scale_ == 0) {
+        pile_scale_ = std::min((int32_t)ceil(sqrt(total_)), 200);
+    }
+    // Prepare pile list and shuffle to avoid collision
+    int pile_num = (int)ceil((double)total_ / pile_scale_);
+    std::vector<int> pile_list;
+    for (int i = 0; i < pile_num; ++i) {
+        pile_list.push_back(i);
+    }
+    std::random_shuffle(pile_list.begin(), pile_list.end());
+    // Pre-merge to create several piles
+    pile_num = PileMerge(pile_list);
+    std::vector<std::string> pile_names;
+    for (int i = 0; i < pile_num; ++i) {
+        std::stringstream ss;
+        ss << work_dir_ << "/" << i << ".pile";
+        pile_names.push_back(ss.str());
+    }
+    // Merge piles to final result and write to stdout
+    return FinalMerge(pile_names) ? 0 : 1;
 }
 
 // Use do...while(0) to achieve 'finally' function
 bool ShuffleInlet::PreMerge(const std::vector<std::string>& files,
         const std::string& output) {
-    File::Param param;
-    // TODO Fill param
-    FormattedFile* writer = FormattedFile::Create(kInfHdfs, kInternalSortedFile, param);
+    // Open a sorted file to write pre-merged data
+    FormattedFile* writer = FormattedFile::Create(file_type_, kInternalSortedFile, param_);
     if (writer == NULL) {
-        std::cerr << "empty output file pointer: " << output << std::endl;
+        LOG(WARNING, "empty output file pointer: %s", output.c_str());
         return false;
     }
-    if (!writer->Open(output, kWriteFile, param)) {
-        std::cerr << "fail to open output file: " << output << std::endl;
+    if (!writer->Open(output, kWriteFile, param_)) {
+        LOG(WARNING, "fail to open output file: %s", output.c_str());
         return false;
     }
     bool ok = true;
     // Writer is opened
     do {
+        // Open sorted files for merger
         std::vector<FormattedFile*> merge_files;
-        for (std::vector<std::string>::iterator it = files.begin();
+        for (std::vector<std::string>::const_iterator it = files.begin();
                 it != files.end(); ++it) {
-            FormattedFile* fp = FormattedFile::Create(kInfHdfs, kInternalSortedFile, param);
+            FormattedFile* fp = FormattedFile::Create(file_type_, kInternalSortedFile, param_);
             if (fp == NULL) {
                 continue;
             }
-            if (!fp->Open(*it, kReadFile, param)) {
-                std::cerr << "Fail to open: " << *it << std::endl;
+            if (!fp->Open(*it, kReadFile, param_)) {
+                LOG(WARNING, "fail to open: %s", it->c_str());
                 delete fp;
                 continue;
             }
             merge_files.push_back(fp);
         }
         if (merge_files.empty()) {
-            std::cerr << "no valid pre-merge file" << std::endl;
+            LOG(WARNING, "no valid pre-merge file");
             ok = false;
             break;
         }
         // Input files are now opened
         do {
+            // Build merger to get iterator
             Merger merger(merge_files);
-            Scanner::Iterator* it = merger.Scan(SCAN_KEY_BEGINNING, SCAN_ALL_KEY);
+            Scanner::Iterator* it = merger.Scan(
+                    Scanner::SCAN_KEY_BEGINNING, Scanner::SCAN_ALL_KEY);
             if (it == NULL) {
-                std::cerr << "fail to get scan iterator" << std::endl;
+                LOG(WARNING, "fail to get scan iterator");
                 ok = false;
                 break;
             }
             if (it->Error() != kOk && it->Error() != kNoMore) {
-                std::cerr << "fail to scan, error file: " << it->GetFileName() << std::endl;
+                LOG(WARNING, "fail to scan, error file: %s", it->GetFileName().c_str());
                 ok = false;
+                delete it;
                 break;
             }
+            // Iterate over merger data and write to output sorted file
             for (; !it->Done(); it->Next()) {
                 if (!writer->WriteRecord(it->Key(), it->Value())) {
-                    std::cerr << "fail to write (" << it->Key() << ", " << it->Value()
-                        << "): " << output << std::endl;
+                    LOG(WARNING, "fail to write (%s, %s): %s",
+                            it->Key().c_str(), it->Value().c_str(), output.c_str());
                     ok = false;
                     break;
                 }
             }
             if (it->Error() != kOk && it->Error() != kNoMore) {
-                std::cerr << "fail to scan: " << it->GetFileName() << std::endl;
+                LOG(WARNING, "fail to scan: %s", it->GetFileName().c_str());
                 ok = false;
             }
             delete it;
@@ -178,43 +221,44 @@ bool ShuffleInlet::PreMerge(const std::vector<std::string>& files,
 }
 
 bool ShuffleInlet::FinalMerge(const std::vector<std::string>& files) {
-    File::Param param;
-    // TODO Fill param
+    // Open sorted files for merger
     std::vector<FormattedFile*> merge_files;
-    for (std::vector<std::string>::iterator it = files.begin();
+    for (std::vector<std::string>::const_iterator it = files.begin();
             it != files.end(); ++it) {
-        FormattedFile* fp = FormattedFile::Create(kInfHdfs, kInternalSortedFile, param);
+        FormattedFile* fp = FormattedFile::Create(file_type_, kInternalSortedFile, param_);
         if (fp == NULL) {
             continue;
         }
-        if (!fp->Open(*it, kReadFile, param)) {
-            std::cerr << "Fail to open: " << *it << std::endl;
+        if (!fp->Open(*it, kReadFile, param_)) {
+            LOG(WARNING, "fail to open: %s", it->c_str());
             delete fp;
             continue;
         }
         merge_files.push_back(fp);
     }
     if (merge_files.empty()) {
-        std::cerr << "no valid pre-merge file" << std::endl;
+        LOG(WARNING, "no valid pre-merge file");
         return false;
     }
     bool ok = true;
     do {
         std::stringstream ss;
         ss << std::setw(5) << std::setfill('0') << no_;
+        // Build merger to get iterator
         Merger merger(merge_files);
         // Scan all the records of the same no
         Scanner::Iterator* it = merger.Scan(ss.str(), ss.str() + "\xff");
         if (it == NULL) {
-            std::cerr << "fail to get scan iterator" << std::endl;
+            LOG(WARNING, "fail to get scan iterator");
             ok = false;
             break;
         }
         if (it->Error() != kOk && it->Error() != kNoMore) {
-            std::cerr << "fail to scan, error file: " << it->GetFileName() << std::endl;
+            LOG(WARNING, "fail to scan, error file: %s", it->GetFileName().c_str());
             ok = false;
             break;
         }
+        // Iterate over merger data and write to stdout for user cmd
         for (; !it->Done(); it->Next()) {
             if (pipe_ == "streaming") {
                 std::cout << it->Value() << std::endl;
@@ -226,16 +270,96 @@ bool ShuffleInlet::FinalMerge(const std::vector<std::string>& files) {
             }
         }
         if (it->Error() != kOk && it->Error() != kNoMore) {
-            std::cerr << "fail to scan: " << it->GetFileName() << std::endl;
+            LOG(WARNING, "fail to scan: %s", it->GetFileName().c_str());
             ok = false;
         }
     } while(0);
+    // Pre-merged files cleaning up
     for (std::vector<FormattedFile*>::iterator it = merge_files.begin();
             it != merge_files.end(); ++it) {
         (*it)->Close();
         delete (*it);
     }
     return ok;
+}
+
+int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
+    std::set<int> ready;
+    int pile_num = pile_list.size();
+    // Loop until all piles are ready
+    while (ready.size() < static_cast<size_t>(pile_num)) {
+        // Find a unproceeded pile
+        int cur = 0;
+        for (std::vector<int>::const_iterator it = pile_list.begin();
+                it != pile_list.end(); ++it) {
+            cur = *it;
+            if (ready.find(cur) != ready.end()) {
+                // This pile has been proceeded
+                continue;
+            }
+            std::stringstream ss;
+            ss << work_dir_ << "/" << cur << ".pile";
+            const std::string& pile_name = ss.str();
+            if (!fp_->Exist(pile_name)) {
+                break;
+            }
+            ready.insert(cur);
+            LOG(INFO, "lucky, got %d/%d ready pile", ready.size(), pile_num);
+        }
+        // For greater number of minions, just relax and wait for ready piles
+        if (no_ >= pile_num) {
+            continue;
+        }
+        int from = pile_num * pile_scale_;
+        int to = std::min((pile_num + 1) * pile_scale_, total_ - 1);
+        LOG(INFO, "merge from %d to %d as a pile", from, to);
+        // Prepare specific range of sorted files for pre-merging
+        std::vector<std::string> files;
+        int i = from;
+        for (; i <= to; ++i) {
+            std::stringstream ss;
+            ss << work_dir_ << "/phase_" << phase_ << "_" << i;
+            std::vector<FileInfo> sortfiles;
+            if (!fp_->List(ss.str(), &sortfiles)) {
+                LOG(WARNING, "fail to list: %s", ss.str().c_str());
+                break;
+            }
+            for (std::vector<FileInfo>::iterator it = sortfiles.begin();
+                    it != sortfiles.end(); ++it) {
+                const std::string& file_name = it->name;
+                if (boost::ends_with(file_name, ".sort")) {
+                    files.push_back(file_name);
+                }
+            }
+        }
+        // List error, try again
+        if (i <= to) {
+            continue;
+        }
+        // Prepare temp output pile file, move to formal position when finished
+        std::stringstream ss;
+        ss << work_dir_ << "/pile_" << no_ << "_" << attempt_;
+        std::string output = ss.str();
+        if (!fp_->Mkdir(output)) {
+            LOG(WARNING, "fail to mkdir in merging pile: %s", output.c_str());
+            continue;
+        }
+        // Pre-merge
+        if (!PreMerge(files, output)) {
+            continue;
+        }
+        // Move pile to let others know
+        ss.str(std::string(""));
+        ss << work_dir_ << "/" << cur << ".pile";
+        if (!fp_->Rename(output, ss.str())) {
+            continue;
+        }
+        ready.insert(cur);
+        LOG(INFO, "got pile, %d/%d is ready", ready.size(), pile_num);
+        // Take a break for all the hard work
+        sleep(5);
+    }
+    return ready.size();
 }
 
 }
