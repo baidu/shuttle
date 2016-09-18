@@ -153,10 +153,10 @@ bool SortFile::Locate(const std::string& key) {
     // Bi-search to location the key in index block
     int low = 0;
     int high = idx_block.items_size() - 1;
-    if (low > high || (key < idx_block.items(low).key() && !key.empty())) {
-        LOG(WARNING, "key `%s' does not exist in index block: %s", key.c_str(), path_.c_str());
-        status_ = kInvalidArg;
-        return false;
+    if (low > high) {
+        LOG(INFO, "empty index, cannot locate %s: %s", key.c_str(), path_.c_str());
+        status_ = kNoMore;
+        return true;
     }
     while (low < high) {
         int mid = (low + high) / 2;
