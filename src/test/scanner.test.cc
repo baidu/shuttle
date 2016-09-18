@@ -20,7 +20,6 @@ DEFINE_string(format, "text", "set file format, text/seq/sort is acceptable");
 DEFINE_string(address, "", "full address to the test file");
 DEFINE_string(user, "", "username to FS, empty means default");
 DEFINE_string(password, "", "password to FS, empty only when username is empty");
-DEFINE_int32(record, 10000, "record number, follow the test file format");
 
 // Common configuration for building a scanner
 FileType type = kLocalFs;

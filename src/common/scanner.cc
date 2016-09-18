@@ -148,12 +148,12 @@ void InternalReader::Iterator::Next() {
     if (status_ == kNoMore) {
         return;
     }
-    if (!scan_all_ && key_ >= end_) {
+    fp_->ReadRecord(key_, value_);
+    status_ = fp_->Error();
+    if (status_ == kOk && !scan_all_ && key_ > end_) {
         status_ = kNoMore;
         return;
     }
-    fp_->ReadRecord(key_, value_);
-    status_ = fp_->Error();
 }
 
 }
