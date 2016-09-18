@@ -53,9 +53,9 @@ static void FillParam(File::Param& param) {
 }
 
 int main(int argc, char** argv) {
+    google::ParseCommandLineFlags(&argc, &argv, true);
     baidu::common::SetLogFile(GetLogName("./input.log").c_str());
     baidu::common::SetWarningFile(GetLogName("./input.warning").c_str());
-    google::ParseCommandLineFlags(&argc, &argv, true);
     if (FLAGS_address.empty()) {
         LOG(baidu::WARNING, "please offset a valid address");
         return -1;

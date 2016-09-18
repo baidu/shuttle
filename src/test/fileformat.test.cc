@@ -9,8 +9,7 @@
 using namespace baidu::shuttle;
 
 /*
- :x
-
+ * Test needs an address to an inexist location, and will automatically create testcase file
  * But this test is not responsible for destroying test file and need manual operation
  * FormattedFile doesn't provide delete interface so it needs user to delete it
  */
@@ -206,8 +205,8 @@ TEST_F(FormattedFileTest, LocationChangeTest) {
 }
 
 int main(int argc, char** argv) {
-    google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
+    google::ParseCommandLineFlags(&argc, &argv, true);
     return RUN_ALL_TESTS();
 }
 
