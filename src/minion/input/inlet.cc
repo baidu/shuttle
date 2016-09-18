@@ -120,6 +120,10 @@ int ShuffleInlet::Flow() {
     if (pile_scale_ == 0) {
         pile_scale_ = std::min((int32_t)ceil(sqrt(total_)), 200);
     }
+    // Add trailing '/' in work dir
+    if (*work_dir_.rbegin() != '/') {
+        work_dir_.push_back('/');
+    }
     // Prepare pile list and shuffle to avoid collision
     int pile_num = (int)ceil((double)total_ / pile_scale_);
     std::vector<int> pile_list;
@@ -128,11 +132,15 @@ int ShuffleInlet::Flow() {
     }
     std::random_shuffle(pile_list.begin(), pile_list.end());
     // Pre-merge to create several piles
-    pile_num = PileMerge(pile_list);
+    int old_num = pile_num;
+    if ((pile_num = PileMerge(pile_list)) < old_num) {
+        LOG(WARNING, "error when pre-merging sortfiles");
+        return 1;
+    }
     std::vector<std::string> pile_names;
     for (int i = 0; i < pile_num; ++i) {
         std::stringstream ss;
-        ss << work_dir_ << "/" << i << ".pile";
+        ss << work_dir_ << i << ".pile";
         pile_names.push_back(ss.str());
     }
     // Merge piles to final result and write to stdout
@@ -284,10 +292,18 @@ bool ShuffleInlet::FinalMerge(const std::vector<std::string>& files) {
 }
 
 int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
+    // Prepare temp output dir, move piles to formal position when finished
+    std::stringstream temp_dir_ss;
+    temp_dir_ss << work_dir_ << "pile_" << no_ << "_" << attempt_;
+    const std::string& temp_dir = temp_dir_ss.str();
+    if (!fp_->Mkdir(temp_dir)) {
+        LOG(WARNING, "fail to make temp dir in merging pile: %s", temp_dir.c_str());
+        return -1;
+    }
     std::set<int> ready;
     int pile_num = pile_list.size();
-    // Loop until all piles are ready
-    while (ready.size() < static_cast<size_t>(pile_num)) {
+    // Loop until all piles are ready. After every loop, sleep for 5s
+    while (ready.size() < static_cast<size_t>(pile_num) && (sleep(5) || true)) {
         // Find a unproceeded pile
         int cur = 0;
         for (std::vector<int>::const_iterator it = pile_list.begin();
@@ -298,7 +314,7 @@ int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
                 continue;
             }
             std::stringstream ss;
-            ss << work_dir_ << "/" << cur << ".pile";
+            ss << work_dir_ << cur << ".pile";
             const std::string& pile_name = ss.str();
             if (!fp_->Exist(pile_name)) {
                 break;
@@ -310,20 +326,21 @@ int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
         if (no_ >= pile_num) {
             continue;
         }
-        int from = pile_num * pile_scale_;
-        int to = std::min((pile_num + 1) * pile_scale_, total_ - 1);
+        int from = cur * pile_scale_;
+        int to = std::min((cur + 1) * pile_scale_ - 1, total_ - 1);
         LOG(INFO, "merge from %d to %d as a pile", from, to);
         // Prepare specific range of sorted files for pre-merging
         std::vector<std::string> files;
         int i = from;
         for (; i <= to; ++i) {
             std::stringstream ss;
-            ss << work_dir_ << "/phase_" << phase_ << "_" << i;
+            ss << work_dir_ << "phase_" << phase_ << "_" << i;
             std::vector<FileInfo> sortfiles;
             if (!fp_->List(ss.str(), &sortfiles)) {
                 LOG(WARNING, "fail to list: %s", ss.str().c_str());
                 break;
             }
+            LOG(DEBUG, "list: %s, size: %d", ss.str().c_str(), sortfiles.size());
             for (std::vector<FileInfo>::iterator it = sortfiles.begin();
                     it != sortfiles.end(); ++it) {
                 const std::string& file_name = it->name;
@@ -336,29 +353,24 @@ int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
         if (i <= to) {
             continue;
         }
-        // Prepare temp output pile file, move to formal position when finished
         std::stringstream ss;
-        ss << work_dir_ << "/pile_" << no_ << "_" << attempt_;
-        std::string output = ss.str();
-        if (!fp_->Mkdir(output)) {
-            LOG(WARNING, "fail to mkdir in merging pile: %s", output.c_str());
-            continue;
-        }
+        ss << temp_dir << "/" << no_ << ".pile";
+        const std::string& output = ss.str();
         // Pre-merge
         if (!PreMerge(files, output)) {
             continue;
         }
         // Move pile to let others know
         ss.str(std::string(""));
-        ss << work_dir_ << "/" << cur << ".pile";
+        ss << work_dir_ << cur << ".pile";
         if (!fp_->Rename(output, ss.str())) {
             continue;
         }
         ready.insert(cur);
         LOG(INFO, "got pile, %d/%d is ready", ready.size(), pile_num);
-        // Take a break for all the hard work
-        sleep(5);
     }
+    // Remove temp dir
+    fp_->Remove(temp_dir);
     return ready.size();
 }
 
