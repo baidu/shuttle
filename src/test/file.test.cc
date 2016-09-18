@@ -344,11 +344,12 @@ TEST_F(FileIOTest, ListGlobTest) {
     }
 
     std::vector<FileInfo> list_children;
-    EXPECT_TRUE(fp->List(path, &list_children));
+    ASSERT_TRUE(fp->List(path, &list_children));
     std::sort(list_children.begin(), list_children.end(), FileInfoComparator());
 
     // Check list result
     int size = static_cast<int>(list_children.size());
+    ASSERT_EQ(size, 1000);
     for (int i = 0; i < size; ++i) {
         const FileInfo& info = list_children[i];
         EXPECT_EQ(info.kind, 'D');
@@ -357,7 +358,7 @@ TEST_F(FileIOTest, ListGlobTest) {
     }
 
     std::vector<FileInfo> glob_children;
-    EXPECT_TRUE(fp->Glob(testdir + '*', &glob_children));
+    ASSERT_TRUE(fp->Glob(testdir + '*', &glob_children));
     std::sort(glob_children.begin(), glob_children.end(), FileInfoComparator());
 
     // Glob should behave the same as list here

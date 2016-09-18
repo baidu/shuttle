@@ -557,19 +557,23 @@ bool LocalFs::List(const std::string& dir, std::vector<FileInfo>* children) {
     }
     DIR* dp = ::opendir(dir.c_str());
     if (dp == NULL) {
+        LOG(WARNING, "error in opendir: %s", dir.c_str());
         return false;
     }
+    const std::string& prefix = *dir.rbegin() == '/' ? dir : dir + '/';
+    const std::string cur_dir(".");
+    const std::string upward_dir("..");
     std::vector<std::string> files;
     struct dirent* ent;
     while ((ent = ::readdir(dp)) != NULL) {
-        files.push_back(ent->d_name);
+        if (cur_dir == ent->d_name || upward_dir == ent->d_name) {
+            continue;
+        }
+        files.push_back(prefix + ent->d_name);
     }
     ::closedir(dp);
     for (std::vector<std::string>::iterator it = files.begin();
             it != files.end(); ++it) {
-        if (*it == "." || *it == "..") {
-            continue;
-        }
         FileInfo info;
         struct stat st_buf;
         if (stat(it->c_str(), &st_buf) != 0) {
