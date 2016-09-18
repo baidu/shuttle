@@ -7,7 +7,6 @@
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
-#include <set>
 #include <boost/algorithm/string.hpp>
 #include <cmath>
 #include <cstdlib>
@@ -305,23 +304,7 @@ int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
     // Loop until all piles are ready. After every loop, sleep for 5s
     while (ready.size() < static_cast<size_t>(pile_num) && (sleep(5) || true)) {
         // Find a unproceeded pile
-        int cur = 0;
-        for (std::vector<int>::const_iterator it = pile_list.begin();
-                it != pile_list.end(); ++it) {
-            cur = *it;
-            if (ready.find(cur) != ready.end()) {
-                // This pile has been proceeded
-                continue;
-            }
-            std::stringstream ss;
-            ss << work_dir_ << cur << ".pile";
-            const std::string& pile_name = ss.str();
-            if (!fp_->Exist(pile_name)) {
-                break;
-            }
-            ready.insert(cur);
-            LOG(INFO, "lucky, got %d/%d ready pile", ready.size(), pile_num);
-        }
+        int cur = CheckPileExecution(ready, pile_list);
         // For greater number of minions, just relax and wait for ready piles
         if (no_ >= pile_num) {
             continue;
@@ -331,26 +314,7 @@ int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
         LOG(INFO, "merge from %d to %d as a pile", from, to);
         // Prepare specific range of sorted files for pre-merging
         std::vector<std::string> files;
-        int i = from;
-        for (; i <= to; ++i) {
-            std::stringstream ss;
-            ss << work_dir_ << "phase_" << phase_ << "_" << i;
-            std::vector<FileInfo> sortfiles;
-            if (!fp_->List(ss.str(), &sortfiles)) {
-                LOG(WARNING, "fail to list: %s", ss.str().c_str());
-                break;
-            }
-            LOG(DEBUG, "list: %s, size: %d", ss.str().c_str(), sortfiles.size());
-            for (std::vector<FileInfo>::iterator it = sortfiles.begin();
-                    it != sortfiles.end(); ++it) {
-                const std::string& file_name = it->name;
-                if (boost::ends_with(file_name, ".sort")) {
-                    files.push_back(file_name);
-                }
-            }
-        }
-        // List error, try again
-        if (i <= to) {
+        if (!PrepareSortFiles(files, from, to)) {
             continue;
         }
         std::stringstream ss;
@@ -372,6 +336,49 @@ int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
     // Remove temp dir
     fp_->Remove(temp_dir);
     return ready.size();
+}
+
+int ShuffleInlet::CheckPileExecution(std::set<int>& ready,
+        const std::vector<int>& pile_list) {
+    int cur = 0;
+    for (std::vector<int>::const_iterator it = pile_list.begin();
+            it != pile_list.end(); ++it) {
+        cur = *it;
+        if (ready.find(cur) != ready.end()) {
+            // This pile has been proceeded
+            continue;
+        }
+        std::stringstream ss;
+        ss << work_dir_ << cur << ".pile";
+        const std::string& pile_name = ss.str();
+        if (!fp_->Exist(pile_name)) {
+            break;
+        }
+        ready.insert(cur);
+        LOG(INFO, "lucky, got %d/%d ready pile", ready.size(), pile_list.size());
+    }
+    return cur;
+}
+
+bool ShuffleInlet::PrepareSortFiles(std::vector<std::string>& files, int from, int to) {
+    for (int i = from; i <= to; ++i) {
+        std::stringstream ss;
+        ss << work_dir_ << "phase_" << phase_ << "_" << i;
+        std::vector<FileInfo> sortfiles;
+        if (!fp_->List(ss.str(), &sortfiles)) {
+            LOG(WARNING, "fail to list: %s", ss.str().c_str());
+            return false;
+        }
+        LOG(DEBUG, "list: %s, size: %d", ss.str().c_str(), sortfiles.size());
+        for (std::vector<FileInfo>::iterator it = sortfiles.begin();
+                it != sortfiles.end(); ++it) {
+            const std::string& file_name = it->name;
+            if (boost::ends_with(file_name, ".sort")) {
+                files.push_back(file_name);
+            }
+        }
+    }
+    return true;
 }
 
 }

@@ -2,6 +2,7 @@
 #define _BAIDU_SHUTTLE_INLET_H_
 #include <string>
 #include <vector>
+#include <set>
 #include "common/file.h"
 
 namespace baidu {
@@ -58,6 +59,9 @@ private:
     bool PreMerge(const std::vector<std::string>& files, const std::string& output);
     bool FinalMerge(const std::vector<std::string>& files);
     int PileMerge(const std::vector<int>& pile_list);
+
+    int CheckPileExecution(std::set<int>& done, const std::vector<int>& pile_list);
+    bool PrepareSortFiles(std::vector<std::string>& files, int from, int to);
 private:
     File* fp_;
 };

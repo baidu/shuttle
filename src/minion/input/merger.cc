@@ -45,9 +45,12 @@ void Merger::AddProvedIter(const std::string& start_key, const std::string& end_
         MutexLock lock(vec_mu);
         to_be_scanned->push_back(it);
     } else {
-        LOG(WARNING, "scanner report error: %s", it ? it->GetFileName().c_str() : "NULL");
         if (it != NULL) {
+            LOG(WARNING, "scanner report %s: %s",
+                    Status_Name(it->Error()).c_str(), it->GetFileName().c_str());
             delete it;
+        } else {
+            LOG(WARNING, "scanner report nullptr: NULL");
         }
     }
     delete scanner;
