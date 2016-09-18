@@ -30,6 +30,10 @@ public:
     virtual ~Combiner() { }
 
     virtual Status Flush();
+private:
+    bool InvokeUserCommand(int* child, int* in_fd, int* out_fd);
+    bool WriteUserOutput(int in_fd);
+    void FlushDataToUser(int out_fd);
 
 private:
     std::string user_cmd_;

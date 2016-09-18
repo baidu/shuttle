@@ -5,7 +5,7 @@ namespace shuttle {
 
 static const size_t default_max_mem_table = 512 << 20;
 
-Emitter::Emitter() : cur_size_(0), max_size_(default_max_mem_table) {
+Emitter::Emitter() : max_size_(default_max_mem_table), cur_size_(0) {
 }
 
 Status Emitter::Emit(EmitItem* const& item) {
