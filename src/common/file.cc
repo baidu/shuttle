@@ -26,6 +26,7 @@ namespace shuttle {
 class InfHdfs : public File {
 public:
     InfHdfs() : fs_(NULL), fd_(NULL) { }
+    InfHdfs(hdfsFS fs) : fs_(fs), fd_(NULL) { }
     virtual ~InfHdfs() {
         Close();
         if (!fs_) {
@@ -59,7 +60,8 @@ private:
 
 class LocalFs : public File {
 public:
-    LocalFs();
+    LocalFs() : fd_(0) { }
+    LocalFs(int fd) : fd_(fd) { }
     virtual ~LocalFs() { }
 
     virtual bool Open(const std::string& path, OpenMode mode, const Param& param);
@@ -121,6 +123,21 @@ File* File::Create(FileType type, const Param& param) {
             return fs;
         }
         delete fs;
+    }
+    return NULL;
+}
+
+File* File::Get(FileType type, void* ptr) {
+    switch(type) {
+    case kLocalFs:
+        int fno = ::fileno(static_cast<FILE*>(ptr));
+        if (fno != -1) {
+            return new LocalFs(fno);
+        }
+    case kInfHdfs:
+        if (ptr != NULL) {
+            return new InfHdfs(static_cast<hdfsFS>(ptr));
+        }
     }
     return NULL;
 }
@@ -492,10 +509,6 @@ bool InfHdfs::Mkdir(const std::string& dir) {
 
 bool InfHdfs::Exist(const std::string& path) {
     return hdfsExists(fs_, path.c_str()) == 0;
-}
-
-LocalFs::LocalFs() : fd_(0) {
-
 }
 
 bool LocalFs::Open(const std::string& path, OpenMode mode, const Param& /*param*/) {

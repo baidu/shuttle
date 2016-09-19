@@ -9,7 +9,6 @@ using namespace baidu::shuttle;
 
 // Basic parameters
 DEFINE_string(pipe, "streaming", "set pipe type, streaming/bistreaming is acceptable");
-DEFINE_string(type, "hdfs", "set input resource type, local/hdfs is acceptable");
 DEFINE_string(function, "input", "set function, input/shuffle is acceptable");
 // File system related
 DEFINE_string(user, "", "set username to FS, empty means default");
@@ -31,9 +30,11 @@ DEFINE_int32(attempt, 0, "for shuffle, the attempt of current minion");
 DEFINE_int32(total, 0, "for shuffle, the total number of previous phase");
 DEFINE_int32(pile_scale, 0, "for shuffle, the number of map's output that one pile contains");
 
+static FileType type = kInfHdfs;
+
 static void FillParam(File::Param& param) {
     std::string host, port, path;
-    if (File::ParseFullAddress(FLAGS_address, &host, &port, &path)) {
+    if (File::ParseFullAddress(FLAGS_address, &type, &host, &port, &path)) {
         FLAGS_host = host;
         FLAGS_port = port;
         FLAGS_address = path;
@@ -64,7 +65,7 @@ int main(int argc, char** argv) {
     if (FLAGS_function == "input") {
         SourceInlet* inlet = new SourceInlet();
         FillParam(inlet->param_);
-        inlet->type_ = FLAGS_type;
+        inlet->type_ = type;
         inlet->format_ = FLAGS_format;
         inlet->file_ = FLAGS_address;
         inlet->pipe_ = FLAGS_pipe;
@@ -75,7 +76,7 @@ int main(int argc, char** argv) {
     } else if (FLAGS_function == "shuffle") {
         ShuffleInlet* inlet = new ShuffleInlet();
         FillParam(inlet->param_);
-        inlet->type_ = FLAGS_type;
+        inlet->type_ = type;
         inlet->work_dir_ = FLAGS_address;
         inlet->pipe_ = FLAGS_pipe;
         inlet->phase_ = FLAGS_phase;

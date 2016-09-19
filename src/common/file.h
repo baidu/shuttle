@@ -34,6 +34,13 @@ public:
      * Create file pointer of specific type. May return NULL
      */
     static File* Create(FileType type, const Param& param);
+    /*
+     * Wrap the raw pointer with File class:
+     *   For local file, the ptr is the FILE pointer
+     *   For hdfs, the ptr should be the FS pointer
+     *     and still need to open a specific file for IO
+     */
+    static File* Get(FileType type, void* ptr);
 
     // Basic file IO interfaces
     virtual bool Open(const std::string& path, OpenMode mode, const Param& param) = 0;
