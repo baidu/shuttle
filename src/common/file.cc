@@ -127,7 +127,7 @@ File* File::Create(FileType type, const Param& param) {
 
 size_t File::ReadAll(void* buf, size_t len) {
     if (buf == NULL) {
-        return (size_t)-1;
+        return static_cast<size_t>(-1);
     }
     size_t cnt = 0;
     char* str = (char*)buf;
@@ -136,7 +136,7 @@ size_t File::ReadAll(void* buf, size_t len) {
         size_t size = (len - cnt < 40960) ? (len - cnt) : 40960;
         int ret = Read(str + cnt, size);
         if (ret < 0) {
-            return (size_t)-1;
+            return static_cast<size_t>(-1);
         }
         if (ret == 0) {
             return cnt;

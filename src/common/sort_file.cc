@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <snappy.h>
+#include <limits.h>
 #include "logging.h"
 #include "proto/sortfile.pb.h"
 
@@ -25,7 +26,7 @@ namespace shuttle {
 
 class SortFile : public FormattedFile {
 public:
-    SortFile(File* fp) : fp_(fp), status_(kOk), cur_block_offset_((size_t)-1) { }
+    SortFile(File* fp) : fp_(fp), status_(kOk), cur_block_offset_(UINT64_MAX) { }
     virtual ~SortFile() {
         delete fp_;
     }
@@ -63,7 +64,7 @@ public:
     }
     virtual int64_t GetSize();
 
-    static const size_t BLOCK_SIZE = (64 << 10);
+    static const int64_t BLOCK_SIZE = (64 << 10);
     static const int32_t MAX_INDEX_SIZE = 10000;
     static const int32_t MAGIC_NUMBER = 0x55aa;
 private:
@@ -87,14 +88,14 @@ private:
 
     // ----- Members for reading -----
     DataBlock cur_block_;
-    size_t cur_block_offset_;
+    int64_t cur_block_offset_;
     int64_t idx_offset_;
 
     // ----- Members for writing -----
     std::string last_key_;
     IndexBlock idx_block_;
     // DataBlock cur_block_;
-    // int32_t cur_block_offset_;
+    // int64_t cur_block_offset_;
 };
 
 bool SortFile::ReadRecord(std::string& key, std::string& value) {
@@ -103,7 +104,7 @@ bool SortFile::ReadRecord(std::string& key, std::string& value) {
         status_ = kReadFileFail;
         return false;
     }
-    if (cur_block_offset_ >= static_cast<size_t>(cur_block_.items_size())) {
+    if (cur_block_offset_ >= cur_block_.items_size()) {
         if (!LoadDataBlock(cur_block_)) {
             LOG(DEBUG, "unable to load next block, maybe meet EOF or an error");
             return false;
@@ -188,10 +189,10 @@ bool SortFile::Locate(const std::string& key) {
 
     status_ = kOk;
     // Set offset to 1 before max to force update data block
-    cur_block_offset_ = (size_t)-1 - 1;
+    cur_block_offset_ = UINT64_MAX - 1;
     do {
         ++cur_block_offset_;
-        if (cur_block_offset_ >= static_cast<size_t>(cur_block_.items_size())) {
+        if (cur_block_offset_ >= cur_block_.items_size()) {
             // Load next block since key is not in this block due to the sparseness of index
             if (!LoadDataBlock(cur_block_)) {
                 LOG(DEBUG, "unable to load next block, maybe meet EOF or an error");
@@ -209,7 +210,7 @@ bool SortFile::Open(const std::string& path, OpenMode mode, const File::Param& p
     mode_ = mode;
     bool ok = fp_->Open(path, mode, param);
     // Force ReadRecord to read a new block since (size_t)-1 beats size of any data block
-    cur_block_offset_ = (size_t)-1;
+    cur_block_offset_ = UINT64_MAX;
     status_ = ok ? kOk : kReadFileFail;
     return ok;
 }
