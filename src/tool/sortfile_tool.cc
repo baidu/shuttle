@@ -222,7 +222,8 @@ int main(int argc, char** argv) {
             it != filenames.end(); ++it) {
         const std::string& name = *it;
         std::string host, port, path;
-        if (!baidu::shuttle::File::ParseFullAddress(name, &host, &port, &path)) {
+        baidu::shuttle::FileType type;
+        if (!baidu::shuttle::File::ParseFullAddress(name, &type, &host, &port, &path)) {
             std::cerr << "[WARNING] ignore invalid full address: " << name << std::endl;
             continue;
         }
@@ -238,13 +239,6 @@ int main(int argc, char** argv) {
         }
         if (!FLAGS_p.empty()) {
             param["password"] = FLAGS_p;
-        }
-        baidu::shuttle::FileType type;
-        // Valid file type garanteed
-        if (boost::starts_with(name, "hdfs://")) {
-            type = baidu::shuttle::kInfHdfs;
-        } else {
-            type = baidu::shuttle::kLocalFs;
         }
         baidu::shuttle::FormattedFile* fp =
             baidu::shuttle::FormattedFile::Create(type, baidu::shuttle::kInternalSortedFile, param);

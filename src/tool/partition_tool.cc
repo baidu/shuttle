@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
         } else {
             std::cerr << "phaser: invalid destination number specified" << std::endl;
         }
-        return -1;
+        return -2;
     }
     baidu::shuttle::NodeConfig node;
     node.set_key_fields_num(FLAGS_k);

@@ -17,7 +17,6 @@ using namespace baidu::shuttle;
  *   2. Meet assertions: Test file WILL NOT be destroyed when test environment tears down
  */
 
-DEFINE_string(type, "local", "set file type, local/hdfs is acceptable");
 DEFINE_string(address, "", "full address to the test file");
 DEFINE_string(user, "", "username to FS, empty means default");
 DEFINE_string(password, "", "password to FS, empty only when username is empty");
@@ -29,7 +28,7 @@ static std::string path;
 
 void FillParam(File::Param& param) {
     std::string host, port;
-    if (!File::ParseFullAddress(FLAGS_address, &host, &port, NULL)) {
+    if (!File::ParseFullAddress(FLAGS_address, NULL, &host, &port, NULL)) {
         host = "";
         port = "";
     }
@@ -101,55 +100,69 @@ TEST(FileToolsTest, ParseAddressTest) {
     // --- HDFS format test ---
     std::string address = "hdfs://localhost:9999/home/test/hdfs.file";
     std::string host, port, path;
-    EXPECT_TRUE(File::ParseFullAddress(address, &host, &port, &path));
+    FileType type = kLocalFs;
+    EXPECT_TRUE(File::ParseFullAddress(address, &type, &host, &port, &path));
+    EXPECT_EQ(type, kInfHdfs);
     EXPECT_EQ(host, "localhost");
     EXPECT_EQ(port, "9999");
     EXPECT_EQ(path, "/home/test/hdfs.file");
 
+    type = kLocalFs;
     address = "hdfs://0.0.0.0:/no/port/test.file";
-    EXPECT_TRUE(File::ParseFullAddress(address, &host, &port, &path));
+    EXPECT_TRUE(File::ParseFullAddress(address, &type, &host, &port, &path));
+    EXPECT_EQ(type, kInfHdfs);
     EXPECT_EQ(host, "0.0.0.0");
     EXPECT_EQ(port, "");
     EXPECT_EQ(path, "/no/port/test.file");
 
+    type = kLocalFs;
     address = "hdfs://:/empty/host/test.file";
-    EXPECT_TRUE(File::ParseFullAddress(address, &host, &port, &path));
+    EXPECT_TRUE(File::ParseFullAddress(address, &type, &host, &port, &path));
+    EXPECT_EQ(type, kInfHdfs);
     EXPECT_EQ(host, "");
     EXPECT_EQ(port, "");
     EXPECT_EQ(path, "/empty/host/test.file");
 
+    type = kLocalFs;
     address = "hdfs://localhost/no/colon/is/okay/test.file";
-    EXPECT_TRUE(File::ParseFullAddress(address, &host, &port, &path));
+    EXPECT_TRUE(File::ParseFullAddress(address, &type, &host, &port, &path));
+    EXPECT_EQ(type, kInfHdfs);
     EXPECT_EQ(host, "localhost");
     EXPECT_EQ(port, "");
     EXPECT_EQ(path, "/no/colon/is/okay/test.file");
 
+    type = kLocalFs;
     address = "hdfs:///no/host/port/info/test.file";
-    EXPECT_TRUE(File::ParseFullAddress(address, &host, &port, &path));
+    EXPECT_TRUE(File::ParseFullAddress(address, &type, &host, &port, &path));
+    EXPECT_EQ(type, kInfHdfs);
     EXPECT_EQ(host, "");
     EXPECT_EQ(port, "");
     EXPECT_EQ(path, "/no/host/port/info/test.file");
 
     // --- Local format test ---
+    type = kInfHdfs;
     address = "file:///home/test/local.file";
-    EXPECT_TRUE(File::ParseFullAddress(address, &host, &port, &path));
+    EXPECT_TRUE(File::ParseFullAddress(address, &type, &host, &port, &path));
+    EXPECT_EQ(type, kLocalFs);
     EXPECT_EQ(host, "");
     EXPECT_EQ(port, "");
     EXPECT_EQ(path, "/home/test/local.file");
 
     // Acceptable
+    type = kInfHdfs;
     address = "file://localhost:80/local/with/host/test.file";
-    EXPECT_TRUE(File::ParseFullAddress(address, &host, &port, &path));
+    EXPECT_TRUE(File::ParseFullAddress(address, &type, &host, &port, &path));
+    EXPECT_EQ(type, kLocalFs);
     EXPECT_EQ(host, "localhost");
     EXPECT_EQ(port, "80");
     EXPECT_EQ(path, "/local/with/host/test.file");
 
     // --- Invalid format ---
     address = "dfs://localhost:9999/format/is/invalid/test.file";
-    EXPECT_TRUE(!File::ParseFullAddress(address, &host, &port, &path));
+    EXPECT_TRUE(!File::ParseFullAddress(address, &type, &host, &port, &path));
 
     address = "";
-    EXPECT_TRUE(!File::ParseFullAddress(address, &host, &port, &path));
+    EXPECT_TRUE(!File::ParseFullAddress(address, &type, &host, &port, &path));
 }
 
 TEST(FileToolsTest, PatternMatchTest) {
@@ -201,16 +214,8 @@ protected:
             return;
         }
         ASSERT_TRUE(FLAGS_address != "");
-        ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
-        FileType type = kLocalFs;
-        if (FLAGS_type == "local") {
-            type = kLocalFs;
-        } else if (FLAGS_type == "hdfs") {
-            type = kInfHdfs;
-        } else {
-            // Invalid type
-            ASSERT_TRUE(false);
-        }
+        FileType type;
+        ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, &type, NULL, NULL, &path));
         File::Param param;
         FillParam(param);
         fp = File::Create(type, param);

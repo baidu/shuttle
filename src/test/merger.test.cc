@@ -74,6 +74,7 @@ TEST(MergerTest, MergeTest) {
 }
 
 int main(int argc, char** argv) {
+    testing::InitGoogleTest(&argc, argv);
     if (argc != 2) {
         fprintf(stderr, "Usgae: merger_test /path/to/a/available/dir");
         return -1;
@@ -82,7 +83,6 @@ int main(int argc, char** argv) {
     if (*work_dir.rbegin() != '/') {
         work_dir.push_back('/');
     }
-    testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
 

@@ -15,7 +15,6 @@ using namespace baidu::shuttle;
  *   so it needs user to delete it
  */
 
-DEFINE_string(type, "local", "set file type, local/hdfs is acceptable");
 DEFINE_string(format, "text", "set file format, text/seq/sort is acceptable");
 DEFINE_string(address, "", "full address to the test file");
 DEFINE_string(user, "", "username to FS, empty means default");
@@ -26,10 +25,11 @@ FileType type = kLocalFs;
 FileFormat format = kPlainText;
 ScannerType scantype = kInputScanner;
 File::Param param;
+std::string path;
 
 void FillParam(File::Param& param) {
     std::string host, port;
-    if (!File::ParseFullAddress(FLAGS_address, &host, &port, NULL)) {
+    if (!File::ParseFullAddress(FLAGS_address, NULL, &host, &port, NULL)) {
         host = "";
         port = "";
     }
@@ -51,14 +51,7 @@ class ScannerTest : public testing::Test {
 protected:
     virtual void SetUp() {
         ASSERT_TRUE(FLAGS_address != "");
-
-        if (FLAGS_type == "local") {
-            type = kLocalFs;
-        } else if (FLAGS_type == "hdfs") {
-            type = kInfHdfs;
-        } else {
-            ASSERT_TRUE(false);
-        }
+        ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, &type, NULL, NULL, &path));
 
         if (FLAGS_format == "text") {
             format = kPlainText;
@@ -80,8 +73,6 @@ protected:
 
 TEST_F(ScannerTest, ScanningTest) {
     FormattedFile* fp = FormattedFile::Create(type, format, param);
-    std::string path;
-    ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
 
     ASSERT_TRUE(fp->Open(path, kWriteFile, param));
     EXPECT_EQ(fp->Error(), kOk);

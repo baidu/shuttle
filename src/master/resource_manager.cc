@@ -343,7 +343,7 @@ BlockManager::BlockManager(std::vector<DfsInfo>& inputs, int64_t split_size) {
             it != expand_input_files.end(); ++it) {
         LOG(DEBUG, "input file: %s", it->c_str());
         std::string path;
-        File::ParseFullAddress(*it, NULL, NULL, &path);
+        File::ParseFullAddress(*it, NULL, NULL, NULL, &path);
         File* fp = hub->Get(*it);
         if (fp == NULL) {
             LOG(WARNING, "got empty file pointer: %s", it->c_str());
@@ -417,7 +417,7 @@ NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
             }
         }
         std::string path;
-        if (!File::ParseFullAddress(it->path(), NULL, NULL, &path)) {
+        if (!File::ParseFullAddress(it->path(), NULL, NULL, NULL, &path)) {
             path = it->path();
         }
         if (path.find('*') == std::string::npos) {
@@ -430,7 +430,7 @@ NLineManager::NLineManager(std::vector<DfsInfo>& inputs) {
     for (std::vector<FileInfo>::iterator it = files.begin();
             it != files.end(); ++it) {
         std::string path;
-        File::ParseFullAddress(it->name, NULL, NULL, &path);
+        File::ParseFullAddress(it->name, NULL, NULL, NULL, &path);
         FormattedFile* fp = FormattedFile::Get(hub->Get(it->name), kPlainText);
         if (fp == NULL) {
             LOG(WARNING, "fail to get formatted file: %s", it->name.c_str());

@@ -787,7 +787,8 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
     File::Param param = File::BuildParam(output);
     File* fs = File::Create(kInfHdfs, param);
     std::string temp;
-    File::ParseFullAddress(output.path(), NULL, NULL, &temp);
+    File::ParseFullAddress(output.path(),
+            /* type */NULL, /* host */NULL, /* port */NULL, &temp);
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdir(temp);
     delete fs;
@@ -823,13 +824,14 @@ bool AlphaGru::CleanTempDir() {
 void AlphaGru::NormalizeDfsinfo(std::vector<DfsInfo>& infos) {
     std::vector<DfsInfo>::iterator it = infos.begin();
     while (it != infos.end()) {
+        // TODO use more universal method
         const std::string& path = it->path();
         if (boost::starts_with(path, "hdfs://")) {
             if (path.find_first_of(':', 7) == std::string::npos) {
                 it = infos.erase(it);
             } else {
                 std::string host, port;
-                File::ParseFullAddress(path, &host, &port, NULL);
+                File::ParseFullAddress(path, NULL, &host, &port, NULL);
                 it->set_host(host);
                 it->set_port(port);
                 ++it;
@@ -924,7 +926,8 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
     File::Param param = File::BuildParam(output);
     File* fs = File::Create(kInfHdfs, param);
     std::string temp;
-    File::ParseFullAddress(output.path(), NULL, NULL, &temp);
+    File::ParseFullAddress(output.path(),
+            /* type */NULL, /* host */NULL, /* port */NULL, &temp);
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdir(temp);
     delete fs;

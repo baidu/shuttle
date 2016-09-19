@@ -14,7 +14,6 @@ using namespace baidu::shuttle;
  * FormattedFile doesn't provide delete interface so it needs user to delete it
  */
 
-DEFINE_string(type, "local", "set file type, local/hdfs is acceptable");
 DEFINE_string(format, "text", "set file format, text/seq/sort is acceptable");
 DEFINE_string(address, "", "full address to the test file");
 DEFINE_string(user, "", "username to FS, empty means default");
@@ -29,7 +28,7 @@ static bool isInternalFile = false;
 
 void FillParam(File::Param& param) {
     std::string host, port;
-    if (!File::ParseFullAddress(FLAGS_address, &host, &port, NULL)) {
+    if (!File::ParseFullAddress(FLAGS_address, NULL, &host, &port, NULL)) {
         host = "";
         port = "";
     }
@@ -54,18 +53,10 @@ protected:
             return;
         }
         ASSERT_TRUE(FLAGS_address != "");
-        ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, NULL, NULL, &path));
-
         FileType type = kLocalFs;
-        FileFormat format = kPlainText;
-        if (FLAGS_type == "local") {
-            type = kLocalFs;
-        } else if (FLAGS_type == "hdfs") {
-            type = kInfHdfs;
-        } else {
-            ASSERT_TRUE(false);
-        }
+        ASSERT_TRUE(File::ParseFullAddress(FLAGS_address, &type, NULL, NULL, &path));
 
+        FileFormat format = kPlainText;
         if (FLAGS_format == "text") {
             format = kPlainText;
             isInputFile = true;

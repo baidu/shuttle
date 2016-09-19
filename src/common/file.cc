@@ -169,7 +169,7 @@ File::Param File::BuildParam(const DfsInfo& info) {
         param["password"] = info.password();
     }
     std::string host, port, path;
-    if (ParseFullAddress(info.path(), &host, &port, &path)) {
+    if (ParseFullAddress(info.path(), NULL, &host, &port, &path)) {
         param["host"] = host;
         param["port"] = port;
     } else {
@@ -184,15 +184,21 @@ File::Param File::BuildParam(const DfsInfo& info) {
 }
 
 bool File::ParseFullAddress(const std::string& address,
-        std::string* host, std::string* port, std::string* path) {
+        FileType* type, std::string* host, std::string* port, std::string* path) {
     size_t header_len = 0;
+    FileType filetype = kLocalFs;
     if (boost::starts_with(address, "file://")) {
         header_len = 7; // strlen("file://") == 7
+        filetype = kLocalFs;
     } else if (boost::starts_with(address, "hdfs://")) {
         header_len = 7; // strlen("hdfs://") == 7
+        filetype = kInfHdfs;
     } else {
         LOG(DEBUG, "Not a full formatted address: %s", address.c_str());
         return false;
+    }
+    if (type != NULL) {
+        *type = filetype;
     }
 
     size_t server_path_separator = address.find_first_of('/', header_len);
@@ -442,7 +448,7 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
             }
             for (int j = 0; j < file_num; ++j) {
                 std::string cur_file;
-                ParseFullAddress(file_list[j].mName, NULL, NULL, &cur_file);
+                ParseFullAddress(file_list[j].mName, NULL, NULL, NULL, &cur_file);
                 if (!PatternMatch(cur_file, prefix + "/" + pattern)) {
                     continue;
                 }
@@ -465,7 +471,7 @@ bool InfHdfs::Glob(const std::string& dir, std::vector<FileInfo>* children) {
             }
             for (int i = 0; i < file_num; ++i) {
                 std::string cur_file;
-                ParseFullAddress(file_list[i].mName, NULL, NULL, &cur_file);
+                ParseFullAddress(file_list[i].mName, NULL, NULL, NULL, &cur_file);
                 if (PatternMatch(cur_file, dir)) {
                     children->push_back(FileInfo());
                     FileInfo& last = children->back();
@@ -624,7 +630,7 @@ FileType* FileHubImpl<FileType>::Store(const File::Param& param, FileType* fp) {
 template <class FileType>
 FileType* FileHubImpl<FileType>::Get(const std::string& address) {
     std::string host, port;
-    File::ParseFullAddress(address, &host, &port, NULL);
+    File::ParseFullAddress(address, NULL, &host, &port, NULL);
     return Get(host, port);
 }
 
@@ -642,7 +648,7 @@ FileType* FileHubImpl<FileType>::Get(const std::string& host, const std::string&
 template <class FileType>
 File::Param FileHubImpl<FileType>::GetParam(const std::string& address) {
     std::string host, port;
-    File::ParseFullAddress(address, &host, &port, NULL);
+    File::ParseFullAddress(address, NULL, &host, &port, NULL);
     return GetParam(host, port);
 }
 

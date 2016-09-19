@@ -45,6 +45,7 @@ public:
     virtual int64_t GetSize() = 0;
     virtual bool Rename(const std::string& old_name, const std::string& new_name) = 0;
     virtual bool Remove(const std::string& path) = 0;
+    // Use pointer here to work with boost::bind in thread pool
     virtual bool List(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Mkdir(const std::string& dir) = 0;
@@ -61,13 +62,13 @@ public:
      */
     static Param BuildParam(const DfsInfo& info);
     /*
-     * Extract information from a full address, now support hdfs/local format
+     * Extract information from a full address. Support all schema in FileType
      *   Address format: [type]://[hostname/ip]:[port][absolute path]
      *   e.g.: hdfs://localhost:9999/home/test/hdfs.file
      *         file:///home/test/local.file
      */
     static bool ParseFullAddress(const std::string& address,
-            std::string* host, std::string* port, std::string* path);
+            FileType* type, std::string* host, std::string* port, std::string* path);
     /*
      * Connect to HDFS. caller has to include hdfs sdk header for hdfsFS struct
      */
