@@ -2,7 +2,7 @@
 
 #include "common/fileformat.h"
 #include <algorithm>
-#include <cstdio>
+#include <sstream>
 
 namespace baidu {
 namespace shuttle {
@@ -22,28 +22,21 @@ struct HopperItemLess {
     }
 };
 
-Hopper::Hopper(const std::string& work_dir) : file_no_(0), work_dir_(work_dir) {
-    // TODO
-}
-
 // Flushing in Hopper leads to writing result file
 Status Hopper::Flush() {
     if (mem_table_.empty()) {
         return kNoMore;
     }
     // Prepare output file
-    File::Param param;
-    // TODO Fill param
-    FormattedFile* fp = FormattedFile::Create(kInfHdfs, kInternalSortedFile, param);
+    FormattedFile* fp = FormattedFile::Create(kInfHdfs, kInternalSortedFile, param_);
     if (fp == NULL) {
         LOG(WARNING, "fail to get file handler, connection may be interrupted");
         return kOpenFileFail;
     }
-    char buf[4096];
-    snprintf(file_name, sizeof(file_name), "%s/%d.sort",
-            work_dir_.c_str(), file_no_);
-    if (fp->Open(file_name, kWriteFile, param)) {
-        LOG(WARNING, "fail to open file to flush data: %s", file_name);
+    std::stringstream output_ss;
+    output_ss << work_dir_ << file_no_ << ".sort";
+    if (fp->Open(output_ss.str(), kWriteFile, param_)) {
+        LOG(WARNING, "fail to open file to flush data: %s", output_ss.str().c_str());
         return kOpenFileFail;
     }
     // Sort records
@@ -53,11 +46,10 @@ Status Hopper::Flush() {
     for (std::vector<EmitItem*>::iterator it = mem_table_.begin();
             it != mem_table_.end(); ++it) {
         HopperItem* cur = static_cast<HopperItem*>(*it);
-        snprintf(buf, sizeof(buf), "%05d", cur->dest);
-        std::string key(buf);
-        key += "\t";
-        key += cur->key;
-        if (!fp->WriteRecord(key, cur->value)) {
+        std::stringstream ss;
+        ss << std::setw(5) << std::setfill('0') << cur->dest;
+        const std::string& key = ss.str();
+        if (!fp->WriteRecord(key + "\t" + cur->key, cur->value)) {
             status = kWriteFileFail;
             break;
         }

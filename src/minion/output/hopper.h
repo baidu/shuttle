@@ -1,8 +1,8 @@
 #ifndef _BAIDU_SHUTTLE_HOPPER_H_
 #define _BAIDU_SHUTTLE_HOPPER_H_
-#include <string>
-
 #include "minion/common/emitter.h"
+#include "common/file.h"
+#include <string>
 
 namespace baidu {
 namespace shuttle {
@@ -12,7 +12,8 @@ public:
     int dest;
     std::string key;
     std::string record;
-    
+
+    HopperItem() { }
     HopperItem(int dest, const std::string& key, const std::string& record) :
         dest(dest), key(key), record(record) { }
 
@@ -26,14 +27,19 @@ public:
 
 class Hopper : public Emitter {
 public:
-    // TODO
-    Hopper(const std::string& work_dir);
+    Hopper(const std::string& work_dir, const Param& param) :
+            file_no_(0), work_dir_(work_dir), param_(param) {
+        if (*work_dir_.rbegin() != '/') {
+            work_dir_.push_back('/');
+        }
+    }
     virtual ~Hopper() { }
 
     virtual Status Flush();
 protected:
     int file_no_;
     std::string work_dir_;
+    File::Param param_;
 };
 
 }

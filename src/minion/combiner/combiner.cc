@@ -20,6 +20,9 @@ struct CombinerItemLess {
 
 // Flushing in Combiner means invoking user command and dealing with its output
 Status Combiner::Flush() {
+    if (mem_table_.empty()) {
+        return kNoMore;
+    }
     int child_pid = -1;
     int stdin_fno = -1;
     int stdout_fno = -1;
