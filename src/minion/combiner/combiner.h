@@ -12,6 +12,7 @@ public:
     std::string key;
     std::string record;
 
+    CombinerItem() { }
     CombinerItem(const std::string& key, const std::string& record) :
         key(key), record(record) { }
     

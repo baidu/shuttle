@@ -69,9 +69,6 @@ int Partitioner::HashCode(const std::string& str) const {
 }
 
 int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) const {
-    if (key == NULL) {
-        return -1;
-    }
     // Parse key from record
     const char* head = line.data();
     const char *p1 = head;
@@ -98,7 +95,9 @@ int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) co
     if (p2 == head) {
         p2 = head + 1;
     }
-    key->assign(head, p1 - 1);
+    if (key != NULL) {
+        key->assign(head, p1 - 1);
+    }
     std::string partition_key(head, p2 - 1);
     return HashCode(partition_key) % dest_num_; 
 }
@@ -112,18 +111,22 @@ int IntHashPartitioner::Calc(const std::string& line, std::string* key) const {
     //   e.g.: "123  key_0\tvalue0"
     size_t space_pos = line.find(" ");
     int hash_code;
+    std::string k;
     if (space_pos != std::string::npos) {
         // Use space to get the int-hash part
         hash_code = atoi(line.substr(0, space_pos).c_str());
         const char *p = line.data() + space_pos + 1;
         int key_span = strcspn(p, separator_.c_str());
-        key->assign(p, key_span);
+        k.assign(p, key_span);
     } else {
         // No space means ordinary key hash
         const char *p = line.data();
         int key_span = strcspn(p, separator_.c_str());
-        key->assign(p, key_span);
+        k.assign(p, key_span);
         hash_code = HashCode(*key);
+    }
+    if (key != NULL) {
+        key->swap(k);
     }
     return hash_code % dest_num_;
 }

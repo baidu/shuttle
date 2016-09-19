@@ -96,11 +96,11 @@ bool Combiner::WriteUserOutput(int in_fd) {
         return false;
     }
     while (!feof(user_output)) {
-        int n = fread(buf, sizeof(buf), 1, user_output);
+        int n = fread(buf, 1, sizeof(buf), user_output);
         if (n <= 0) {
             break;
         }
-        if (fwrite(buf, n, 1, stdout) != static_cast<size_t>(n)) {
+        if (fwrite(buf, 1, n, stdout) != static_cast<size_t>(n)) {
             // fail to write to stdout means unrecoverable situation
             return false;
         }
@@ -116,7 +116,7 @@ void Combiner::FlushDataToUser(int out_fd) {
     for (std::vector<EmitItem*>::iterator it = mem_table_.begin();
             it != mem_table_.end(); ++it) {
         CombinerItem* cur = static_cast<CombinerItem*>(*it);
-        fwrite(cur->record.data(), cur->record.size(), 1, to_user);
+        fwrite(cur->record.data(), 1, cur->record.size(), to_user);
     }
     fflush(to_user);
     fclose(to_user);
