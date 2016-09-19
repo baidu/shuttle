@@ -9,7 +9,8 @@ namespace shuttle {
 class Partitioner {
 public:
     // Factory method
-    static Partitioner* Get(Partition partitioner, const NodeConfig& node, int dest_num);
+    static Partitioner* Get(Partition partitioner, const std::string& separator,
+            int key_fields, int partition_fields, int dest_num);
 
     // Parse line to get key and calc partition result
     virtual int Calc(const std::string& line, std::string* key) const = 0;

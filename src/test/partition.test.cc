@@ -15,14 +15,13 @@ using namespace baidu::shuttle;
 const int dest_num = 100;
 
 TEST(KeyBasedPartitionerTest, NormalTest) {
-    NodeConfig config;
-    // Following three attributes is needed
-    config.set_key_separator(" ");
-    config.set_key_fields_num(2);
-    config.set_partition_fields_num(1);
+    std::string separator(" ");
+    int key_fields = 2;
+    int partition_fields = 1;
 
     Partitioner* partitioner = Partitioner::Get(
-            kKeyFieldBasedPartitioner, config, dest_num);
+            kKeyFieldBasedPartitioner, separator,
+            key_fields, partition_fields, dest_num);
 
     std::string key;
     // Normal case
@@ -50,13 +49,13 @@ TEST(KeyBasedPartitionerTest, NormalTest) {
 }
 
 TEST(KeyBasedPartitionerTest, HighFieldsTest) {
-    NodeConfig config;
-    config.set_key_separator(" ");
-    config.set_key_fields_num(2);
-    config.set_partition_fields_num(3);
+    std::string separator(" ");
+    int key_fields = 2;
+    int partition_fields = 3;
 
     Partitioner* partitioner = Partitioner::Get(
-            kKeyFieldBasedPartitioner, config, dest_num);
+            kKeyFieldBasedPartitioner, separator,
+            key_fields, partition_fields, dest_num);
 
     std::string key;
     // Exact case
@@ -74,10 +73,8 @@ TEST(KeyBasedPartitionerTest, HighFieldsTest) {
 }
 
 TEST(PartitionerTest, DefaultValueTest) {
-    NodeConfig config;
-
     Partitioner* partitioner = Partitioner::Get(
-            kKeyFieldBasedPartitioner, config, dest_num);
+            kKeyFieldBasedPartitioner, "", 0, 0, dest_num);
 
     std::string key;
     // Default separator: \t
@@ -95,12 +92,10 @@ TEST(PartitionerTest, DefaultValueTest) {
 }
 
 TEST(IntHashPartitionerTest, PartitionTest) {
-    NodeConfig config;
+    std::string separator("\t");
     // Only key separator is needed
-    config.set_key_separator("\t");
-
     Partitioner* partitioner = Partitioner::Get(
-            kIntHashPartitioner, config, dest_num);
+            kIntHashPartitioner, separator, 0, 0, dest_num);
 
     std::string key;
     // Normal case

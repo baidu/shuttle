@@ -7,7 +7,13 @@ namespace shuttle {
 
 class KeyFieldBasedPartitioner : public Partitioner {
 public:
-    KeyFieldBasedPartitioner(const NodeConfig& node, int dest_num);
+    KeyFieldBasedPartitioner(const std::string& separator,
+            int key_fields, int partition_fields, int dest_num) :
+        num_key_fields_(key_fields),
+        num_partition_fields_(partition_fields),
+        dest_num_(dest_num),
+        separator_(separator) {
+    }
     virtual ~KeyFieldBasedPartitioner() { }
 
     int Calc(const std::string& line, std::string* key) const;
@@ -21,7 +27,8 @@ private:
 
 class IntHashPartitioner : public Partitioner {
 public:
-    IntHashPartitioner(const NodeConfig& node, int dest_num);
+    IntHashPartitioner(const std::string& separator, int dest_num) :
+        dest_num_(dest_num), separator_(separator) { }
     virtual ~IntHashPartitioner() { }
 
     int Calc(const std::string& line, std::string* key) const;
@@ -31,13 +38,21 @@ private:
     std::string separator_;
 };
 
-Partitioner* Partitioner::Get(Partition partitioner,
-        const NodeConfig& node, int dest_num) {
+Partitioner* Partitioner::Get(Partition partitioner, const std::string& separator,
+        int key_fields, int partition_fields, int dest_num) {
+    // Default values
+    if (key_fields == 0) {
+        key_fields = 1;
+    }
+    if (partition_fields == 0) {
+        partition_fields = 1;
+    }
+    const std::string& s = separator.empty() ? std::string("\t") : separator;
     switch(partitioner) {
     case kKeyFieldBasedPartitioner:
-        return new KeyFieldBasedPartitioner(node, dest_num);
+        return new KeyFieldBasedPartitioner(s, key_fields, partition_fields, dest_num);
     case kIntHashPartitioner:
-        return new IntHashPartitioner(node, dest_num);
+        return new IntHashPartitioner(s, dest_num);
     }
     return NULL;
 }
@@ -51,26 +66,6 @@ int Partitioner::HashCode(const std::string& str) const {
         h = 31 * h + str[i];
     }
     return h & 0x7FFFFFFF;
-}
-
-KeyFieldBasedPartitioner::KeyFieldBasedPartitioner(const NodeConfig& node, int dest_num) :
-        num_key_fields_(0),
-        num_partition_fields_(0),
-        dest_num_(dest_num) {
-    num_key_fields_ = node.key_fields_num();
-    num_partition_fields_ = node.partition_fields_num();
-    separator_ = node.key_separator();
-
-    // Default values
-    if (num_key_fields_ == 0) {
-        num_key_fields_ = 1;
-    }
-    if (num_partition_fields_ == 0) {
-        num_partition_fields_ = 1;
-    }
-    if (separator_.empty()) {
-        separator_ = "\t";
-    }
 }
 
 int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) const {
@@ -110,14 +105,6 @@ int KeyFieldBasedPartitioner::Calc(const std::string& line, std::string* key) co
 
 int KeyFieldBasedPartitioner::Calc(const std::string& key) const {
     return HashCode(key) % dest_num_;
-}
-
-IntHashPartitioner::IntHashPartitioner(const NodeConfig& node, int dest_num) :
-        dest_num_(dest_num) {
-    separator_ = node.key_separator();
-    if (separator_.empty()) {
-        separator_ = "\t";
-    }
 }
 
 int IntHashPartitioner::Calc(const std::string& line, std::string* key) const {
