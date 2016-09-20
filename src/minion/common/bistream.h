@@ -21,6 +21,8 @@ public:
     virtual bool ReadRecord(std::string& key, std::string& value);
     virtual bool WriteRecord(const std::string& key, const std::string& value);
     virtual bool Seek(int64_t offset);
+
+    virtual std::string BuildRecord(const std::string& key, const std::string& value);
 private:
     bool GetBufferData(void* data, size_t len);
     bool LoadBuffer();

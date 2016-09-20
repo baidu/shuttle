@@ -3,8 +3,8 @@
 #include "minion/combiner/combiner.h"
 #include "minion/output/partition.h"
 #include "minion/common/log_name.h"
+#include "minion/common/bistream.h"
 #include "common/file.h"
-#include "common/fileformat.h"
 #include "common/scanner.h"
 #include "logging.h"
 
@@ -42,18 +42,15 @@ static FormattedFile* GetStdinWrapper() {
         LOG(WARNING, "fail to wrap stdin, die");
         exit(-1);
     }
-    FileFormat format = kPlainText;
+    FormattedFile* fp = NULL;
     if (FLAGS_pipe == "streaming") {
-        format = kPlainText;
+        fp = new PlainTextFile(inner);
     } else if (FLAGS_pipe == "bistreaming") {
-        format = kInfSeqFile;
-    } else {
-        LOG(WARNING, "unfamiliar pipe type: %s", FLAGS_pipe.c_str());
-        exit(-1);
+        fp = new Bistream(inner);
     }
-    FormattedFile* fp = FormattedFile::Get(inner, format);
     if (fp == NULL) {
-        LOG(WARNING, "fail to get formatted file and parse input");
+        LOG(WARNING, "fail to get formatted file and parse input of pipe %s",
+                FLAGS_pipe.c_str());
         exit(-1);
     }
     return fp;
@@ -68,17 +65,13 @@ int main(int argc, char** argv) {
     FormattedFile* fp = GetStdinWrapper();
     Combiner combiner(FLAGS_cmd);
 
-    FileFormat format = kPlainText;
-    if (FLAGS_pipe == "bistreaming") {
-        format = kInfSeqFile;
-    }
-
+    bool text = FLAGS_pipe == "streaming";
     std::string key, value;
     while (fp->ReadRecord(key, value)) {
         CombinerItem item;
-        const std::string& raw_key = format == kPlainText ? value : key;
+        const std::string& raw_key = text ? value : key;
         partitioner->Calc(raw_key, &item.key);
-        item.record = FormattedFile::BuildRecord(format, key, value);
+        item.record = fp->BuildRecord(key, value);
         if (combiner.Emit(&item) != kOk) {
             LOG(WARNING, "fail to emit data to combiner");
             exit(1);

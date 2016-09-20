@@ -71,6 +71,7 @@ public:
      */
     static std::string BuildRecord(FileFormat format,
             const std::string& key, const std::string& value);
+    virtual std::string BuildRecord(const std::string& key, const std::string& value) = 0;
 
     /*
      * Parse k/v from a record

@@ -31,6 +31,10 @@ public:
     virtual std::string GetFileName();
     virtual int64_t GetSize();
 
+    virtual std::string BuildRecord(const std::string& key, const std::string& value) {
+        return FormattedFile::BuildRecord(kPlainText, key, value);
+    }
+
 protected:
     /*
      * Line Buffer is used to temporary store the block of file

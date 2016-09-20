@@ -40,14 +40,8 @@ bool Bistream::ReadRecord(std::string& key, std::string& value) {
 }
 
 bool Bistream::WriteRecord(const std::string& key, const std::string& value) {
-    std::string record;
-    uint32_t key_len = key.size();
-    uint32_t value_len = value.size();
-    record.append((const char*)&key_len, sizeof(key_len));
-    record.append(key);
-    record.append((const char*)&value_len, sizeof(value_len));
-    record.append(value);
-    bool ok = fp_->WriteAll(value.data(), value.size());
+    const std::string& record = BuildRecord(key, value);
+    bool ok = fp_->WriteAll(record.data(), record.size());
     status_ = ok ? kOk : kWriteFileFail;
     return ok;
 }
@@ -56,11 +50,23 @@ bool Bistream::Seek(int64_t offset) {
     return fp_->Seek(offset);
 }
 
+std::string Bistream::BuildRecord(const std::string& key, const std::string& value) {
+    std::string record;
+    uint32_t key_len = key.size();
+    uint32_t value_len = value.size();
+    record.append((const char*)&key_len, sizeof(key_len));
+    record.append(key);
+    record.append((const char*)&value_len, sizeof(value_len));
+    record.append(value);
+    return record;
+}
+
 bool Bistream::GetBufferData(void* data, size_t len) {
     if (head_ + len > buf_.size()) {
         return false;
     }
     memcpy(data, buf_.data() + head_, len);
+    head_ += len;
     return true;
 }
 

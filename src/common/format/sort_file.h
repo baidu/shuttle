@@ -61,6 +61,10 @@ public:
     }
     virtual int64_t GetSize();
 
+    virtual std::string BuildRecord(const std::string& key, const std::string& value) {
+        return FormattedFile::BuildRecord(kInternalSortedFile, key, value);
+    }
+
     static const int64_t BLOCK_SIZE = (64 << 10);
     static const int32_t MAX_INDEX_SIZE = 10000;
     static const int32_t MAGIC_NUMBER = 0x55aa;

@@ -39,6 +39,10 @@ public:
         return path_;
     }
     virtual int64_t GetSize();
+
+    virtual std::string BuildRecord(const std::string& key, const std::string& value) {
+        return FormattedFile::BuildRecord(kInfSeqFile, key, value);
+    }
 protected:
     hdfsFS fs_;
     SeqFile sf_;
