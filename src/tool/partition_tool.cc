@@ -42,10 +42,6 @@ int main(int argc, char** argv) {
         }
         return -2;
     }
-    baidu::shuttle::NodeConfig node;
-    node.set_key_fields_num(FLAGS_k);
-    node.set_partition_fields_num(FLAGS_p);
-    node.set_key_separator(FLAGS_s);
     baidu::shuttle::Partition pt;
     if (FLAGS_partitioner == "keyhash") {
         pt = baidu::shuttle::kKeyFieldBasedPartitioner;
@@ -56,7 +52,8 @@ int main(int argc, char** argv) {
             << FLAGS_partitioner << std::endl;
         return -2;
     }
-    baidu::shuttle::Partitioner* p = baidu::shuttle::Partitioner::Get(pt, node, dest_num);
+    baidu::shuttle::Partitioner* p = baidu::shuttle::Partitioner::Get(
+            pt, FLAGS_s, FLAGS_k, FLAGS_p, dest_num);
     std::string record;
     std::string key;
     while (std::getline(std::cin, record)) {
