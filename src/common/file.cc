@@ -75,6 +75,81 @@ File* File::Get(FileType type, void* ptr) {
     return NULL;
 }
 
+bool File::Glob(const std::string& dir, std::vector<FileInfo>* children) {
+    if (children == NULL) {
+        return false;
+    }
+    std::deque<std::string> prefixes;
+    prefixes.push_back("");
+    size_t start = 0;
+    bool keep_loop = true;
+    // Preprocess the star in dir and store the names that matches the pattern
+    while (keep_loop) {
+        size_t star = dir.find_first_of('*', start);
+        size_t slash = dir.find_last_of('/', star);
+        const std::string& cur = dir.substr(start, slash - start);
+        start = dir.find_first_of('/', slash + 1);
+        // Loop until the last level of directory
+        keep_loop = start != std::string::npos && start != dir.size() - 1;
+        const std::string& pattern = dir.substr(slash + 1, start - slash - 1);
+        size_t size = prefixes.size();
+        for (size_t i = 0; i < size; ++i) {
+            // Var pre is the prefix from last loop
+            std::string pre = prefixes.front();
+            prefixes.pop_front();
+            // Var prefix is current prefix
+            const std::string& prefix = pre + cur;
+            std::vector<FileInfo> list_result;
+            if (!List(prefix, &list_result)) {
+                continue;
+            }
+            // Parse path and check if it matches the pattern
+            for (std::vector<FileInfo>::iterator it = list_result.begin();
+                    it != list_result.end(); ++it) {
+                std::string cur_file;
+                if (!ParseFullAddress(it->name, /*type*/NULL,
+                        /*host*/NULL, /*port*/NULL, &cur_file)) {
+                    cur_file = it->name;
+                }
+                if (!PatternMatch(cur_file, prefix + "/" + pattern)) {
+                    continue;
+                }
+                if (!keep_loop) {
+                    prefixes.push_back(prefix);
+                    break;
+                } else {
+                    prefixes.push_back(cur_file);
+                }
+            }
+        }
+    }
+    if (prefixes.empty()) {
+        return true;
+    }
+
+    // Get list result concurrently
+    for (std::deque<std::string>::iterator it = prefixes.begin();
+            it != prefixes.end(); ++it) {
+        std::vector<FileInfo> list_result;
+        if (!List(*it, &list_result)) {
+            continue;
+        }
+        for (std::vector<FileInfo>::iterator jt = list_result.begin();
+                jt != list_result.end(); ++jt) {
+            std::string cur_file;
+            if (!ParseFullAddress(jt->name, /*type*/NULL,
+                    /*host*/NULL, /*port*/NULL, &cur_file)) {
+                cur_file = jt->name;
+            }
+            if (!PatternMatch(cur_file, dir)) {
+                continue;
+            }
+            children->push_back(*jt);
+        }
+    }
+    return true;
+}
+
 size_t File::ReadAll(void* buf, size_t len) {
     if (buf == NULL) {
         return static_cast<size_t>(-1);

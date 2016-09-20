@@ -54,7 +54,7 @@ public:
     virtual bool Remove(const std::string& path) = 0;
     // Use pointer here to work with boost::bind in thread pool
     virtual bool List(const std::string& dir, std::vector<FileInfo>* children) = 0;
-    virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children) = 0;
+    virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children);
     virtual bool Mkdir(const std::string& dir) = 0;
     virtual bool Exist(const std::string& path) = 0;
     virtual std::string GetFileName() = 0;

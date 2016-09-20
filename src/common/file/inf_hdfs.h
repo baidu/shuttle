@@ -28,7 +28,6 @@ public:
     virtual bool Rename(const std::string& old_name, const std::string& new_name);
     virtual bool Remove(const std::string& path);
     virtual bool List(const std::string& dir, std::vector<FileInfo>* children);
-    virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children);
     virtual bool Mkdir(const std::string& dir);
     virtual bool Exist(const std::string& path);
     virtual std::string GetFileName() {

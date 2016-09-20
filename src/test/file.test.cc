@@ -367,6 +367,7 @@ TEST_F(FileIOTest, ListGlobTest) {
     std::sort(glob_children.begin(), glob_children.end(), FileInfoComparator());
 
     // Glob should behave the same as list here
+    ASSERT_EQ(list_children.size(), glob_children.size());
     EXPECT_TRUE(std::equal(list_children.begin(), list_children.end(),
             glob_children.begin(), isFileInfoEqual));
 
