@@ -64,7 +64,7 @@ public:
     static const int64_t BLOCK_SIZE = (64 << 10);
     static const int32_t MAX_INDEX_SIZE = 10000;
     static const int32_t MAGIC_NUMBER = 0x55aa;
-private:
+protected:
     // ----- Methods for reading -----
     bool LoadIndexBlock(IndexBlock& index);
     bool LoadDataBlock(DataBlock& block);
@@ -76,7 +76,7 @@ private:
     // Index block must fit in memory. This method is to keep index block in proper size
     bool MakeIndexSparse();
 
-private:
+protected:
     // Non-Nullpointer ensured
     File* fp_;
     OpenMode mode_;

@@ -31,7 +31,7 @@ public:
     virtual std::string GetFileName();
     virtual int64_t GetSize();
 
-private:
+protected:
     /*
      * Line Buffer is used to temporary store the block of file
      *   and provides line reading intefaces
@@ -76,7 +76,7 @@ private:
         size_t head_;
     };
 
-private:
+protected:
     // Non-Nullpointer ensured
     File* fp_;
     LineBuffer buf_;

@@ -39,7 +39,7 @@ public:
         return path_;
     }
     virtual int64_t GetSize();
-private:
+protected:
     hdfsFS fs_;
     SeqFile sf_;
     std::string path_;
