@@ -3,6 +3,8 @@
 #include "common/fileformat.h"
 #include <algorithm>
 #include <sstream>
+#include <iomanip>
+#include "logging.h"
 
 namespace baidu {
 namespace shuttle {
@@ -49,7 +51,7 @@ Status Hopper::Flush() {
         std::stringstream ss;
         ss << std::setw(5) << std::setfill('0') << cur->dest;
         const std::string& key = ss.str();
-        if (!fp->WriteRecord(key + "\t" + cur->key, cur->value)) {
+        if (!fp->WriteRecord(key + "\t" + cur->key, cur->record)) {
             status = kWriteFileFail;
             break;
         }

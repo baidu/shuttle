@@ -27,7 +27,7 @@ public:
 
 class Hopper : public Emitter {
 public:
-    Hopper(const std::string& work_dir, const Param& param) :
+    Hopper(const std::string& work_dir, const File::Param& param) :
             file_no_(0), work_dir_(work_dir), param_(param) {
         if (*work_dir_.rbegin() != '/') {
             work_dir_.push_back('/');

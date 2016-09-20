@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
         item.record = fp->BuildRecord(key, value);
         if (combiner.Emit(&item) != kOk) {
             LOG(WARNING, "fail to emit data to combiner");
-            exit(1);
+            return 1;
         }
     }
     if (fp->Error() != kOk && fp->Error() != kNoMore) {

@@ -15,6 +15,7 @@ DEFINE_string(user, "", "set username to FS, empty means default");
 DEFINE_string(password, "", "set password to FS, empty only when username is empty");
 DEFINE_string(host, "", "set host of FS, overwritten by full address");
 DEFINE_string(port, "", "set port of FS, overwritten by full address");
+DEFINE_string(type, "", "set input FS type, overwritten by full address");
 DEFINE_string(address, "", "set address, must be full address when absent host and port");
 
 // Input function parameters
@@ -33,6 +34,13 @@ DEFINE_int32(pile_scale, 0, "for shuffle, the number of map's output that one pi
 static FileType type = kInfHdfs;
 
 static void FillParam(File::Param& param) {
+    if (!FLAGS_type.empty()) {
+        if (FLAGS_type == "hdfs") {
+            type = kInfHdfs;
+        } else if (FLAGS_type == "local") {
+            type = kLocalFs;
+        }
+    }
     std::string host, port, path;
     if (File::ParseFullAddress(FLAGS_address, &type, &host, &port, &path)) {
         FLAGS_host = host;
