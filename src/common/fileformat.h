@@ -72,6 +72,17 @@ public:
     static std::string BuildRecord(FileFormat format,
             const std::string& key, const std::string& value);
 
+    /*
+     * Parse k/v from a record
+     *   plain text: set value to the record, and leave key untouched
+     *   inf seqfile: consider that record is formatted as following:
+     *                [key_len(32bits)][key][value_len(32bits)][value]
+     *                and get k/v from the proper area
+     *   sort file: [NOT USED] get k/v from a serialized protobuf returned from BuildRecord
+     */
+    static bool ParseRecord(FileFormat format, const std::string& record,
+            std::string& key, std::string& value);
+
     virtual ~FormattedFile() { }
 };
 

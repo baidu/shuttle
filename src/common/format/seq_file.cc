@@ -1,50 +1,9 @@
-#include "fileformat.h"
+#include "seq_file.h"
 
-#include "hdfs.h"
 #include "logging.h"
 
 namespace baidu {
 namespace shuttle {
-
-/*
- * Sequence file is a binary file format in libhdfs,
- *   which can be compressed to save storage.
- *   This class is a wrapper for libhdfs C functions
- */
-class InfSeqFile : public FormattedFile {
-public:
-    InfSeqFile(hdfsFS fs) : fs_(fs), sf_(NULL), status_(kOk) { }
-    virtual ~InfSeqFile() {
-        Close();
-        hdfsDisconnect(fs_);
-    }
-
-    virtual bool ReadRecord(std::string& key, std::string& value);
-    virtual bool WriteRecord(const std::string& key, const std::string& value);
-    virtual bool Locate(const std::string& /*key*/) {
-        // TODO not implement, not qualified to be internal sorted file
-        return false;
-    }
-    virtual bool Seek(int64_t offset);
-    virtual int64_t Tell();
-
-    virtual bool Open(const std::string& path, OpenMode mode, const File::Param& param);
-    virtual bool Close();
-
-    virtual Status Error() {
-        return status_;
-    }
-
-    virtual std::string GetFileName() {
-        return path_;
-    }
-    virtual int64_t GetSize();
-private:
-    hdfsFS fs_;
-    SeqFile sf_;
-    std::string path_;
-    Status status_;
-};
 
 bool InfSeqFile::ReadRecord(std::string& key, std::string& value) {
     int key_len, value_len;
@@ -134,14 +93,6 @@ int64_t InfSeqFile::GetSize() {
     return file_size;
 }
 
-namespace factory {
-
-FormattedFile* GetInfSeqFile(hdfsFS fs) {
-    return new InfSeqFile(fs);
 }
-
-} // namespace factory
-
-} // namespace shuttle
-} // namespace baidu
+}
 
