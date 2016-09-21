@@ -1,22 +1,25 @@
-#ifndef _BAIDU_SHUTTLE_BISTREAM_H_
-#define _BAIDU_SHUTTLE_BISTREAM_H_
+#ifndef _BAIDU_SHUTTLE_STREAMING_H_
+#define _BAIDU_SHUTTLE_STREAMING_H_
 #include "common/format/plain_text.h"
 
 namespace baidu {
 namespace shuttle {
 
+// Text streaming resembles plain text IO
+typedef PlainTextFile TextStream;
+
 /*
- * Bistream is a wrapper for plain text stream to read/write binary data
- *   Bistream requires a file pointer and change the ownership
+ * BinaryStream is a wrapper for plain text stream to read/write binary data
+ *   BinaryStream requires a file pointer and change the ownership
  *   Seek and Tell relies on the underlying file, and Locate is not implement
- *   Note that Bistream is just designed for binary IO of a plain text stream
+ *   Note that BinaryStream is just designed for binary IO of a plain text stream
  *   So it is not implement for more complex situation
- *   Also Bistream is indepent with BuildRecord
+ *   Also BinaryStream is redundent and indepent with BuildRecord
  */
-class Bistream : public PlainTextFile {
+class BinaryStream : public PlainTextFile {
 public:
-    Bistream(File* fp) : PlainTextFile(fp), head_(0) { }
-    virtual ~Bistream() { }
+    BinaryStream(File* fp) : PlainTextFile(fp), head_(0) { }
+    virtual ~BinaryStream() { }
 
     virtual bool ReadRecord(std::string& key, std::string& value);
     virtual bool WriteRecord(const std::string& key, const std::string& value);

@@ -3,7 +3,7 @@
 #include "minion/combiner/combiner.h"
 #include "minion/output/partition.h"
 #include "minion/common/log_name.h"
-#include "minion/common/bistream.h"
+#include "minion/common/streaming.h"
 #include "common/file.h"
 #include "common/scanner.h"
 #include "logging.h"
@@ -44,9 +44,9 @@ static FormattedFile* GetStdinWrapper() {
     }
     FormattedFile* fp = NULL;
     if (FLAGS_pipe == "streaming") {
-        fp = new PlainTextFile(inner);
+        fp = new TextStream(inner);
     } else if (FLAGS_pipe == "bistreaming") {
-        fp = new Bistream(inner);
+        fp = new BinaryStream(inner);
     }
     if (fp == NULL) {
         LOG(WARNING, "fail to get formatted file and parse input of pipe %s",

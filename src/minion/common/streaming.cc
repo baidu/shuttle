@@ -1,4 +1,4 @@
-#include "bistream.h"
+#include "streaming.h"
 
 #include <cstring>
 #include "logging.h"
@@ -6,7 +6,7 @@
 namespace baidu {
 namespace shuttle {
 
-bool Bistream::ReadRecord(std::string& key, std::string& value) {
+bool BinaryStream::ReadRecord(std::string& key, std::string& value) {
     bool ok = true;
     do {
         uint32_t key_len = 0;
@@ -39,18 +39,18 @@ bool Bistream::ReadRecord(std::string& key, std::string& value) {
     return ok;
 }
 
-bool Bistream::WriteRecord(const std::string& key, const std::string& value) {
+bool BinaryStream::WriteRecord(const std::string& key, const std::string& value) {
     const std::string& record = BuildRecord(key, value);
     bool ok = fp_->WriteAll(record.data(), record.size());
     status_ = ok ? kOk : kWriteFileFail;
     return ok;
 }
 
-bool Bistream::Seek(int64_t offset) {
+bool BinaryStream::Seek(int64_t offset) {
     return fp_->Seek(offset);
 }
 
-std::string Bistream::BuildRecord(const std::string& key, const std::string& value) {
+std::string BinaryStream::BuildRecord(const std::string& key, const std::string& value) {
     std::string record;
     uint32_t key_len = key.size();
     uint32_t value_len = value.size();
@@ -61,7 +61,7 @@ std::string Bistream::BuildRecord(const std::string& key, const std::string& val
     return record;
 }
 
-bool Bistream::GetBufferData(void* data, size_t len) {
+bool BinaryStream::GetBufferData(void* data, size_t len) {
     if (head_ + len > buf_.size()) {
         return false;
     }
@@ -70,7 +70,7 @@ bool Bistream::GetBufferData(void* data, size_t len) {
     return true;
 }
 
-bool Bistream::LoadBuffer() {
+bool BinaryStream::LoadBuffer() {
     buf_.erase(0, head_);
     head_ = 0;
     // Read 40kBi at most every time from stream
