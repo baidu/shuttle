@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
     baidu::common::SetLogFile(GetLogName("./input.log").c_str());
     baidu::common::SetWarningFile(GetLogName("./input.warning").c_str());
     if (FLAGS_address.empty()) {
-        LOG(baidu::WARNING, "please offset a valid address");
+        LOG(baidu::WARNING, "please offer a valid address");
         return -1;
     }
     Inlet* parser = NULL;
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
         parser = inlet;
     } else {
         LOG(baidu::WARNING, "unfamiliar function: %s", FLAGS_function.c_str());
-        return 1;
+        return -1;
     }
     boost::scoped_ptr<Inlet> inlet_guard(parser);
     return parser->Flow();

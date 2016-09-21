@@ -17,16 +17,7 @@ namespace shuttle {
 
 int SourceInlet::Flow() {
     // Prepare scanner
-    FileType type = kInfHdfs;
     FileFormat format = kPlainText;
-    if (type_ == "hdfs") {
-        type = kInfHdfs;
-    } else if (type_ == "local") {
-        type = kLocalFs;
-    } else {
-        LOG(WARNING, "unknown file system: %s", type_.c_str());
-        return -1;
-    }
     if (format_ == "text") {
         format = kPlainText;
     } else if (format_ == "seq") {
@@ -35,7 +26,7 @@ int SourceInlet::Flow() {
         LOG(WARNING, "unknown file format: %s", format_.c_str());
         return -1;
     }
-    FormattedFile* fp = FormattedFile::Create(type, format, param_);
+    FormattedFile* fp = FormattedFile::Create(type_, format, param_);
     if (!fp->Open(file_, kReadFile, param_)) {
         LOG(WARNING, "fail to open: %s", file_.c_str());
         return 1;
@@ -103,15 +94,7 @@ int SourceInlet::Flow() {
 int ShuffleInlet::Flow() {
     srand(time(NULL));
     // Create object-wide file pointer
-    if (type_ == "hdfs") {
-        file_type_ = kInfHdfs;
-    } else if (type_ == "local") {
-        file_type_ = kLocalFs;
-    } else {
-        LOG(WARNING, "unknown file system: %s", type_.c_str());
-        return -1;
-    }
-    fp_ = File::Create(file_type_, param_);
+    fp_ = File::Create(type_, param_);
     if (fp_ == NULL) {
         LOG(WARNING, "fail to create file pointer");
         return -1;
@@ -150,7 +133,7 @@ int ShuffleInlet::Flow() {
 bool ShuffleInlet::PreMerge(const std::vector<std::string>& files,
         const std::string& output) {
     // Open a sorted file to write pre-merged data
-    FormattedFile* writer = FormattedFile::Create(file_type_, kInternalSortedFile, param_);
+    FormattedFile* writer = FormattedFile::Create(type_, kInternalSortedFile, param_);
     if (writer == NULL) {
         LOG(WARNING, "empty output file pointer: %s", output.c_str());
         return false;
@@ -166,7 +149,7 @@ bool ShuffleInlet::PreMerge(const std::vector<std::string>& files,
         std::vector<FormattedFile*> merge_files;
         for (std::vector<std::string>::const_iterator it = files.begin();
                 it != files.end(); ++it) {
-            FormattedFile* fp = FormattedFile::Create(file_type_, kInternalSortedFile, param_);
+            FormattedFile* fp = FormattedFile::Create(type_, kInternalSortedFile, param_);
             if (fp == NULL) {
                 continue;
             }
@@ -232,7 +215,7 @@ bool ShuffleInlet::FinalMerge(const std::vector<std::string>& files) {
     std::vector<FormattedFile*> merge_files;
     for (std::vector<std::string>::const_iterator it = files.begin();
             it != files.end(); ++it) {
-        FormattedFile* fp = FormattedFile::Create(file_type_, kInternalSortedFile, param_);
+        FormattedFile* fp = FormattedFile::Create(type_, kInternalSortedFile, param_);
         if (fp == NULL) {
             continue;
         }

@@ -25,7 +25,7 @@ static Partitioner* GetPartitioner() {
         p = kIntHashPartitioner;
     } else {
         LOG(WARNING, "unfamiliar partitioner type: %s", FLAGS_partitioner.c_str());
-        exit(-1);
+        exit(1);
     }
     // Partitioner is used to extract key, so the dest num is not important
     Partitioner* pt = Partitioner::Get(p, FLAGS_separator, FLAGS_key_fields, 1, 1);

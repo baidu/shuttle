@@ -22,8 +22,8 @@ public:
 
     virtual int Flow();
 public:
+    FileType type_;
     File::Param param_;
-    std::string type_;
     std::string format_;
     std::string file_;
     std::string pipe_;
@@ -46,8 +46,7 @@ public:
     virtual int Flow();
 public:
     File::Param param_;
-    FileType file_type_;
-    std::string type_;
+    FileType type_;
     std::string work_dir_;
     std::string pipe_;
     int phase_;
