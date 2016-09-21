@@ -30,7 +30,7 @@ Status Hopper::Flush() {
         return kNoMore;
     }
     // Prepare output file
-    FormattedFile* fp = FormattedFile::Create(kInfHdfs, kInternalSortedFile, param_);
+    FormattedFile* fp = FormattedFile::Create(type_, kInternalSortedFile, param_);
     if (fp == NULL) {
         LOG(WARNING, "fail to get file handler, connection may be interrupted");
         return kOpenFileFail;
