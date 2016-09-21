@@ -99,7 +99,7 @@ bool SortFile::Locate(const std::string& key) {
 
     status_ = kOk;
     // Set offset to 1 before max to force update data block
-    cur_block_offset_ = UINT64_MAX - 1;
+    cur_block_offset_ = INT64_MAX - 1;
     do {
         ++cur_block_offset_;
         if (cur_block_offset_ >= cur_block_.items_size()) {
@@ -120,7 +120,7 @@ bool SortFile::Open(const std::string& path, OpenMode mode, const File::Param& p
     mode_ = mode;
     bool ok = fp_->Open(path, mode, param);
     // Force ReadRecord to read a new block since (size_t)-1 beats size of any data block
-    cur_block_offset_ = UINT64_MAX;
+    cur_block_offset_ = INT64_MAX;
     status_ = ok ? kOk : kReadFileFail;
     return ok;
 }
