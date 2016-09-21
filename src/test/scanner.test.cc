@@ -73,6 +73,7 @@ protected:
 
 TEST_F(ScannerTest, ScanningTest) {
     FormattedFile* fp = FormattedFile::Create(type, format, param);
+    ASSERT_TRUE(fp != NULL);
 
     ASSERT_TRUE(fp->Open(path, kWriteFile, param));
     EXPECT_EQ(fp->Error(), kOk);
@@ -81,7 +82,7 @@ TEST_F(ScannerTest, ScanningTest) {
     for (int i = 0; i < 100000; ++i) {
         std::stringstream ss;
         ss << std::setw(6) << std::setfill('0') << i;
-        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str() + '\n'));
+        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str()));
         EXPECT_EQ(fp->Error(), kOk);
     }
     ASSERT_TRUE(fp->Close());
@@ -101,7 +102,7 @@ TEST_F(ScannerTest, ScanningTest) {
         it = scanner->Scan(Scanner::SCAN_KEY_BEGINNING, Scanner::SCAN_ALL_KEY);
         ASSERT_TRUE(it != NULL);
         EXPECT_EQ(it->Key(), "key000000");
-        EXPECT_EQ(it->Value(), "value000000\n");
+        EXPECT_EQ(it->Value(), "value000000");
     }
     ASSERT_TRUE(it != NULL);
     EXPECT_TRUE(!it->Done());
@@ -122,7 +123,7 @@ TEST_F(ScannerTest, ScanningTest) {
         EXPECT_TRUE(last_no == -1 || cur_no_value == last_no + 1);
         last_no = cur_no_value;
     }
-    EXPECT_EQ(it->Value(), it->Key() == "" ? "value099999" : "value099999\n");
+    EXPECT_EQ(it->Value(), "value099999");
     EXPECT_EQ(it->Error(), kNoMore);
     delete it;
     delete scanner;

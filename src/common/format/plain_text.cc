@@ -46,7 +46,8 @@ bool PlainTextFile::ReadRecord(std::string& key, std::string& value) {
 }
 
 bool PlainTextFile::WriteRecord(const std::string& /*key*/, const std::string& value) {
-    bool ok = fp_->WriteAll(value.data(), value.size());
+    const std::string& line = value + '\n';
+    bool ok = fp_->WriteAll(line.data(), line.size());
     status_ = ok ? kOk : kWriteFileFail;
     return ok;
 }

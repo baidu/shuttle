@@ -113,7 +113,7 @@ TEST_F(FormattedFileTest, ReadWriteTest) {
         std::stringstream ss;
         ss << std::setw(6) << std::setfill('0') << i;
         // Add endline to be friendly with line-based format
-        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str() + '\n'));
+        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str()));
         EXPECT_EQ(fp->Error(), kOk);
     }
     ASSERT_TRUE(fp->Close());
@@ -146,7 +146,7 @@ TEST_F(FormattedFileTest, LocationChangeTest) {
         std::stringstream ss;
         ss << std::setw(6) << std::setfill('0') << i;
         // Add endline to be friendly with line-based format
-        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str() + '\n'));
+        ASSERT_TRUE(fp->WriteRecord(key + ss.str(), value + ss.str()));
         EXPECT_EQ(fp->Error(), kOk);
     }
     ASSERT_TRUE(fp->Close());

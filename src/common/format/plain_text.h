@@ -12,6 +12,12 @@ public:
         delete fp_;
     }
 
+    /*
+     * Plain text is organized by line, the line is considered as value
+     * In read interface, the key will be changed to empty string
+     * In write interface, the key will be ingnored
+     * Either the interface is accept and return data without '\n'
+     */
     virtual bool ReadRecord(std::string& key, std::string& value);
     virtual bool WriteRecord(const std::string& key, const std::string& value);
     virtual bool Locate(const std::string& /*key*/) {
