@@ -100,7 +100,10 @@ int ShuffleInlet::Flow() {
         return -1;
     }
     if (pile_scale_ == 0) {
-        pile_scale_ = std::min((int32_t)ceil(sqrt(total_)), 200);
+        pile_scale_ = std::min((int32_t)ceil(sqrt(total_)), 300);
+        if (pile_scale_ < 100) {
+            pile_scale_ = std::max(pile_scale_, 10);
+        }
     }
     // Add trailing '/' in work dir
     if (*work_dir_.rbegin() != '/') {
