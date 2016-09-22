@@ -37,7 +37,7 @@ Status Hopper::Flush() {
     }
     std::stringstream output_ss;
     output_ss << work_dir_ << file_no_ << ".sort";
-    if (fp->Open(output_ss.str(), kWriteFile, param_)) {
+    if (!fp->Open(output_ss.str(), kWriteFile, param_)) {
         LOG(WARNING, "fail to open file to flush data: %s", output_ss.str().c_str());
         return kOpenFileFail;
     }

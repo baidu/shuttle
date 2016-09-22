@@ -85,7 +85,7 @@ int ResultOutlet::Collect() {
         return 1;
     }
     std::stringstream output_ss;
-    output_ss << work_dir_ << std::setw(5) << std::setfill('0') << no_;
+    output_ss << work_dir_ << "part-" << std::setw(5) << std::setfill('0') << no_;
     filename_ = output_ss.str();
     if (!PrepareOutputFiles()) {
         delete fin;
