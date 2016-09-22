@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [ "$HADOOP_CLIENT_HOME" == "" ]; then
+if [ "$HADOOP_CLIENT_HOME" = "" ]; then
 	echo "set env variable HADOOP_CLIENT_HOME first"
 	echo "then, type command: \"source hdfs_env.sh\""
 	return
@@ -12,13 +12,13 @@ export JAVA_HOME=${HADOOP_CLIENT_HOME}/java6
 CLASSPATH=${HADOOP_HOME}/conf
 CLASSPATH=${CLASSPATH}:${HADOOP_HOME}
 
-for path in `ls ${HADOOP_HOME}/hadoop-2-*.jar`
+for dir in `ls ${HADOOP_HOME}/hadoop-2-*.jar`
 do
-   CLASSPATH=${CLASSPATH}:$path
+   CLASSPATH=${CLASSPATH}:$dir
 done
-for path in `ls ${HADOOP_HOME}/lib/*.jar`
+for dir in `ls ${HADOOP_HOME}/lib/jetty-ext/*.jar`
 do
-   CLASSPATH=${CLASSPATH}:$path
+   CLASSPATH=${CLASSPATH}:$dir
 done
 CLASSPATH=${CLASSPATH}:${HADOOP_HOME}/lib/jetty-ext/commons-el.jar
 CLASSPATH=${CLASSPATH}:${HADOOP_HOME}/lib/jetty-ext/jasper-compiler.jar
