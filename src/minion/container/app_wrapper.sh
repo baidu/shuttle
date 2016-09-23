@@ -4,7 +4,16 @@ set -x
 set -o pipefail
 
 CUR_DIR="$(cd $(dirname $0); pwd)"
-export WORK_DIR="${CUR_DIR}/phase_${mapred_task_partition}_${mapred_attempt_id}"
+WORK_DIR="${CUR_DIR}/phase_${mapred_task_partition}_${mapred_attempt_id}"
+WRAPPER_PID="$$" # record pid of wrapper to kill its children when possible
+
+function list_children() {
+    echo $1
+    local children=$(ps -o pid= --ppid "$1")
+    for pid in $children; do
+        list_children $pid
+    done
+}
 
 function run_input() {
     if [ "${minion_identity}" = "alpha" ]; then
@@ -30,7 +39,12 @@ function run_input() {
         --type=hdfs \
         --address=${mapred_task_input} \
         ${minion_input_param}
-    return $?
+    local ret=$?
+    if [ "$ret" != "0" ]; then
+        # just in case that usercmd may not exit when pipe broken
+        setsid kill -SIGKILL "$(list_children ${WRAPPER_PID})"
+    fi
+    return $ret
 }
 
 function jailrun_usercmd() {
@@ -79,7 +93,7 @@ function main_stream() {
         >&2 echo "shuttle identity confusing"
         exit -2
     fi
-    mkdir $WORK_DIR && cd $WORK_DIR
+    mkdir ${WORK_DIR} && cd ${WORK_DIR}
     if [ "$?" != "0" ]; then
         exit -3
     fi
@@ -87,5 +101,7 @@ function main_stream() {
     exit $?
 }
 
+# catch SIGINT to kill all children
+trap "kill -SIGKILL \"$(list_children ${WRAPPER_PID})\"; exit $?" INT
 main_stream "$@"
 
