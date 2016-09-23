@@ -23,7 +23,8 @@ namespace shuttle {
 
 class SortFile : public FormattedFile {
 public:
-    SortFile(File* fp) : fp_(fp), status_(kOk), cur_block_offset_(UINT64_MAX) { }
+    SortFile(File* fp) : fp_(fp), status_(kOk),
+            cur_block_offset_(UINT64_MAX), data_block_count_(0) { }
     virtual ~SortFile() {
         delete fp_;
     }
@@ -77,8 +78,6 @@ protected:
     bool FlushCurBlock();
     bool FlushIdxBlock();
     bool WriteSerializedBlock(const std::string& block);
-    // Index block must fit in memory. This method is to keep index block in proper size
-    bool MakeIndexSparse();
 
 protected:
     // Non-Nullpointer ensured
@@ -95,6 +94,7 @@ protected:
     // ----- Members for writing -----
     std::string last_key_;
     IndexBlock idx_block_;
+    int32_t data_block_count_;
     // DataBlock cur_block_;
     // int64_t cur_block_offset_;
 };

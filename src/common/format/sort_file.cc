@@ -1,5 +1,6 @@
 #include "sort_file.h"
 
+#include <algorithm>
 #include <assert.h>
 #include <snappy.h>
 #include <limits.h>
@@ -260,19 +261,38 @@ bool SortFile::FlushCurBlock() {
         return false;
     }
 
-    KeyOffset* item = idx_block_.add_items();
-    item->set_key(cur_block_.items(0).key());
-    item->set_offset(offset);
+    ++data_block_count_;
+    KeyOffset item;
+    item.set_key(cur_block_.items(0).key());
+    item.set_offset(offset);
+    // Reservoir sampling to reduce the size of index
+    if (idx_block_.items_size() < MAX_INDEX_SIZE) {
+        idx_block_.add_items()->Swap(&item);
+    } else {
+        int k = (int)(((double)rand() / RAND_MAX) * data_block_count_);
+        if (k < MAX_INDEX_SIZE && k > 0) {
+            idx_block_.mutable_items(k)->Swap(&item);
+        }
+    }
+
     cur_block_.Clear();
     cur_block_offset_ = 0;
-    if (idx_block_.items_size() >= MAX_INDEX_SIZE) {
-        return MakeIndexSparse();
-    }
     status_ = kOk;
     return true;
 }
 
+struct KeyOffsetComparator {
+    bool operator()(const KeyOffset& lhs, const KeyOffset& rhs) {
+        return lhs.offset() < rhs.offset();
+    }
+};
+
 bool SortFile::FlushIdxBlock() {
+    if (idx_block_.items_size() >= MAX_INDEX_SIZE) {
+        std::sort(idx_block_.mutable_items()->begin(),
+                  idx_block_.mutable_items()->end(),
+                  KeyOffsetComparator());
+    }
     std::string serialized;
     if (!idx_block_.SerializeToString(&serialized)) {
         LOG(WARNING, "fail to serialize index block: %s", path_.c_str());
@@ -325,19 +345,6 @@ bool SortFile::WriteSerializedBlock(const std::string& block) {
         status_ = kWriteFileFail;
         return false;
     }
-    return true;
-}
-
-bool SortFile::MakeIndexSparse() {
-    IndexBlock temp_index;
-    temp_index.Swap(&idx_block_);
-    assert(idx_block_.items_size() == 0);
-    // For every two item remove one item to reduce size
-    for (int i = 0; i < temp_index.items_size(); i += 2) {
-        KeyOffset* item = idx_block_.add_items();
-        item->CopyFrom(temp_index.items(i));
-    }
-    status_ = kOk;
     return true;
 }
 
