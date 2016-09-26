@@ -60,10 +60,10 @@ bool InfHdfs::Open(const std::string& path, OpenMode mode, const Param& param) {
 }
 
 bool InfHdfs::Close() {
-    if (!fs_) {
+    if (fs_ == NULL) {
         return false;
     }
-    if (!fd_) {
+    if (fd_ == NULL) {
         return false;
     }
     LOG(INFO, "try close file: %s", path_.c_str());
@@ -71,6 +71,7 @@ bool InfHdfs::Close() {
     if (ret != 0) {
         return false;
     }
+    fd_ = NULL;
     return true;
 }
 
