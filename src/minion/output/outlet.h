@@ -20,27 +20,21 @@ class Partitioner;
 
 class InternalOutlet : public Outlet {
 public:
-    InternalOutlet() { }
+    InternalOutlet(FileType type, const File::Param& param)
+            : type_(type), param_(param) { }
     virtual ~InternalOutlet() { }
 
     virtual int Collect();
-public:
+private:
     FileType type_;
     File::Param param_;
-    std::string pipe_;
-    std::string work_dir_;
-    std::string partition_;
-    std::string separator_;
-    int key_fields_;
-    int partition_fields_;
-    int dest_num_;
-private:
     Partitioner* GetPartitioner();
 };
 
 class ResultOutlet : public Outlet {
 public:
-    ResultOutlet() : fileformat_(kPlainText), multiplex_(false), textoutput_(true) { }
+    ResultOutlet(FileType type, const File::Param& param) : type_(type), param_(param),
+            fileformat_(kPlainText), multiplex_(false), textoutput_(true) { }
     virtual ~ResultOutlet() {
         for (std::vector<FormattedFile*>::iterator it = output_pool_.begin();
                 it != output_pool_.end(); ++it) {
@@ -53,19 +47,15 @@ public:
     }
 
     virtual int Collect();
-public:
-    FileType type_;
-    File::Param param_;
-    std::string pipe_;
-    std::string work_dir_;
-    std::string format_;
-    int no_;
 private:
     bool PrepareOutputFiles();
     bool WriteToOutput(const std::string& key, const std::string& value);
 
     FormattedFile* GetOutputFile(int no);
 private:
+    FileType type_;
+    File::Param param_;
+
     std::vector<FormattedFile*> output_pool_;
     FileFormat fileformat_;
     std::string filename_;

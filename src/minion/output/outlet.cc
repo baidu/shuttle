@@ -5,7 +5,18 @@
 #include "common/file.h"
 #include <sstream>
 #include <iomanip>
+#include <gflags/gflags.h>
 #include "logging.h"
+
+DECLARE_string(pipe);
+DECLARE_string(address);
+DECLARE_string(partitioner);
+DECLARE_string(separator);
+DECLARE_int32(key_fields);
+DECLARE_int32(partition_fields);
+DECLARE_int32(dest_num);
+DECLARE_string(format);
+DECLARE_int32(no);
 
 namespace baidu {
 namespace shuttle {
@@ -32,9 +43,9 @@ FormattedFile* Outlet::GetFileWrapper(FILE* fp, const std::string& pipe) {
 
 int InternalOutlet::Collect() {
     Partitioner* partitioner = GetPartitioner();
-    FormattedFile* fp = GetFileWrapper(stdin, pipe_);
-    Hopper hopper(work_dir_, type_, param_);
-    bool textstream = pipe_ == "streaming";
+    FormattedFile* fp = GetFileWrapper(stdin, FLAGS_pipe);
+    Hopper hopper(FLAGS_address, type_, param_);
+    bool textstream = FLAGS_pipe == "streaming";
     std::string key, value;
     while (fp->ReadRecord(key, value)) {
         HopperItem item;
@@ -62,16 +73,16 @@ int InternalOutlet::Collect() {
 
 Partitioner* InternalOutlet::GetPartitioner() {
     Partition p = kKeyFieldBasedPartitioner;
-    if (partition_ == "keyhash") {
+    if (FLAGS_partitioner == "keyhash") {
         p = kKeyFieldBasedPartitioner;
-    } else if (partition_ == "inthash") {
+    } else if (FLAGS_partitioner == "inthash") {
         p = kIntHashPartitioner;
     } else {
-        LOG(WARNING, "unfamiliar partitioner type: %s", partition_.c_str());
+        LOG(WARNING, "unfamiliar partitioner type: %s", FLAGS_partitioner.c_str());
         return NULL;
     }
-    Partitioner* pt = Partitioner::Get(p, separator_,
-            key_fields_, partition_fields_, dest_num_);
+    Partitioner* pt = Partitioner::Get(p, FLAGS_separator,
+            FLAGS_key_fields, FLAGS_partition_fields, FLAGS_dest_num);
     if (pt == NULL) {
         LOG(WARNING, "fail to get partitioner to parse key");
         return NULL;
@@ -80,18 +91,18 @@ Partitioner* InternalOutlet::GetPartitioner() {
 }
 
 int ResultOutlet::Collect() {
-    FormattedFile* fin = GetFileWrapper(stdin, pipe_);
+    FormattedFile* fin = GetFileWrapper(stdin, FLAGS_pipe);
     if (fin == NULL) {
         return 1;
     }
     std::stringstream output_ss;
-    output_ss << work_dir_ << "part-" << std::setw(5) << std::setfill('0') << no_;
+    output_ss << FLAGS_address << "part-" << std::setw(5) << std::setfill('0') << FLAGS_no;
     filename_ = output_ss.str();
     if (!PrepareOutputFiles()) {
         delete fin;
         return 1;
     }
-    textoutput_ = format_ == "text";
+    textoutput_ = FLAGS_format == "text";
 
     do {
         std::string key, value;
@@ -110,14 +121,14 @@ int ResultOutlet::Collect() {
 }
 
 bool ResultOutlet::PrepareOutputFiles() {
-    if (format_ != "multiple") {
+    if (FLAGS_format != "multiple") {
         output_pool_.resize(1, NULL);
-        if (format_ == "text") {
+        if (FLAGS_format == "text") {
             fileformat_ = kPlainText;
-        } else if (format_ == "seq") {
+        } else if (FLAGS_format == "seq") {
             fileformat_ = kInfSeqFile;
         } else {
-            LOG(WARNING, "unknown file format: %s", format_.c_str());
+            LOG(WARNING, "unknown file format: %s", FLAGS_format.c_str());
             return false;
         }
         FormattedFile* fp = FormattedFile::Create(type_, fileformat_, param_);

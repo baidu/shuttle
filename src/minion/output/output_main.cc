@@ -30,7 +30,8 @@ DEFINE_int32(no, 0, "set the number of current minion");
 
 static FileType type = kInfHdfs;
 
-static void FillParam(File::Param& param) {
+static File::Param FillParam() {
+    File::Param param;
     if (!FLAGS_type.empty()) {
         if (FLAGS_type == "hdfs") {
             type = kInfHdfs;
@@ -56,6 +57,7 @@ static void FillParam(File::Param& param) {
     if (!FLAGS_password.empty()) {
         param["password"] = FLAGS_password;
     }
+    return param;
 }
 
 int main(int argc, char** argv) {
@@ -67,34 +69,25 @@ int main(int argc, char** argv) {
         LOG(baidu::WARNING, "please offer a valid address");
         return -1;
     }
+    if (*FLAGS_address.rbegin() != '/') {
+        FLAGS_address.push_back('/');
+    }
     Outlet* saver = NULL;
+    const File::Param& param = FillParam();
     if (FLAGS_function == "echo") {
-        ResultOutlet* outlet = new ResultOutlet();
-        FillParam(outlet->param_);
-        outlet->type_ = type;
-        outlet->pipe_ = FLAGS_pipe;
-        outlet->work_dir_ = FLAGS_address;
-        outlet->format_ = FLAGS_format;
-        outlet->no_ = FLAGS_no;
-        saver = outlet;
+        saver = new ResultOutlet(type, param);
     } else if (FLAGS_function == "sort") {
-        InternalOutlet* outlet = new InternalOutlet();
-        FillParam(outlet->param_);
-        outlet->type_ = type;
-        outlet->pipe_ = FLAGS_pipe;
-        outlet->work_dir_ = FLAGS_address;
-        outlet->partition_ = FLAGS_partitioner;
-        outlet->separator_ = FLAGS_separator;
-        outlet->key_fields_ = FLAGS_key_fields;
-        outlet->partition_fields_ = FLAGS_partition_fields;
         if (FLAGS_dest_num == 0) {
             LOG(baidu::WARNING, "total number of next phase is needed in shuffle function");
             return -1;
         }
-        outlet->dest_num_ = FLAGS_dest_num;
-        saver = outlet;
+        saver = new InternalOutlet(type, param);
     } else {
         LOG(baidu::WARNING, "unfamiliar function: %s", FLAGS_function.c_str());
+        return -1;
+    }
+    if (saver == NULL) {
+        LOG(baidu::WARNING. "fail to create outlet saver");
         return -1;
     }
     boost::scoped_ptr<Outlet> oulet_guard(saver);

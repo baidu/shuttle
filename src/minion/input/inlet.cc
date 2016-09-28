@@ -8,9 +8,21 @@
 #include <sstream>
 #include <algorithm>
 #include <boost/algorithm/string.hpp>
+#include <gflags/gflags.h>
 #include <cmath>
 #include <cstdlib>
 #include "logging.h"
+
+DECLARE_string(pipe);
+DECLARE_int64(offset);
+DECLARE_int64(length);
+DECLARE_string(format);
+DECLARE_bool(nline);
+DECLARE_int32(phase);
+DECLARE_int32(no);
+DECLARE_int32(attempt);
+DECLARE_int32(total);
+DECLARE_int32(pile_scale);
 
 namespace baidu {
 namespace shuttle {
@@ -18,12 +30,12 @@ namespace shuttle {
 int SourceInlet::Flow() {
     // Prepare scanner
     FileFormat format = kPlainText;
-    if (format_ == "text") {
+    if (FLAGS_format == "text") {
         format = kPlainText;
-    } else if (format_ == "seq") {
+    } else if (FLAGS_format == "seq") {
         format = kInfSeqFile;
     } else {
-        LOG(WARNING, "unknown file format: %s", format_.c_str());
+        LOG(WARNING, "unknown file format: %s", FLAGS_format.c_str());
         return -1;
     }
     FormattedFile* fp = FormattedFile::Create(type_, format, param_);
@@ -32,7 +44,7 @@ int SourceInlet::Flow() {
         return 1;
     }
     Scanner* scanner = Scanner::Get(fp, kInputScanner);
-    Scanner::Iterator* it = scanner->Scan(offset_, len_);
+    Scanner::Iterator* it = scanner->Scan(FLAGS_offset, FLAGS_length);
 
     /*
      * The record send to user app is organized as following:
@@ -51,7 +63,7 @@ int SourceInlet::Flow() {
      */
     int no = 0;
     std::stringstream offset_ss;
-    offset_ss << offset_;
+    offset_ss << FLAGS_offset;
     for (; !it->Done(); it->Next()) {
         std::string record;
         if (format == kInfSeqFile) {
@@ -61,14 +73,14 @@ int SourceInlet::Flow() {
             FileFormat record_format = kPlainText;
             std::stringstream no_ss;
             no_ss << no++;
-            if (pipe_ == "streaming") {
+            if (FLAGS_pipe == "streaming") {
                 record_format = kPlainText;
-                if (is_nline_) {
+                if (FLAGS_nline) {
                     key = no_ss.str();
                 }
-            } else if (pipe_ == "bistreaming") {
+            } else if (FLAGS_pipe == "bistreaming") {
                 record_format = kInfSeqFile;
-                if (is_nline_) {
+                if (FLAGS_nline) {
                     key = no_ss.str();
                 } else {
                     key = offset_ss.str();
@@ -91,6 +103,20 @@ int SourceInlet::Flow() {
     return 0;
 }
 
+ShuffleInlet::ShuffleInlet(FileType type, const std::string& path, const File::Param& param)
+        : type_(type), param_(param), work_dir_(path),
+          pile_scale_(FLAGS_pile_scale), fp_(NULL) {
+    if (*work_dir_.rbegin() != '/') {
+        work_dir_.push_back('/');
+    }
+    if (pile_scale_ == 0) {
+        pile_scale_ = std::min((int32_t)ceil(sqrt(FLAGS_total)), 300);
+        if (pile_scale_ < 100) {
+            pile_scale_ = std::max(pile_scale_, 10);
+        }
+    }
+}
+
 int ShuffleInlet::Flow() {
     srand(time(NULL));
     // Create object-wide file pointer
@@ -99,18 +125,8 @@ int ShuffleInlet::Flow() {
         LOG(WARNING, "fail to create file pointer");
         return -1;
     }
-    if (pile_scale_ == 0) {
-        pile_scale_ = std::min((int32_t)ceil(sqrt(total_)), 300);
-        if (pile_scale_ < 100) {
-            pile_scale_ = std::max(pile_scale_, 10);
-        }
-    }
-    // Add trailing '/' in work dir
-    if (*work_dir_.rbegin() != '/') {
-        work_dir_.push_back('/');
-    }
     // Prepare pile list and shuffle to avoid collision
-    int pile_num = (int)ceil((double)total_ / pile_scale_);
+    int pile_num = (int)ceil((double)FLAGS_total / pile_scale_);
     std::vector<int> pile_list;
     for (int i = 0; i < pile_num; ++i) {
         pile_list.push_back(i);
@@ -236,7 +252,7 @@ bool ShuffleInlet::FinalMerge(const std::vector<std::string>& files) {
     bool ok = true;
     do {
         std::stringstream ss;
-        ss << std::setw(5) << std::setfill('0') << no_;
+        ss << std::setw(5) << std::setfill('0') << FLAGS_no;
         // Build merger to get iterator
         Merger merger(merge_files);
         // Scan all the records of the same no
@@ -253,9 +269,9 @@ bool ShuffleInlet::FinalMerge(const std::vector<std::string>& files) {
         }
         // Iterate over merger data and write to stdout for user cmd
         for (; !it->Done(); it->Next()) {
-            if (pipe_ == "streaming") {
+            if (FLAGS_pipe == "streaming") {
                 std::cout << it->Value() << std::endl;
-            } else if (pipe_ == "bistreaming") {
+            } else if (FLAGS_pipe == "bistreaming") {
                 std::cout << it->Value();
             } else {
                 // Output line with endl by default, if no proper pipe is specified
@@ -279,7 +295,7 @@ bool ShuffleInlet::FinalMerge(const std::vector<std::string>& files) {
 int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
     // Prepare temp output dir, move piles to formal position when finished
     std::stringstream temp_dir_ss;
-    temp_dir_ss << work_dir_ << "pile_" << no_ << "_" << attempt_;
+    temp_dir_ss << work_dir_ << "pile_" << FLAGS_no << "_" << FLAGS_attempt;
     const std::string& temp_dir = temp_dir_ss.str();
     if (!fp_->Mkdir(temp_dir)) {
         LOG(WARNING, "fail to make temp dir in merging pile: %s", temp_dir.c_str());
@@ -292,11 +308,11 @@ int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
         // Find a unproceeded pile
         int cur = CheckPileExecution(ready, pile_list);
         // For greater number of minions, just relax and wait for ready piles
-        if (no_ >= pile_num) {
+        if (FLAGS_no >= pile_num) {
             continue;
         }
         int from = cur * pile_scale_;
-        int to = std::min((cur + 1) * pile_scale_ - 1, total_ - 1);
+        int to = std::min((cur + 1) * pile_scale_ - 1, FLAGS_total - 1);
         LOG(INFO, "merge from %d to %d as a pile", from, to);
         // Prepare specific range of sorted files for pre-merging
         std::vector<std::string> files;
@@ -304,7 +320,7 @@ int ShuffleInlet::PileMerge(const std::vector<int>& pile_list) {
             continue;
         }
         std::stringstream ss;
-        ss << temp_dir << "/" << no_ << ".pile";
+        ss << temp_dir << "/" << FLAGS_no << ".pile";
         const std::string& output = ss.str();
         // Pre-merge
         if (!PreMerge(files, output)) {
@@ -349,7 +365,7 @@ int ShuffleInlet::CheckPileExecution(std::set<int>& ready,
 bool ShuffleInlet::PrepareSortFiles(std::vector<std::string>& files, int from, int to) {
     for (int i = from; i <= to; ++i) {
         std::stringstream ss;
-        ss << work_dir_ << "node_" << phase_ << "_" << i;
+        ss << work_dir_ << "node_" << FLAGS_phase << "_" << i;
         std::vector<FileInfo> sortfiles;
         if (!fp_->List(ss.str(), &sortfiles)) {
             LOG(WARNING, "fail to list: %s", ss.str().c_str());

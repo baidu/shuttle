@@ -33,7 +33,8 @@ DEFINE_int32(pile_scale, 0, "for shuffle, the number of map's output that one pi
 
 static FileType type = kInfHdfs;
 
-static void FillParam(File::Param& param) {
+static File::Param FillParam() {
+    File::Param param;
     if (!FLAGS_type.empty()) {
         if (FLAGS_type == "hdfs") {
             type = kInfHdfs;
@@ -59,6 +60,7 @@ static void FillParam(File::Param& param) {
     if (!FLAGS_password.empty()) {
         param["password"] = FLAGS_password;
     }
+    return param;
 }
 
 int main(int argc, char** argv) {
@@ -70,35 +72,21 @@ int main(int argc, char** argv) {
         return -1;
     }
     Inlet* parser = NULL;
+    const File::Param& param = FillParam();
     if (FLAGS_function == "input") {
-        SourceInlet* inlet = new SourceInlet();
-        FillParam(inlet->param_);
-        inlet->type_ = type;
-        inlet->format_ = FLAGS_format;
-        inlet->file_ = FLAGS_address;
-        inlet->pipe_ = FLAGS_pipe;
-        inlet->is_nline_ = FLAGS_nline;
-        inlet->offset_ = FLAGS_offset;
-        inlet->len_ = FLAGS_length;
-        parser = inlet;
+        parser = new SourceInlet(type, FLAGS_address, param);
     } else if (FLAGS_function == "shuffle") {
-        ShuffleInlet* inlet = new ShuffleInlet();
-        FillParam(inlet->param_);
-        inlet->type_ = type;
-        inlet->work_dir_ = FLAGS_address;
-        inlet->pipe_ = FLAGS_pipe;
-        inlet->phase_ = FLAGS_phase;
-        inlet->no_ = FLAGS_no;
-        inlet->attempt_ = FLAGS_attempt;
         if (FLAGS_total == 0) {
             LOG(baidu::WARNING, "total number of previous phase is needed in shuffle function");
             return -1;
         }
-        inlet->total_ = FLAGS_total;
-        inlet->pile_scale_ = FLAGS_pile_scale;
-        parser = inlet;
+        parser = new ShuffleInlet(type, FLAGS_address, param);
     } else {
         LOG(baidu::WARNING, "unfamiliar function: %s", FLAGS_function.c_str());
+        return -1;
+    }
+    if (parser == NULL) {
+        LOG(baidu::WARNING. "fail to create inlet parser");
         return -1;
     }
     boost::scoped_ptr<Inlet> inlet_guard(parser);
