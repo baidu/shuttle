@@ -4,7 +4,7 @@
 #include <vector>
 #include <ctime>
 #include "gru.h"
-#include "dag_scheduler.h"
+#include "common/dag_scheduler.h"
 #include "proto/shuttle.pb.h"
 #include "proto/master.pb.h"
 

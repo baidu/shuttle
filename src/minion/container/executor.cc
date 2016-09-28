@@ -211,7 +211,7 @@ bool Executor::MoveTempDir() {
      *     ../output/_temporary/part_xxxxx -> ../output/part-xxxxx
      */
     std::string pattern;
-    if (scheduler.HasSuccessors(task_.task_id())) {
+    if (scheduler_.HasSuccessors(task_.task_id())) {
         pattern = "*.sort";
     } else {
         pattern = "part_*";

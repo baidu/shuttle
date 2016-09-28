@@ -11,7 +11,7 @@
 
 #include "galaxy_handler.h"
 #include "resource_manager.h"
-#include "dag_scheduler.h"
+#include "common/dag_scheduler.h"
 #include "common/file.h"
 #include "common/rpc_client.h"
 #include "proto/minion.pb.h"

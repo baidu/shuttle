@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include <unistd.h>
+#include "common/dag_scheduler.h"
 #include "proto/shuttle.pb.h"
 
 namespace baidu {

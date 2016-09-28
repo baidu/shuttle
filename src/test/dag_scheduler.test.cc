@@ -1,4 +1,4 @@
-#include "master/dag_scheduler.h"
+#include "common/dag_scheduler.h"
 
 #include <gtest/gtest.h>
 
