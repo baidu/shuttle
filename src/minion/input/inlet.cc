@@ -349,7 +349,7 @@ int ShuffleInlet::CheckPileExecution(std::set<int>& ready,
 bool ShuffleInlet::PrepareSortFiles(std::vector<std::string>& files, int from, int to) {
     for (int i = from; i <= to; ++i) {
         std::stringstream ss;
-        ss << work_dir_ << "phase_" << phase_ << "_" << i;
+        ss << work_dir_ << "node_" << phase_ << "_" << i;
         std::vector<FileInfo> sortfiles;
         if (!fp_->List(ss.str(), &sortfiles)) {
             LOG(WARNING, "fail to list: %s", ss.str().c_str());

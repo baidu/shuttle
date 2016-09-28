@@ -97,6 +97,7 @@ message NodeConfig {
     optional int32 partition_fields_num = 15;
     optional bool allow_duplicates = 16 [default = true];
     optional int32 retry = 17;
+    optional string combiner = 18;
 }
 
 message JobDescriptor {
@@ -126,3 +127,4 @@ message TaskInfo {
     optional TaskInput input = 3;
     optional int32 node = 4;
 }
+

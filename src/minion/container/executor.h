@@ -2,6 +2,7 @@
 #define _BAIDU_SHUTTLE_EXECUTOR_H_
 #include <string>
 #include <map>
+#include <unistd.h>
 #include "proto/shuttle.pb.h"
 
 namespace baidu {
@@ -25,6 +26,10 @@ private:
     const TaskInfo& task_;
     const JobDescriptor& job_;
     const NodeConfig& node_;
+    std::string final_dir_;
+    std::string work_dir_;
+    pid_t wrapper_pid_;
+    DagScheduler scheduler_;
 };
 
 }
