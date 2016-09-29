@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
         return -1;
     }
     if (saver == NULL) {
-        LOG(baidu::WARNING. "fail to create outlet saver");
+        LOG(baidu::WARNING, "fail to create outlet saver");
         return -1;
     }
     boost::scoped_ptr<Outlet> oulet_guard(saver);

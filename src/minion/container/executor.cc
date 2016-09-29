@@ -29,6 +29,10 @@ Executor::Executor(const std::string& job_id, const JobDescriptor& job, const Ta
     work_dir_ = final_dir_;
 }
 
+Executor::~Executor() {
+    Stop(task_.task_id());
+}
+
 TaskState Executor::Exec() {
     LOG(INFO, "exec:");
     SetEnv();
@@ -64,14 +68,14 @@ TaskState Executor::Exec() {
     return kTaskCompleted;
 }
 
-void Executor::Stop(int32_t task_id) {
+Status Executor::Stop(int32_t task_id) {
     if (task_id != task_.task_id()) {
-        return;
+        return kNoSuchTask;
     }
     if (wrapper_pid_ == -1) {
-        return;
+        return kNoSuchTask;
     }
-    ::kill(wrapper_pid_, SIGINT);
+    return ::kill(wrapper_pid_, SIGINT) == 0 ? kOk : kNoSuchTask;
 }
 
 void Executor::SetEnv() {

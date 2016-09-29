@@ -15,7 +15,7 @@ public:
     ~Executor();
 
     TaskState Exec();
-    void Stop(int32_t task_id);
+    Status Stop(int32_t task_id);
     bool ParseCounters(const std::string& work_dir,
             std::map<std::string, int64_t>& counters);
 private:

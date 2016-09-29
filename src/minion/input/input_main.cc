@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
         return -1;
     }
     if (parser == NULL) {
-        LOG(baidu::WARNING. "fail to create inlet parser");
+        LOG(baidu::WARNING, "fail to create inlet parser");
         return -1;
     }
     boost::scoped_ptr<Inlet> inlet_guard(parser);
