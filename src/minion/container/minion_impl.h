@@ -1,21 +1,23 @@
-#ifndef _BAIDU_SHUTTLE_MINION_H_
-#define _BAIDU_SHUTTLE_MINION_H_
-
-#include "thread_pool.h"
-#include "mutex.h"
-#include "common/rpc_client.h"
+#ifndef _BAIDU_SHUTTLE_MINION_IMPL_H_
+#define _BAIDU_SHUTTLE_MINION_IMPL_H_
 #include "proto/minion.pb.h"
-#include "ins_sdk.h"
-#include "executor.h"
+
+#include "minion/container/executor.h"
+#include "common/rpc_client.h"
+#include "mutex.h"
 
 namespace baidu {
 namespace shuttle {
 
-class Master_Stub;
 class MinionImpl : public Minion {
 public:
-    MinionImpl();
-    virtual ~MinionImpl();
+    MinionImpl() : running_(true), task_id_(-1), attempt_id_(-1),
+            state_(kTaskUnknown), executor_(NULL) { }
+    ~MinionImpl() {
+        if (executor_ != NULL) {
+            delete executor_;
+        }
+    }
 
     void Query(::google::protobuf::RpcController* controller,
                const ::baidu::shuttle::QueryRequest* request,
@@ -26,30 +28,32 @@ public:
                     ::baidu::shuttle::CancelTaskResponse* response,
                     ::google::protobuf::Closure* done);
     void SetEndpoint(const std::string& endpoint);
-    void SetJobId(const std::string& jobid);
-    bool Run();
-    bool IsStop();
+    void Run();
+    void Kill();
+    void StopLoop();
 private:
-    void Loop();
     void SaveBreakpoint(const TaskInfo& task);
     void ClearBreakpoint();
-    void CheckUnfinishedTask(Master_Stub* master_stub);
-    std::string endpoint_;
-    ThreadPool pool_;
-    std::string master_endpoint_;
-    galaxy::ins::sdk::InsSDK ins_;
-    bool stop_;
-    Mutex mu_;
+    void CheckBreakpoint();
+
+    bool GetMasterEndpoint();
+private:
     RpcClient rpc_client_;
-    std::string jobid_;
+    // Meta
+    std::string endpoint_;
+    std::string master_endpoint_;
+    bool running_;
+
+    // Current task
+    Mutex mu_;
+    int32_t task_id_;
+    int32_t attempt_id_;
+    TaskState state_;
     Executor* executor_;
-    int32_t cur_task_id_;
-    int32_t cur_attempt_id_;
-    TaskState cur_task_state_;
-    WorkMode work_mode_;
 };
 
 }
 }
 
 #endif
+

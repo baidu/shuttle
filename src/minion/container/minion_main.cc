@@ -1,70 +1,70 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <assert.h>
-#include <algorithm>
-#include <vector>
+#include <gflags/gflags.h>
 #include <boost/lexical_cast.hpp>
 #include <sofa/pbrpc/pbrpc.h>
-#include <gflags/gflags.h>
-#include "logging.h"
+#include <string>
+#include <signal.h>
+#include "minion/container/minion_impl.h"
 #include "util.h"
-#include "minion_impl.h"
-
-using baidu::common::Log;
-using baidu::common::FATAL;
-using baidu::common::INFO;
-using baidu::common::WARNING;
 
 DECLARE_int32(minion_port);
 DECLARE_string(jobid);
+DECLARE_bool(kill);
 
-static volatile bool s_quit = false;
+static baidu::shuttle::MinionImpl* minion = NULL;
+
 static void SignalIntHandler(int /*sig*/){
-    s_quit = true;
+    if (minion != NULL) {
+        minion->StopLoop();
+    }
 }
 
 int main(int argc, char* argv[]) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     if (FLAGS_jobid.empty()) {
-        LOG(WARNING, "use --jobid=[job id] to start minion");
-        exit(-2);
+        LOG(baidu::WARNING, "use --jobid=[job id] to start minion");
+        return 1;
     }
-    baidu::shuttle::MinionImpl * minion = new baidu::shuttle::MinionImpl();
+    minion = new baidu::shuttle::MinionImpl();
     sofa::pbrpc::RpcServerOptions options;
     sofa::pbrpc::RpcServer rpc_server(options);
     if (!rpc_server.RegisterService(static_cast<baidu::shuttle::Minion*>(minion))) {
-        LOG(WARNING, "failed to register minion service");
-        exit(-1);
+        LOG(baidu::WARNING, "failed to register minion service");
+        delete minion;
+        minion = NULL;
+        return -1;
     }
 
     int retry_count = 0;
+    const std::string& hostname = baidu::common::util::GetLocalHostName();
     std::string endpoint = "0.0.0.0:" + boost::lexical_cast<std::string>(FLAGS_minion_port);
-    std::string hostname = baidu::common::util::GetLocalHostName();
     std::string remote_ep = hostname + ":" + boost::lexical_cast<std::string>(FLAGS_minion_port);
-    LOG(INFO, "hostname: %s", hostname.c_str());
+    LOG(baidu::INFO, "hostname: %s", hostname.c_str());
     while (!rpc_server.Start(endpoint)) {
-        LOG(WARNING, "failed to start server on %s", endpoint.c_str());
+        LOG(baidu::WARNING, "failed to start server on %s", endpoint.c_str());
         if (++retry_count > 500) {
-            LOG(FATAL, "cannot find free port");
-            exit(-1);
+            LOG(baidu::WARNING, "cannot find free port");
+            delete minion;
+            minion = NULL;
+            return -1;
         }
-        std::string real_port = boost::lexical_cast<std::string>(FLAGS_minion_port + retry_count);
+        const std::string& real_port = boost::lexical_cast<std::string>(FLAGS_minion_port + retry_count);
         endpoint = "0.0.0.0:" + real_port;
         remote_ep = hostname + ":" + real_port;
     }
     minion->SetEndpoint(remote_ep);
-    minion->SetJobId(FLAGS_jobid);
-    if (!minion->Run()) {
-        LOG(WARNING, "fail to start minion.");
-        exit(-1);
+    if (FLAGS_kill) {
+        minion->Kill();
+        delete minion;
+        minion = NULL;
+        return 0;
     }
     signal(SIGINT, SignalIntHandler);
     signal(SIGTERM, SignalIntHandler);
-    LOG(INFO, "minion started.");
-    while (!s_quit && !minion->IsStop()) {
-        sleep(1);
-    }
-    LOG(INFO, "minion stopped.");
+    LOG(baidu::INFO, "start minion...");
+    minion->Run();
+    LOG(baidu::INFO, "minion stopped.");
+    delete minion;
+    minion = NULL;
     return 0;
 }
+

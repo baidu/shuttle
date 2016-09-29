@@ -1,266 +1,219 @@
 #include "minion_impl.h"
-#include <boost/bind.hpp>
-#include <boost/function.hpp>
-#include <boost/scoped_ptr.hpp>
-#include <cstdlib>
+
 #include <gflags/gflags.h>
-#include "logging.h"
+#include <cstdio>
+#include <cstdlib>
 #include "proto/master.pb.h"
+#include "logging.h"
+#include "ins_sdk.h"
 
-DECLARE_string(master_nexus_path);
-DECLARE_string(nexus_addr);
-DECLARE_string(work_mode);
+DECLARE_string(breakpoint);
 DECLARE_string(jobid);
-DECLARE_bool(kill_task);
+DECLARE_string(nexus_addr);
+DECLARE_string(master_nexus_path);
+DECLARE_int32(node);
 DECLARE_int32(suspend_time);
-
-using baidu::common::Log;
-using baidu::common::FATAL;
-using baidu::common::INFO;
-using baidu::common::WARNING;
 
 namespace baidu {
 namespace shuttle {
 
-const std::string sBreakpointFile = "./task_running";
-
-MinionImpl::MinionImpl() : ins_(FLAGS_nexus_addr),
-                           stop_(false) {
-    if (FLAGS_work_mode == "map") {
-        executor_ = Executor::GetExecutor(kMap);
-        work_mode_ =  kMap;
-    } else if (FLAGS_work_mode == "reduce") {
-        executor_ = Executor::GetExecutor(kReduce);
-        work_mode_ = kReduce;
-    } else if (FLAGS_work_mode == "map-only") {
-        executor_ = Executor::GetExecutor(kMapOnly);
-        work_mode_ = kMapOnly;
-    } else {
-        LOG(FATAL, "unkown work mode: %s", FLAGS_work_mode.c_str());
-        abort();
-    }
-    if (FLAGS_kill_task) {
-       galaxy::ins::sdk::SDKError err;
-       ins_.Get(FLAGS_master_nexus_path, &master_endpoint_, &err);
-       if (err == galaxy::ins::sdk::kOK) {
-           Master_Stub* stub;
-           rpc_client_.GetStub(master_endpoint_, &stub);
-           if (stub != NULL) {
-               boost::scoped_ptr<Master_Stub> stub_guard(stub);
-               CheckUnfinishedTask(stub);
-               _exit(0);
-           }
-       } else {
-           LOG(WARNING, "fail to connect nexus");
-       }
-    }
-    cur_task_id_ = -1;
-    cur_attempt_id_ = -1;
-    cur_task_state_ = kTaskUnknown;
-}
-
-MinionImpl::~MinionImpl() {
-    delete executor_;
-}
-
-void MinionImpl::Query(::google::protobuf::RpcController* controller,
-                       const ::baidu::shuttle::QueryRequest* request,
+void MinionImpl::Query(::google::protobuf::RpcController* /*controller*/,
+                       const ::baidu::shuttle::QueryRequest* /*request*/,
                        ::baidu::shuttle::QueryResponse* response,
                        ::google::protobuf::Closure* done) {
-    (void)controller;
-    (void)request;
-    MutexLock locker(&mu_);
-    response->set_job_id(jobid_);
-    response->set_task_id(cur_task_id_);
-    response->set_attempt_id(cur_attempt_id_);
-    response->set_task_state(cur_task_state_);
+    MutexLock lock(&mu_);
+    response->set_job_id(FLAGS_jobid);
+    response->set_node(FLAGS_node);
+    response->set_task_id(task_id_);
+    response->set_attempt_id(attempt_id_);
+    response->set_task_state(state_);
     done->Run();
 }
 
-void MinionImpl::CancelTask(::google::protobuf::RpcController* controller,
+void MinionImpl::CancelTask(::google::protobuf::RpcController* /*controller*/,
                             const ::baidu::shuttle::CancelTaskRequest* request,
                             ::baidu::shuttle::CancelTaskResponse* response,
-                            ::google::protobuf::Closure* done) {
-    (void)controller;
-    int32_t task_id = request->task_id();
+                            ::google::protobuf::Closure* done){
+    Status ret = kOk;
     {
-        MutexLock locker(&mu_);
-        if (task_id != cur_task_id_) {
-            response->set_status(kNoSuchTask);
+        MutexLock lock(&mu_);
+        if (request->job_id() != FLAGS_jobid ||
+                request->node() != FLAGS_node ||
+                request->task_id() != task_id_ ||
+                request->attempt_id() != attempt_id_) {
+            ret = kNoSuchTask;
+        } else if (executor_ == NULL) {
+            ret = kNoSuchTask;
         } else {
-            executor_->Stop(task_id);
-            response->set_status(kOk);
+            executor_->Stop(request->task_id());
+            ret = kOk;
         }
     }
+    response->set_status(ret);
     done->Run();
 }
 
 void MinionImpl::SetEndpoint(const std::string& endpoint) {
-    LOG(INFO, "minon bind endpoint on : %s", endpoint.c_str());
+    LOG(INFO, "minion bind endpoint on: %s", endpoint.c_str());
     endpoint_ = endpoint;
 }
 
-void MinionImpl::SetJobId(const std::string& jobid) {
-    LOG(INFO, "minion will work on job: %s", jobid.c_str());
-    jobid_ = jobid;
-}
-
-void MinionImpl::Loop() {
-    Master_Stub* stub;
-    rpc_client_.GetStub(master_endpoint_, &stub);
-    if (stub == NULL) {
-        LOG(FATAL, "fail to get master stub");
+void MinionImpl::Run() {
+    if (!GetMasterEndpoint()) {
+        return;
     }
-    boost::scoped_ptr<Master_Stub> stub_guard(stub);
+    CheckBreakpoint();
+    Master_Stub* stub = NULL;
+    if (!rpc_client_.GetStub(master_endpoint_, &stub) || stub == NULL) {
+        LOG(WARNING, "fail to get stub to master");
+        return;
+    }
     int task_count = 0;
-    CheckUnfinishedTask(stub);
-    while (!stop_) {
-        LOG(INFO, "======== task:%d ========", ++task_count);
-        ::baidu::shuttle::AssignTaskRequest request;
-        ::baidu::shuttle::AssignTaskResponse response;
-        request.set_endpoint(endpoint_);
-        request.set_jobid(jobid_);
-        request.set_work_mode(work_mode_);
-        LOG(INFO, "endpoint: %s", endpoint_.c_str());
-        LOG(INFO, "jobid_: %s", jobid_.c_str());
-        while (!stop_) {
-            bool ok = rpc_client_.SendRequest(stub, &Master_Stub::AssignTask,
-                                              &request, &response, 5, 1);
+    while (running_) {
+        LOG(INFO, "========== task %d ==========", ++task_count);
+
+        AssignTaskRequest assign_request;
+        AssignTaskResponse assign_response;
+        assign_request.set_jobid(FLAGS_jobid);
+        assign_request.set_node(FLAGS_node);
+        assign_request.set_endpoint(endpoint_);
+        LOG(INFO, "request %s task for: %s", FLAGS_jobid.c_str(), endpoint_.c_str());
+        bool ok = false;
+        // Loop to get a task
+        do {
+            ok = rpc_client_.SendRequest(stub, &Master_Stub::AssignTask,
+                    &assign_request, &assign_response, 5, 1);
             if (!ok) {
-                LOG(WARNING, "fail to fetch task from master[%s]", master_endpoint_.c_str());
+                LOG(WARNING, "fail to get task from master: %s", master_endpoint_.c_str());
                 sleep(FLAGS_suspend_time);
-                continue;
-            } else {
-                break;
             }
-        }
-        if (response.status() == kNoMore) {
-            LOG(INFO, "master has no more task for minion, so exit.");
+        } while (!ok);
+
+        if (assign_response.status() == kNoMore) {
+            LOG(INFO, "master has no more task for minion, bye");
             break;
-        } else if (response.status() == kNoSuchJob) {
-            LOG(INFO, "the job may be finished.");
+        } else if (assign_response.status() == kNoSuchJob) {
+            LOG(WARNING, "current job may be finished: %s", FLAGS_jobid.c_str());
             break;
-        } else if (response.status() == kSuspend) {
-            LOG(INFO, "minion will suspend for a while");
+        } else if (assign_response.status() == kSuspend) {
+            LOG(INFO, "minion will suspend for a while and retry");
             sleep(FLAGS_suspend_time);
             continue;
-        } else if (response.status() != kOk) {
+        } else if (assign_response.status() != kOk) {
             LOG(FATAL, "invalid response status: %s",
-                Status_Name(response.status()).c_str());
-        }
-        const TaskInfo& task = response.task();
-        SaveBreakpoint(task);
-        executor_->SetEnv(jobid_, task);
-        {
-            MutexLock locker(&mu_);
-            cur_task_id_ = task.task_id();
-            cur_attempt_id_ = task.attempt_id();
-            cur_task_state_ = kTaskRunning;
-        }
-        LOG(INFO, "try exec task: %s, %d, %d", jobid_.c_str(), cur_task_id_, cur_attempt_id_);
-        TaskState task_state = executor_->Exec(task); //exec here~~
-        {
-            MutexLock locker(&mu_);
-            cur_task_state_ = task_state;
-        }
-        LOG(INFO, "exec done, task state: %s", TaskState_Name(task_state).c_str());
-        ::baidu::shuttle::FinishTaskRequest fn_request;
-        ::baidu::shuttle::FinishTaskResponse fn_response;
-        fn_request.set_jobid(jobid_);
-        fn_request.set_task_id(task.task_id());
-        fn_request.set_attempt_id(task.attempt_id());
-        fn_request.set_task_state(task_state);
-        fn_request.set_endpoint(endpoint_);
-        fn_request.set_work_mode(work_mode_);
-        while (!stop_) {
-            bool ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
-                                         &fn_request, &fn_response, 5, 1);
-            if (!ok) {
-                LOG(WARNING, "fail to send task state to master");
-                sleep(FLAGS_suspend_time);
-                continue;
-            } else {
-                if (fn_response.status() ==  kSuspend) {
-                    LOG(WARNING, "wait a moment and then report finish");
-                    sleep(FLAGS_suspend_time);
-                    continue;
-                }
-                break;
-            }
-        }
-        ClearBreakpoint();
-        if (task_state == kTaskFailed) {
-            LOG(WARNING, "task state: %s", TaskState_Name(task_state).c_str());
-            executor_->ReportErrors(task, (work_mode_ != kReduce));
-            sleep(FLAGS_suspend_time);
-        }
-    }
-
-    {
-        MutexLock locker(&mu_);
-        stop_ = true;
-    }
-}
-
-bool MinionImpl::IsStop() {
-    return stop_;
-}
-
-bool MinionImpl::Run() {
-    galaxy::ins::sdk::SDKError err;
-    ins_.Get(FLAGS_master_nexus_path, &master_endpoint_, &err);
-    if (err != galaxy::ins::sdk::kOK) {
-        LOG(WARNING, "failed to fetch master endpoint from nexus, errno: %d", err);
-        LOG(WARNING, "master_endpoint (%s) -> %s", FLAGS_master_nexus_path.c_str(),
-            master_endpoint_.c_str());
-        return false;
-    }
-    pool_.AddTask(boost::bind(&MinionImpl::Loop, this));
-    return true;
-}
-
-void MinionImpl::CheckUnfinishedTask(Master_Stub* master_stub) {
-    FILE* breakpoint = fopen(sBreakpointFile.c_str(), "r");
-    int task_id;
-    int attempt_id;
-    if (breakpoint) {
-        int n_ret = fscanf(breakpoint, "%d%d", &task_id, &attempt_id);
-        if (n_ret != 2) {
-            LOG(WARNING, "invalid breakpoint file");
-            return;
-        }
-        fclose(breakpoint);
-        ::baidu::shuttle::FinishTaskRequest fn_request;
-        ::baidu::shuttle::FinishTaskResponse fn_response;
-        LOG(WARNING, "found unfinished task: task_id: %d, attempt_id: %d", task_id, attempt_id);
-        fn_request.set_jobid(FLAGS_jobid);
-        fn_request.set_task_id(task_id);
-        fn_request.set_attempt_id(attempt_id);
-        fn_request.set_task_state(kTaskKilled);
-        fn_request.set_endpoint(endpoint_);
-        fn_request.set_work_mode(work_mode_);
-        bool ok = rpc_client_.SendRequest(master_stub, &Master_Stub::FinishTask,
-                                     &fn_request, &fn_response, 5, 1);
-        if (!ok) {
-            LOG(FATAL, "fail to report unfinished task to master");
+                    Status_Name(assign_response.status()).c_str());
             abort();
         }
+
+        // Exec assigned task
+        const TaskInfo& task = assign_response.task();
+        SaveBreakpoint(task);
+        // TODO Exec wrapper
+
+        // Finish current task
+        FinishTaskRequest finish_request;
+        FinishTaskResponse finish_response;
+        finish_request.set_jobid(FLAGS_jobid);
+        finish_request.set_node(FLAGS_node);
+        finish_request.set_task_id(task.task_id());
+        finish_request.set_attempt_id(task.attempt_id());
+        //finish_request.set_task_state(task_state);
+        finish_request.set_endpoint(endpoint_);
+        do {
+            ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
+                    &finish_request, &finish_response, 5, 1);
+            if (!ok || finish_response.status() == kSuspend) {
+                LOG(WARNING, "task finishing needs some time, suspend");
+                sleep(FLAGS_suspend_time);
+                ok = false;
+                continue;
+            }
+        } while (!ok);
+
+        ClearBreakpoint();
+        sleep(FLAGS_suspend_time);
     }
+    delete stub;
+}
+
+void MinionImpl::Kill() {
+    if (!GetMasterEndpoint()) {
+        return;
+    }
+    CheckBreakpoint();
+}
+
+void MinionImpl::StopLoop() {
+    running_ = false;
 }
 
 void MinionImpl::SaveBreakpoint(const TaskInfo& task) {
-    FILE* breakpoint = fopen(sBreakpointFile.c_str(), "w");
-    if (breakpoint) {
-        fprintf(breakpoint, "%d %d\n", task.task_id(), task.attempt_id());
-        fclose(breakpoint);
+    FILE* breakpoint = ::fopen(FLAGS_breakpoint.c_str(), "w");
+    if (breakpoint == NULL) {
+        return;
     }
+    ::fprintf(breakpoint, "%d %d\n", task.task_id(), task.attempt_id());
+    ::fclose(breakpoint);
 }
 
 void MinionImpl::ClearBreakpoint() {
-    if (remove(sBreakpointFile.c_str()) != 0 ) {
-        LOG(WARNING, "failed to remove breakponit file");
+    if (::remove(FLAGS_breakpoint.c_str()) != 0) {
+        LOG(WARNING, "fail to remove breakpoint file");
     }
+}
+
+void MinionImpl::CheckBreakpoint() {
+    FILE* breakpoint = ::fopen(FLAGS_breakpoint.c_str(), "r");
+    if (breakpoint == NULL) {
+        return;
+    }
+    int task_id = 0;
+    int attempt_id = 0;
+    int ret = ::fscanf(breakpoint, "%d%d", &task_id, &attempt_id);
+    ::fclose(breakpoint);
+    if (ret != 2) {
+        LOG(WARNING, "invalid breakpoint file");
+        ClearBreakpoint();
+        return;
+    }
+    Master_Stub* stub = NULL;
+    if (!rpc_client_.GetStub(master_endpoint_, &stub) || stub == NULL) {
+        /*
+         * Force exit here since minion hasn't got any task
+         * and restarted minion may report to master successfully
+         */
+        LOG(FATAL, "fail to get stub to master");
+        abort();
+    }
+    FinishTaskRequest request;
+    FinishTaskResponse response;
+    LOG(INFO, "found unfinished task: id = %d, attempt = %d", task_id, attempt_id);
+    request.set_jobid(FLAGS_jobid);
+    request.set_task_id(task_id);
+    request.set_attempt_id(attempt_id);
+    request.set_task_state(kTaskKilled);
+    request.set_endpoint(endpoint_);
+    bool ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
+            &request, &response, 5, 1);
+    if (!ok) {
+        // Same as above
+        LOG(FATAL, "fail to report unfinished task to master");
+        abort();
+    }
+    delete stub;
+}
+
+bool MinionImpl::GetMasterEndpoint() {
+    galaxy::ins::sdk::InsSDK ins_(FLAGS_nexus_addr);
+    galaxy::ins::sdk::SDKError err;
+    if (!ins_.Get(FLAGS_master_nexus_path, &master_endpoint_, &err)) {
+        LOG(WARNING, "fail to get master endpoint from nexus, errno: %d", err);
+        LOG(DEBUG, "nexus path of master: %s", FLAGS_master_nexus_path.c_str());
+        return false;
+    }
+    return true;
 }
 
 }
 }
+

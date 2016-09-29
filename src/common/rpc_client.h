@@ -14,10 +14,10 @@ namespace shuttle {
 class RpcClient {
 public:
     RpcClient() {
-		/*
-		 * Define client object, and only one client object is needed
-		 * client_options is used to define configures like threads number
-		 */
+        /*
+         * Define client object, and only one client object is needed
+         * client_options is used to define configures like threads number
+         */
         sofa::pbrpc::RpcClientOptions options;
         options.max_pending_buffer_size = 128;
         options.keep_alive_time = 1200; // In seconds;
@@ -34,10 +34,10 @@ public:
         if (it != _host_map.end()) {
             channel = it->second;
         } else {
-			/*
-			 * Define channel, representing a communcation passage
-			 * A server address matches a channel
-			 */
+            /*
+             * Define channel, representing a communcation passage
+             * A server address matches a channel
+             */
             sofa::pbrpc::RpcChannelOptions channel_options;
             channel = new sofa::pbrpc::RpcChannel(_rpc_client, server, channel_options);
             _host_map[server] = channel;
@@ -51,7 +51,7 @@ public:
                     const Request*, Response*, Callback*),
                     const Request* request, Response* response,
                     int32_t rpc_timeout, int retry_times) {
-		// Define controller to control the RPC, and set timeout(default 10s)
+        // Define controller to control the RPC, and set timeout(default 10s)
         sofa::pbrpc::RpcController controller;
         controller.SetTimeout(rpc_timeout * 1000L);
         for (int32_t retry = 0; retry < retry_times; ++retry) {
