@@ -19,22 +19,12 @@ DECLARE_string(temporary_dir);
 namespace baidu {
 namespace shuttle {
 
-Executor::Executor(const std::string& job_id, const JobDescriptor& job, const TaskInfo& info)
-        : job_id_(job_id), task_(info), job_(job),
-          node_(job.nodes(info.node())), wrapper_pid_(-1), scheduler_(job) {
-    final_dir_ = node_.output().path();
-    if (*final_dir_.rbegin() != '/') {
-        final_dir_.push_back('/');
-    }
-    work_dir_ = final_dir_;
-}
-
-Executor::~Executor() {
-    Stop(task_.task_id());
-}
-
-TaskState Executor::Exec() {
-    LOG(INFO, "exec:");
+TaskState Executor::Exec(const JobDescriptor& job, const TaskInfo& task) {
+    LOG(INFO, "executor started");
+    job_ = &job;
+    node_ = &(job.nodes(task.task_id()));
+    task_ = &task;
+    scheduler_ = new DagScheduler(job);
     SetEnv();
     if (!PrepareOutputDir()) {
         LOG(WARNING, "fail to create temp dir for output");
@@ -65,11 +55,16 @@ TaskState Executor::Exec() {
         LOG(WARNING, "fail to move temp dir");
         return kTaskMoveOutputFailed;
     }
+    delete scheduler_;
+    scheduler_ = NULL;
     return kTaskCompleted;
 }
 
 Status Executor::Stop(int32_t task_id) {
-    if (task_id != task_.task_id()) {
+    if (task_ == NULL) {
+        return kNoSuchTask;
+    }
+    if (task_id != task_->task_id()) {
         return kNoSuchTask;
     }
     if (wrapper_pid_ == -1) {
@@ -80,48 +75,52 @@ Status Executor::Stop(int32_t task_id) {
 
 void Executor::SetEnv() {
     ::setenv("mapred_job_id", job_id_.c_str(), 1);
-    ::setenv("mapred_job_name", job_.name().c_str(), 1);
-    ::setenv("mapred_output_dir", node_.output().path().c_str(), 1);
-    ::setenv("mapred_task_partition", to_str(task_.task_id()), 1);
-    ::setenv("mapred_attempt_id", to_str(task_.attempt_id()), 1);
+    ::setenv("mapred_job_name", job_->name().c_str(), 1);
+    ::setenv("mapred_output_dir", node_->output().path().c_str(), 1);
+    ::setenv("mapred_task_partition", to_str(task_->task_id()), 1);
+    ::setenv("mapred_attempt_id", to_str(task_->attempt_id()), 1);
     //::setenv("mapred_pre_tasks");
     //::setenv("mapred_next_tasks");
-    ::setenv("mapred_memory_limit", to_str(node_.memory() / 1024), 1);
-    //::setenv("mapred_task_input", task_.input().input_file().c_str(), 1);
-    ::setenv("mapred_task_output", node_.output().path().c_str(), 1);
-    ::setenv("map_input_start", to_str(task_.input().input_offset()), 1);
-    ::setenv("map_input_length", to_str(task_.input().input_size()), 1);
+    ::setenv("mapred_memory_limit", to_str(node_->memory() / 1024), 1);
+    //::setenv("mapred_task_input", task_->input().input_file().c_str(), 1);
+    ::setenv("mapred_task_output", node_->output().path().c_str(), 1);
+    ::setenv("map_input_start", to_str(task_->input().input_offset()), 1);
+    ::setenv("map_input_length", to_str(task_->input().input_size()), 1);
 
     //::setenv("minion_identity");
-    ::setenv("minion_input_format", node_.input_format() == kBinaryInput ? "seq" : "text", 1);
-    ::setenv("minion_input_nline", node_.input_format() == kNLineInput ? "true" : "false", 1);
-    ::setenv("minion_phase", to_str(task_.node()), 1);
-    ::setenv("minion_pipe_style", job_.pipe_style() == kStreaming ?
+    ::setenv("minion_input_format", node_->input_format() == kBinaryInput ? "seq" : "text", 1);
+    ::setenv("minion_input_nline", node_->input_format() == kNLineInput ? "true" : "false", 1);
+    ::setenv("minion_phase", to_str(task_->node()), 1);
+    ::setenv("minion_pipe_style", job_->pipe_style() == kStreaming ?
             "streaming" : "bistreaming", 1);
     //::setenv("minion_input_dfs_host");
     //::setenv("minion_input_dfs_port");
     //::setenv("minion_input_dfs_user");
     //::setenv("minion_input_dfs_password");
-    ::setenv("minion_user_cmd", node_.command().c_str(), 1);
-    ::setenv("minion_combiner_cmd", node_.combiner().c_str(), 1);
-    ::setenv("minion_partitioner", node_.partition() == kKeyFieldBasedPartitioner ?
+    ::setenv("minion_user_cmd", node_->command().c_str(), 1);
+    ::setenv("minion_combiner_cmd", node_->combiner().c_str(), 1);
+    ::setenv("minion_partitioner", node_->partition() == kKeyFieldBasedPartitioner ?
             "keyhash" : "inthash", 1);
-    ::setenv("minion_key_separator", node_.key_separator().c_str(), 1);
-    ::setenv("minion_key_fields", to_str(node_.key_fields_num()), 1);
-    ::setenv("minion_partition_fields", to_str(node_.partition_fields_num()), 1);
-    ::setenv("minion_output_format", node_.output_format() == kBinaryOutput ?
-            "seq" : node_.output_format() == kTextOutput ? "text" : "multiple", 1);
-    ::setenv("minion_output_dfs_host", node_.output().host().c_str(), 1);
-    ::setenv("minion_output_dfs_port", node_.output().port().c_str(), 1);
-    ::setenv("minion_output_dfs_user", node_.output().user().c_str(), 1);
-    ::setenv("minion_output_dfs_password", node_.output().password().c_str(), 1);
+    ::setenv("minion_key_separator", node_->key_separator().c_str(), 1);
+    ::setenv("minion_key_fields", to_str(node_->key_fields_num()), 1);
+    ::setenv("minion_partition_fields", to_str(node_->partition_fields_num()), 1);
+    ::setenv("minion_output_format", node_->output_format() == kBinaryOutput ?
+            "seq" : node_->output_format() == kTextOutput ? "text" : "multiple", 1);
+    ::setenv("minion_output_dfs_host", node_->output().host().c_str(), 1);
+    ::setenv("minion_output_dfs_port", node_->output().port().c_str(), 1);
+    ::setenv("minion_output_dfs_user", node_->output().user().c_str(), 1);
+    ::setenv("minion_output_dfs_password", node_->output().password().c_str(), 1);
 }
 
 bool Executor::PrepareOutputDir() {
-    File* fp = File::Create(kInfHdfs, File::BuildParam(node_.output()));
+    File* fp = File::Create(kInfHdfs, File::BuildParam(node_->output()));
     if (fp == NULL) {
         LOG(WARNING, "empty file pointer, fail");
         return false;
+    }
+    final_dir_ = node_->output().path();
+    if (*final_dir_.rbegin() != '/') {
+        final_dir_.push_back('/');
     }
     /*
      * Hierarchy is designed as follows:
@@ -135,7 +134,7 @@ bool Executor::PrepareOutputDir() {
      *     final dir: ../output/
      *     work dir: ../output/_temporary/
      */
-    if (scheduler_.HasSuccessors(task_.task_id())) {
+    if (scheduler_->HasSuccessors(task_->task_id())) {
         // For AlphaGru and BetaGru
         // Create temp directory, may have been created
         std::stringstream ss;
@@ -143,15 +142,15 @@ bool Executor::PrepareOutputDir() {
         bool ok = fp->Mkdir(ss.str());
         LOG(DEBUG, "create temp dir %s: %s", ok ? "ok" : "fail", ss.str().c_str());
         // Create own directory of current task, may have been created
-        ss << "node_" << task_.node() << "_" << task_.task_id() << "/";
+        ss << "node_" << task_->node() << "_" << task_->task_id() << "/";
         final_dir_ = ss.str();
         ok = fp->Mkdir(final_dir_);
         LOG(DEBUG, "create phase dir %s: %s", ok ? "ok" : "fail", final_dir_.c_str());
         // Create own directory of current attempt
-        ss << "attempt_" << task_.attempt_id() << "/";
+        ss << "attempt_" << task_->attempt_id() << "/";
         work_dir_ = ss.str();
         if (!fp->Mkdir(work_dir_)) {
-            LOG(WARNING, "fail to create own directory of attempt: %d", task_.attempt_id());
+            LOG(WARNING, "fail to create own directory of attempt: %d", task_->attempt_id());
             delete fp;
             return false;
         }
@@ -215,12 +214,12 @@ bool Executor::MoveTempDir() {
      *     ../output/_temporary/part_xxxxx -> ../output/part-xxxxx
      */
     std::string pattern;
-    if (scheduler_.HasSuccessors(task_.task_id())) {
+    if (scheduler_->HasSuccessors(task_->task_id())) {
         pattern = "*.sort";
     } else {
         pattern = "part_*";
     }
-    File* fp = File::Create(kInfHdfs, File::BuildParam(node_.output()));
+    File* fp = File::Create(kInfHdfs, File::BuildParam(node_->output()));
     if (fp == NULL) {
         LOG(WARNING, "empty file pointer, fail");
         return false;

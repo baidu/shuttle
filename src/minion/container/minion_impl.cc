@@ -17,6 +17,11 @@ DECLARE_int32(suspend_time);
 namespace baidu {
 namespace shuttle {
 
+MinionImpl::MinionImpl() : running_(true), task_id_(-1), attempt_id_(-1),
+        state_(kTaskUnknown), executor_(NULL) {
+    executor_ = new Executor(FLAGS_jobid);
+}
+
 void MinionImpl::Query(::google::protobuf::RpcController* /*controller*/,
                        const ::baidu::shuttle::QueryRequest* /*request*/,
                        ::baidu::shuttle::QueryResponse* response,
@@ -108,7 +113,20 @@ void MinionImpl::Run() {
         // Exec assigned task
         const TaskInfo& task = assign_response.task();
         SaveBreakpoint(task);
-        // TODO Exec wrapper
+        {
+            MutexLock lock(&mu_);
+            task_id_ = task.task_id();
+            attempt_id_ = task.attempt_id();
+            state_ = kTaskRunning;
+        }
+        LOG(INFO, "try exec task: %s, phase %d, task %d, attempt %d",
+                FLAGS_jobid.c_str(), FLAGS_node, task.task_id(), task.attempt_id());
+        TaskState task_state = executor_->Exec(assign_response.job(), task);
+        LOG(INFO, "exec done, task state: %s", TaskState_Name(task_state).c_str());
+        {
+            MutexLock lock(&mu_);
+            state_ = task_state;
+        }
 
         // Finish current task
         FinishTaskRequest finish_request;

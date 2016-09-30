@@ -11,12 +11,12 @@ namespace shuttle {
 
 class MinionImpl : public Minion {
 public:
-    MinionImpl() : running_(true), task_id_(-1), attempt_id_(-1),
-            state_(kTaskUnknown), executor_(NULL) { }
-    ~MinionImpl() {
+    MinionImpl();
+    virtual ~MinionImpl() {
         if (executor_ != NULL) {
             delete executor_;
         }
+        delete executor_;
     }
 
     void Query(::google::protobuf::RpcController* controller,

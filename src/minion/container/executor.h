@@ -11,10 +11,18 @@ namespace shuttle {
 
 class Executor {
 public:
-    Executor(const std::string& job_id, const JobDescriptor& job, const TaskInfo& info);
-    ~Executor();
+    Executor(const std::string& job_id) : job_id_(job_id),
+            job_(NULL), node_(NULL), task_(NULL),
+            wrapper_pid_(-1), scheduler_(NULL) { }
+    ~Executor() {
+        Stop(task_->task_id());
+        if (scheduler_ != NULL) {
+            delete scheduler_;
+            scheduler_ = NULL;
+        }
+    }
 
-    TaskState Exec();
+    TaskState Exec(const JobDescriptor& job, const TaskInfo& task);
     Status Stop(int32_t task_id);
     bool ParseCounters(const std::string& work_dir,
             std::map<std::string, int64_t>& counters);
@@ -24,13 +32,13 @@ private:
     bool MoveTempDir();
 private:
     const std::string& job_id_;
-    const TaskInfo& task_;
-    const JobDescriptor& job_;
-    const NodeConfig& node_;
+    JobDescriptor const* job_;
+    NodeConfig const* node_;
+    TaskInfo const* task_;
     std::string final_dir_;
     std::string work_dir_;
     pid_t wrapper_pid_;
-    DagScheduler scheduler_;
+    DagScheduler* scheduler_;
 };
 
 }
