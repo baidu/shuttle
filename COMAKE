@@ -42,30 +42,58 @@ CONFIGS('third-64/gflags@gflags_2-0-0-100_PD_BL')
 CONFIGS('third-64/snappy@1.0.5.100')
 CONFIGS('inf/computing/libhdfs@libhdfs_1-4-2-62665_PD_BL@COMAKE', IncludePaths('./output/include'))
 
+file_src = 'src/common/file.cc \
+            src/common/file/inf_hdfs.cc \
+            src/common/file/localfs.cc'
+
+fileformat_src = 'src/common/fileformat.cc \
+                  src/common/format/plain_text.cc \
+                  src/common/format/seq_file.cc \
+                  src/common/format/sort_file.cc \
+                  proto/sortfile.proto'
+
 master_src = 'src/master/gru.cc \
               src/master/galaxy_handler.cc \
               src/master/job_tracker.cc \
-              src/master/dag_scheduler.cc \
               src/master/master_main.cc \
               src/master/master_impl.cc \
               src/master/master_flags.cc \
               src/master/resource_manager.cc \
-              src/common/file.cc \
-              src/common/tools_util.cc \
-              src/sort/input_reader.cc \
+              src/common/dag_scheduler.cc \
+              src/common/scanner.cc \
               proto/master.proto \
               proto/minion.proto \
               proto/serialize.proto \
               proto/shuttle.proto'
 
-minion_src = 'src/minion/minion_main.cc \
-              src/minion/minion_impl.cc \
-              src/minion/minion_flags.cc \
-              src/minion/partition.cc \
-              src/common/file.cc \
-              src/common/tools_util.cc \
+minion_src = 'src/minion/container/minion_main.cc \
+              src/minion/container/minion_impl.cc \
+              src/minion/container/minion_flags.cc \
+              src/minion/container/executor.cc \
+              src/common/dag_scheduler.cc \
               proto/minion.proto \
               proto/master.proto \
+              proto/shuttle.proto'
+
+inlet_src = 'src/minion/input/inlet.cc \
+             src/minion/input/input_main.cc \
+             src/minion/input/merger.cc \
+             src/common/scanner.cc \
+             proto/shuttle.proto'
+
+combiner_src = 'src/minion/combiner/combiner.cc \
+                src/minion/combiner/combiner_main.cc \
+                src/minion/common/emitter.cc \
+                src/minion/common/streaming.cc \
+                src/minion/output/partition.cc \
+                proto/shuttle.proto'
+
+outlet_src = 'src/minion/output/outlet.cc \
+              src/minion/output/output_main.cc \
+              src/minion/output/partition.cc \
+              src/minion/output/hopper.cc \
+              src/minion/common/emitter.cc \
+              src/minion/common/streaming.cc \
               proto/shuttle.proto'
 
 sdk_src = 'src/sdk/shuttle.cc \
@@ -76,74 +104,62 @@ sdk_header = 'src/sdk/shuttle.h'
 
 client_src = 'src/client/shuttle_main.cc'
 
-executor_src = 'src/minion/executor_impl.cc \
-                src/minion/executor_map.cc \
-                src/minion/executor_reduce.cc \
-                src/minion/executor_maponly.cc'
-
-sort_src = 'proto/sortfile.proto \
-            proto/shuttle.proto \
-            src/sort/sort_file_impl.cc \
-            src/common/file.cc \
-            src/common/tools_util.cc'
-
-sort_test_src = 'proto/sortfile.proto \
-                 proto/shuttle.proto \
-                 src/sort/sort_file_impl.cc \
-                 src/sort/sort_file_hdfs_test.cc'
-
-merge_test_src = 'src/sort/sort_file_impl.cc \
-                  src/sort/merge_file_test.cc \
-                  src/sort/merge_file_impl.cc \
-                  proto/sortfile.proto \
-                  proto/shuttle.proto'
-
-sf_tool_src = 'src/sort/sf_tool.cc \
-               src/sort/sort_file_impl.cc \
-               src/sort/merge_file_impl.cc'
-
-shuffle_tool_src = 'src/sort/shuffle_tool.cc \
-                    src/sort/sort_file_impl.cc \
-                    src/sort/merge_file_impl.cc'
-
-input_reader_src = 'src/sort/input_reader.cc \
-                    src/common/file.cc \
-                    src/common/tools_util.cc \
-                    proto/shuttle.proto'
-
-partition_src = 'src/minion/partition.cc \
+file_test_src = 'src/test/file.test.cc \
                  proto/shuttle.proto'
 
-input_tool_src = 'src/sort/input_tool.cc'
+scanner_test_src = 'src/test/scanner.test.cc \
+                    src/common/scanner.cc'
 
-input_test_src = 'src/sort/input_test.cc'
+merger_test_src = 'src/test/merger.test.cc \
+                   src/common/scanner.cc \
+                   src/minion/input/merger.cc \
+                   proto/shuttle.proto'
 
-partition_test_src = 'src/minion/partition_test.cc'
-
-resourcemanager_test_src = 'src/master/resource_manager.cc \
-                            src/master/resource_manager_test.cc \
-                            src/master/master_flags.cc \
-                            src/common/file.cc \
-                            src/common/tools_util.cc \
-                            proto/shuttle.proto'
-
-dag_scheduler_test_src = 'src/master/dag_scheduler.cc \
-                          src/master/dag_scheduler_test.cc \
+dag_scheduler_test_src = 'src/test/dag_scheduler.test.cc \
+                          src/common/dag_scheduler.cc \
                           proto/shuttle.proto'
 
-Application('master', Sources(master_src))
-Application('minion', Sources(minion_src, executor_src, sort_src))
-Application('sort_test', Sources(sort_test_src, sort_src))
-Application('merge_test', Sources(merge_test_src, sort_src))
-Application('sf_tool', Sources(sort_src, sf_tool_src))
-Application('input_tool', Sources(input_tool_src, input_reader_src))
-Application('input_test', Sources(input_test_src, input_reader_src))
-Application('partition_test', Sources(partition_src, partition_test_src))
-Application('resourcemanager_test', Sources(resourcemanager_test_src, input_reader_src))
-Application('dagscheduler_test', Sources(dag_scheduler_test_src))
-Application('shuffle_tool', Sources(sort_src, shuffle_tool_src))
+resource_manager_test_src = 'src/test/resource_manager.test.cc \
+                             src/master/resource_manager.cc \
+                             src/master/master_flags.cc \
+                             src/common/scanner.cc \
+                             proto/shuttle.proto'
 
-StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
-Directory('src/client', Prefixes('libshuttle.a'))
-TARGET('copy-client-sh', ShellCommands('cp src/client/shuttle.sh output/bin/'), Prefixes('libshuttle.a'))
-TARGET('copy-client-conf', ShellCommands('cp src/client/shuttle.conf output/bin/'), Prefixes('libshuttle.a'))
+partition_tool_src = 'src/tool/partition_tool.cc \
+                      src/minion/output/partition.cc \
+                      proto/shuttle.proto'
+
+sortfile_tool_src = 'src/tool/sortfile_tool.cc \
+                     src/common/scanner.cc \
+                     src/minion/input/merger.cc \
+                     proto/shuttle.proto'
+
+Application('master', Sources(master_src, file_src, fileformat_src))
+Application('minion', Sources(minion_src, file_src, fileformat_src))
+Application('inlet', Sources(inlet_src, file_src, fileformat_src))
+Application('combiner', Sources(combiner_src, file_src, fileformat_src))
+Application('outlet', Sources(outlet_src, file_src, fileformat_src))
+Application('file_test', Sources(file_test_src, file_src))
+Application('fileformat_test', Sources('src/test/fileformat.test.cc', file_src, fileformat_src))
+Application('scanner_test', Sources(scanner_test_src, file_src, fileformat_src))
+Application('merger_test', Sources(merger_test_src, file_src, fileformat_src))
+Application('dag_scheduler_test', Sources(dag_scheduler_test_src))
+Application('rm_test', Sources(resource_manager_test_src, file_src, fileformat_src))
+Application('phaser', Sources(partition_tool_src))
+Application('tricorder', Sources(sortfile_tool_src, file_src, fileformat_src))
+
+#Application('sort_test', Sources(sort_test_src, sort_src))
+#Application('merge_test', Sources(merge_test_src, sort_src))
+#Application('sf_tool', Sources(sort_src, sf_tool_src))
+#Application('input_tool', Sources(input_tool_src, input_reader_src))
+#Application('input_test', Sources(input_test_src, input_reader_src))
+#Application('partition_test', Sources(partition_src, partition_test_src))
+#Application('resourcemanager_test', Sources(resourcemanager_test_src, input_reader_src))
+#Application('dagscheduler_test', Sources(dag_scheduler_test_src))
+#Application('shuffle_tool', Sources(sort_src, shuffle_tool_src))
+
+#StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
+#Directory('src/client', Prefixes('libshuttle.a'))
+#TARGET('copy-client-sh', ShellCommands('cp src/client/shuttle.sh output/bin/'), Prefixes('libshuttle.a'))
+#TARGET('copy-client-conf', ShellCommands('cp src/client/shuttle.conf output/bin/'), Prefixes('libshuttle.a'))
+
