@@ -13,10 +13,15 @@ INCPATH = -I./ -I./src -I$(SOFA_PBRPC_DIR)/src -I$(PROTOBUF_DIR)/include -I$(BOO
 		  -I$(GALAXY_DIR)/ins/output/include
 CXXFLAGS += $(OPT) -pipe -W -Wall -fPIC \
 			-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DHAVE_SNAPPY $(INCPATH)
-LDFLAGS += -lpthread -lz -lrt -lprotobuf -lsnappy \
-		   -L$(SOFA_PBRPC_DIR) -L$(PROTOBUF_DIR)/lib -L$(GFLAGS_DIR)/lib \
-		   -L$(SNAPPY_DIR)/lib -L$(LIB_HDFS_DIR)/output/lib -L$(GALAXY_DIR) \
-		   -L$(GALAXY_DIR)/common -L$(GALAXY_DIR)/ins/output/lib
+LDFLAGS += -lpthread -lrt -lz \
+		   -L$(GFLAGS_DIR)/lib -lgflags\
+		   -L$(SNAPPY_DIR)/lib -lsnappy \
+		   -L$(PROTOBUF_DIR)/lib -lprotobuf \
+		   -L$(LIB_HDFS_DIR)/output/lib -lhdfs \
+		   -L$(SOFA_PBRPC_DIR)/output/lib -lsofa-pbrpc \
+		   -L$(GALAXY_DIR)/output/lib -lgalaxy \
+		   -L$(GALAXY_DIR)/common -lcommon \
+		   -L$(GALAXY_DIR)/ins/output/lib -lins_sdk
 PROTOC = $(PROTOBUF_DIR)/bin/protoc
 
 # Source related constants
@@ -34,7 +39,7 @@ SCANNER_SUPPORT_SRC = src/common/scanner.cc $(FORMAT_FILE_TYPES_SRC) $(FILE_TYPE
 SCANNER_SUPPORT_HEADER = $(patsubst %.cc, %.h, $(SCANNER_SUPPORT_SRC))
 
 MASTER_SRC = $(wildcard src/master/*.cc) \
-			 $(PROTO_SRC) $(SCANNER_SUPPORT_SRC) \
+			 $(filter-out proto/sortfile.pb.cc, $(PROTO_SRC)) $(SCANNER_SUPPORT_SRC) \
 			 src/common/dag_scheduler.cc
 MASTER_HEADER = $(wildcard src/master/*.h) \
 				$(PROTO_HEADER) $(SCANNER_SUPPORT_SRC) \
