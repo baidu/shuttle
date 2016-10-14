@@ -29,6 +29,9 @@ SNAPPY_DIR=../../../third-64/snappy
 # HDFS library
 LIB_HDFS_DIR=../../inf/computing/libhdfs
 
+# JVM Library
+JVM_LIB_DIR=../../inf/computing/java6/jre/lib/amd64/server
+
 # Galaxy
 GALAXY_DIR=./galaxy
 

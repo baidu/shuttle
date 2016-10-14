@@ -11,17 +11,18 @@ INCPATH = -I./ -I./src -I$(SOFA_PBRPC_DIR)/src -I$(PROTOBUF_DIR)/include -I$(BOO
 		  -I$(GFLAGS_DIR)/include -I$(SNAPPY_DIR)/include -I$(LIB_HDFS_DIR)/output/include \
 		  -I$(GALAXY_DIR)/output/include -I$(GALAXY_DIR)/common/include \
 		  -I$(GALAXY_DIR)/ins/output/include
-CXXFLAGS += $(OPT) -pipe -W -Wall -fPIC \
+CXXFLAGS += $(OPT) -pipe -MMD -W -Wall -fPIC \
 			-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DHAVE_SNAPPY $(INCPATH)
-LDFLAGS += -lpthread -lrt -lz \
-		   -L$(GFLAGS_DIR)/lib -lgflags\
-		   -L$(SNAPPY_DIR)/lib -lsnappy \
-		   -L$(PROTOBUF_DIR)/lib -lprotobuf \
-		   -L$(LIB_HDFS_DIR)/output/lib -lhdfs \
-		   -L$(SOFA_PBRPC_DIR)/output/lib -lsofa-pbrpc \
-		   -L$(GALAXY_DIR)/output/lib -lgalaxy \
+LDFLAGS += -L$(GALAXY_DIR)/output/lib -lgalaxy \
 		   -L$(GALAXY_DIR)/common -lcommon \
-		   -L$(GALAXY_DIR)/ins/output/lib -lins_sdk
+		   -L$(GALAXY_DIR)/ins/output/lib -lins_sdk \
+		   -L$(SOFA_PBRPC_DIR)/output/lib -lsofa-pbrpc \
+		   -L$(PROTOBUF_DIR)/lib -lprotobuf \
+		   -L$(GFLAGS_DIR)/lib -lgflags \
+		   -L$(SNAPPY_DIR)/lib -lsnappy \
+		   -L$(LIB_HDFS_DIR)/output/lib -lhdfs \
+		   -L$(JVM_LIB_DIR) -ljvm \
+		   -lpthread -lz -lrt
 PROTOC = $(PROTOBUF_DIR)/bin/protoc
 
 # Source related constants
@@ -113,25 +114,23 @@ TEST_RESOURCE_MANAGER_OBJ = $(patsubst %.cc, %.o, $(TEST_RESOURCE_MANAGER_SRC))
 
 TOOL_PARTITION_SRC = src/tool/partition_tool.cc src/minion/output/partition.cc \
 					 proto/shuttle.pb.cc
-TOOL_PARTITION_OBJ = $(patsubst %.cc, %.o, $(TOOL_PARTITION_OBJ))
+TOOL_PARTITION_OBJ = $(patsubst %.cc, %.o, $(TOOL_PARTITION_SRC))
 
 TOOL_SORTFILE_SRC = src/tool/sortfile_tool.cc src/minion/input/merger.cc \
 					proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
 TOOL_SORTFILE_OBJ = $(patsubst %.cc, %.o, $(TOOL_SORTFILE_SRC))
 
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ)
-BIN = master minion inlet combiner outlet
+BIN = master minion inlet combiner outlet phaser tricorder
 TESTS = file_test fileformat_test scanner_test merger_test dag_test rm_test
+DEPS = $(patsubst %.o, %.d, $(OBJS))
 
 # Default build all binary files except tests
 all: $(BIN)
 
 # Dependencies
-$(MASTER_OBJ): $(MASTER_HEADER)
-$(MINION_OBJ): $(MINION_HEADER)
-$(INLET_OBJ): $(INLET_HEADER)
-$(COMBINER_OBJ): $(COMBINER_HEADER)
-$(OUTLET_OBJ): $(OUTLET_HEADER)
+$(OBJS): $(PROTO_HEADER)
+-include $(DEPS)
 
 # Building targets
 %.pb.cc %.pb.h: %.proto
@@ -173,10 +172,16 @@ dag_test: $(TEST_DAG_SCHEDULER_OBJ)
 rm_test: $(TEST_RESOURCE_MANAGER_OBJ)
 	$(CXX) $(TEST_RESOURCE_MANAGER_OBJ) -o $@ $(LDFLAGS)
 
+phaser: $(TOOL_PARTITION_OBJ)
+	$(CXX) $(TOOL_PARTITION_OBJ) -o $@ $(LDFLAGS)
+
+tricorder: $(TOOL_SORTFILE_OBJ)
+	$(CXX) $(TOOL_SORTFILE_OBJ) -o $@ $(LDFLAGS)
+
 .PHONY: clean install output
 clean:
 	rm -rf output/
-	rm -rf $(BIN) $(TESTS) $(OBJS)
+	rm -rf $(BIN) $(TESTS) $(OBJS) $(DEPS)
 	rm -rf $(PROTO_SRC) $(PROTO_HEADER)
 
 output: $(BIN)
