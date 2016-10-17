@@ -13,7 +13,7 @@
 
 #include "sdk/shuttle.h"
 #include "ins_sdk.h"
-#include "tprinter.h"
+#include "common/table_printer.h"
 
 namespace config {
 
@@ -29,6 +29,7 @@ std::string nexus;
 std::string nexus_root = "/shuttle/";
 std::string nexus_file;
 std::string master = "master";
+std::vector<std::string> cmdenvs;
 
 bool display_all = false;
 bool immediate_return = false;
@@ -44,7 +45,7 @@ std::string job_name = "map_reduce_job";
     ::baidu::shuttle::sdk::kTextOutput;
 ::baidu::shuttle::sdk::PipeStyle pipe_style = \
     ::baidu::shuttle::sdk::kStreaming;
-int job_cpu = 1000;
+int job_cpu = 400;
 int64_t job_memory = 1024l * 1024 * 1024;
 int map_capacity = -1; // default value assigned during submitting
 int reduce_capacity = -1; // default value assigned during submitting
@@ -66,7 +67,13 @@ bool reduce_speculative_exec = true;
 int map_retry = 3;
 int reduce_retry = 3;
 int64_t split_size = 500l * 1024 * 1024;
-
+std::string err_msg;
+bool check_counters = false;
+int ignore_map_failures = 0;
+int ignore_reduce_failures = 0;
+bool decompress_input = false;
+std::string combine = "";
+bool compress_output = false;
 }
 
 const std::string error_message = "shuttle client - A fast computing framework base on Galaxy\n"
@@ -85,8 +92,9 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t-output <path>\t\t\tSpecify the output path, which must be empty\n"
         "\t-file <file>[,...]\t\tSpecify the files needed by your program\n"
         "\t-cacheArchive <file>\\#<dir>\tSpecify the additional package and its relative path\n"
-        "\t-mapper <file>\t\t\tSpecify the map program\n"
-        "\t-reducer <file>\t\t\tSpecify the reduce program\n"
+        "\t-mapper <command>\t\t\tSpecify the map program\n"
+        "\t-reducer <command>\t\t\tSpecify the reduce program\n"
+        "\t-combiner <command>\t\t\tSpecify the combiner program\n"
         "\t-partitioner <partitioner>\tSpecify the partitioner used when shuffling\n"
         "\t-inputformat <input format>\tSpecify the input format\n"
         "\t-outputformat <output format>\tSpecify the output format\n"
@@ -105,8 +113,13 @@ const std::string error_message = "shuttle client - A fast computing framework b
         "\t  mapred.job.output.port\tSpecify the port, ditto\n"
         "\t  mapred.job.output.user\tSpecify the user, ditto\n"
         "\t  mapred.job.output.password\tSpecify the password, ditto\n"
-        "\t  mapred.max.map.attempts\t\tSpecify the number of map tasks\n"
-        "\t  mapred.max.reduce.attempts\t\tSpecify the number of reduce tasks\n"
+        "\t  mapred.ignore.map.failures \t\tSpecify the maximum number of failed-map ignored\n"
+        "\t  mapred.ignore.reduce.failures\t\tSpecify the maximum number of failed-reduce ignored\n"
+        "\t  mapred.decompress.input \t\t Allow decompress input file\n"
+        "\t  mapred.output.compress \t\t Allow compress output file\n"
+        "\t  mapred.map.max.attempts\t\tSpecify the maximum number of retries per each map task\n"
+        "\t  mapred.job.check.counters\t\tEnable checking job counters\n"
+        "\t  mapred.reduce.max.attempts\t\tSpecify the maximum number of retries per each reduce tasks\n"
         "\t  mapred.map.tasks\t\tSpecify the number of map tasks\n"
         "\t  mapred.reduce.tasks\t\tSpecify the number of reduce tasks\n"
         "\t  mapred.map.tasks.speculative.execution\tAllow if shuttle can speculatively decide attempts of a map\n"
@@ -147,6 +160,21 @@ struct TaskComparator {
             return task1.task_id < task2.task_id;
         }
         return task1.attempt_id < task2.attempt_id;
+    }
+};
+
+struct JobComparator {
+    bool operator()(const ::baidu::shuttle::sdk::JobInstance& job1,
+                    const ::baidu::shuttle::sdk::JobInstance& job2) const {
+        if (job1.state == ::baidu::shuttle::sdk::kRunning && 
+            job2.state != ::baidu::shuttle::sdk::kRunning) {
+            return true;
+        }
+        if (job1.state != ::baidu::shuttle::sdk::kRunning && 
+            job2.state == ::baidu::shuttle::sdk::kRunning) {
+            return false;
+        }
+        return job1.jobid > job2.jobid;
     }
 };
 
@@ -234,6 +262,9 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
             if (!config::file.empty()) {
                 config::file += ",";
             }
+            if (!boost::starts_with(opt[i+1], "hdfs://") || !boost::contains(opt[i+1],".tar")) {
+                config::err_msg = "cacheArchive should like this hdfs://hostname:port/abc.tar.gz";
+            }
             config::file += opt[++i];
         } else if (!strcmp(ctx, "mapper")) {
             if (!config::map.empty()) {
@@ -245,6 +276,11 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
                 config::reduce += ",";
             }
             config::reduce += opt[++i];
+        } else if (!strcmp(ctx, "combiner")){
+            if (!config::combine.empty()) {
+                config::combine += ",";
+            }
+            config::combine += opt[++i];
         } else if (!strcmp(ctx, "partitioner")) {
             config::partitioner = ParsePartitioner(opt[++i]);
         } else if (!strcmp(ctx, "inputformat")) {
@@ -252,6 +288,11 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
         } else if (!strcmp(ctx, "outputformat")) {
             config::output_format = ParseOutputFormat(opt[++i]);
         } else if (!strcmp(ctx, "jobconf")) {
+            if (!config::jobconf.empty()) {
+                config::jobconf += ",";
+            }
+            config::jobconf += opt[++i];
+        } else if (!strcmp(ctx, "D")) {
             if (!config::jobconf.empty()) {
                 config::jobconf += ",";
             }
@@ -280,6 +321,8 @@ static int ParseCommandLineFlags(int* argc, char***argv) {
         } else if (!strcmp(ctx, "help") || !strcmp(ctx, "h")) {
             fprintf(stderr, "%s\n", error_message.c_str());
             exit(0);
+        } else if (!strcmp(ctx, "cmdenv")) {
+            config::cmdenvs.push_back(opt[++i]);
         } else {
             continue;
         }
@@ -375,12 +418,12 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.reduce.tasks=")) {
             config::reduce_tasks = boost::lexical_cast<int>(
                     it->substr(strlen("mapred.reduce.tasks=")));
-        } else if (boost::starts_with(*it, "mapred.max.map.attempts=")) {
+        } else if (boost::starts_with(*it, "mapred.map.max.attempts=")) {
             config::map_retry = boost::lexical_cast<int>(
-                    it->substr(strlen("mapred.max.map.attempts=")));
-        } else if (boost::starts_with(*it, "mapred.max.reduce.attempts=")) {
+                    it->substr(strlen("mapred.map.max.attempts=")));
+        } else if (boost::starts_with(*it, "mapred.reduce.max.attempts=")) {
             config::reduce_retry = boost::lexical_cast<int>(
-                    it->substr(strlen("mapred.max.reduce.attempts=")));
+                    it->substr(strlen("mapred.reduce.max.attempts=")));
         } else if (boost::starts_with(*it, "mapred.job.input.host=")) {
             config::input_host = it->substr(strlen("mapred.job.input.host="));
         } else if (boost::starts_with(*it, "mapred.job.input.port=")) {
@@ -413,6 +456,21 @@ static void ParseJobConfig() {
         } else if (boost::starts_with(*it, "mapred.reduce.tasks.speculative.execution=")) {
             config::reduce_speculative_exec =
                 ParseBooleanValue(it->substr(strlen("mapred.reduce.tasks.speculative.execution=")));
+        } else if(boost::starts_with(*it, "mapred.job.check.counters=")) {
+            config::check_counters = 
+                ParseBooleanValue(it->substr(strlen("mapred.job.check.counters=")));
+        } else if(boost::starts_with(*it, "mapred.ignore.map.failures=")) {
+            config::ignore_map_failures =
+               boost::lexical_cast<int>(it->substr(strlen("mapred.ignore.map.failures=")));
+        } else if(boost::starts_with(*it, "mapred.ignore.reduce.failures=")) {
+            config::ignore_reduce_failures =
+               boost::lexical_cast<int>(it->substr(strlen("mapred.ignore.reduce.failures=")));
+        } else if(boost::starts_with(*it, "mapred.decompress.input=")) {
+            config::decompress_input = 
+               ParseBooleanValue(it->substr(strlen("mapred.decompress.input=")));
+        } else if(boost::starts_with(*it, "mapred.output.compress=")) {
+            config::compress_output = 
+               ParseBooleanValue(it->substr(strlen("mapred.output.compress=")));
         }
     }
 }
@@ -446,16 +504,25 @@ static std::string GetMasterAddr() {
     return master_addr;
 }
 
-static inline std::string ParseTimeToReadable(const time_t& time) {
-    char time_buf[32] = { 0 };
-    ::strftime(time_buf, 32, "%T", ::localtime(&time));
-    return time_buf;
-}
-
 static inline std::string FromatLongTime(const time_t& time) {
     char time_buf[32] = { 0 };
     ::strftime(time_buf, 32, "%Y-%m-%d %H:%M:%S", ::localtime(&time));
     return time_buf;
+}
+
+static inline std::string FormatCostTime(const uint32_t& time) {
+    std::stringstream ss;
+    if (time > 3600) {
+        ss << (time / 3600) << " hours, ";
+    }
+    if ((time % 3600) > 60) {
+        ss << ((time % 3600) / 60) << " mins, ";
+    }
+    if ((time % 60) > 0) {
+        ss << (time % 60) << " sec";
+    }
+    ss << "; " << time;
+    return ss.str();
 }
 
 static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
@@ -466,8 +533,14 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
     printf("State: %s\n", state_string[job.state]);
     printf("Start Time: %s\n", FromatLongTime(job.start_time).c_str());
     printf("Finish Time: %s\n", job.finish_time == 0 ? "-": FromatLongTime(job.finish_time).c_str());
-    printf("====================\n");
-    ::baidu::common::TPrinter tp(7);
+    for (size_t i = 0; i < job.desc.inputs.size(); i++) {
+        printf("Input[%d]: %s\n", (int)i, job.desc.inputs[i].c_str());
+    }
+    printf("Output: %s\n", job.desc.output.c_str());
+    printf("Map Capacity: %d\n", job.desc.map_capacity);
+    printf("Reduce Capacity: %d\n", job.desc.reduce_capacity);
+    printf("\n====================\n");
+    ::baidu::shuttle::TPrinter tp(7);
     tp.AddRow(7, "", "total", "pending", "running", "failed", "killed", "completed");
     tp.AddRow(7, "Map", boost::lexical_cast<std::string>(job.map_stat.total).c_str(),
               boost::lexical_cast<std::string>(job.map_stat.pending).c_str(),
@@ -484,9 +557,66 @@ static void PrintJobDetails(const ::baidu::shuttle::sdk::JobInstance& job) {
     printf("%s\n", tp.ToString().c_str());
 }
 
+static void PrintJobPrediction(const ::baidu::shuttle::sdk::JobInstance& job,
+        const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
+    if (job.map_stat.completed > 0) {
+        printf("\n====================\nPrediction:\n");
+        int32_t c_time_sum = 0;
+        int32_t r_time_sum = 0;
+        int32_t now = time(NULL);
+        std::vector<int32_t> completed_map_time;
+        for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
+                it != tasks.end(); ++it) {
+            if (::baidu::shuttle::sdk::kMap == it->type ||
+                    ::baidu::shuttle::sdk::kMapOnly == it->type) {
+                if (::baidu::shuttle::sdk::kTaskCompleted == it->state) {
+                    c_time_sum += it->end_time - it->start_time;
+                    completed_map_time.push_back(it->end_time - it->start_time);
+                } else if (::baidu::shuttle::sdk::kTaskRunning == it->state) {
+                    r_time_sum += now - it->start_time;
+                }
+            }
+        }
+        int32_t avg_time = c_time_sum / job.map_stat.completed;
+        printf("Average map time by completed map : %s\n", 
+                FormatCostTime(avg_time).c_str());
+        int32_t all_need_time = avg_time * job.map_stat.total;
+        int32_t more_need_time = all_need_time - c_time_sum - r_time_sum;
+        if (more_need_time > 0) {
+            float success_rate = (float)job.map_stat.completed / 
+                (job.map_stat.completed + job.map_stat.killed + job.map_stat.failed);
+            int more_cost_time = int(more_need_time / success_rate /
+                (job.map_stat.running ? job.map_stat.running : 1));
+            printf("need more %s to complete map, ", FormatCostTime(more_cost_time).c_str());
+            printf("map may complete @ %s\n", FromatLongTime(now + more_cost_time).c_str());
+        }
+        std::sort(completed_map_time.begin(), completed_map_time.end());
+        std::vector<int32_t>::iterator lower_it = std::lower_bound(
+                completed_map_time.begin(), completed_map_time.end(), avg_time);
+        printf("\n====================\n");
+        printf("%d maps run faster than average\n", (int)std::distance(completed_map_time.begin(), lower_it));
+        size_t all = completed_map_time.size();
+        size_t index_9 = (size_t)(all * 0.9f);
+        size_t index_99 = (size_t)(all * 0.99f);
+        size_t index_999 = (size_t)(all * 0.999f);
+        size_t index_9999 = (size_t)(all * 0.9999f);
+        int32_t time_9 = completed_map_time[index_9];
+        int32_t time_99 = completed_map_time[index_99];
+        int32_t time_999 = completed_map_time[index_999];
+        int32_t time_9999 = completed_map_time[index_9999];
+        int32_t time_all = completed_map_time[all - 1];
+        printf("90.00%% maps (%lu) completed in %s \n", index_9, FormatCostTime(time_9).c_str());
+        printf("99.00%% maps (%lu) completed in %s \n", index_99, FormatCostTime(time_99).c_str());
+        printf("99.90%% maps (%lu) completed in %s \n", index_999, FormatCostTime(time_999).c_str());
+        printf("99.99%% maps (%lu) completed in %s \n", index_9999, FormatCostTime(time_9999).c_str());
+        printf("100.0%% maps (%lu) completed in %s \n", all, FormatCostTime(time_all).c_str());
+        printf("\n====================\n");
+    }
+}
+
 static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstance >& tasks) {
     const int column = 6;
-    ::baidu::common::TPrinter tp(column);
+    ::baidu::shuttle::TPrinter tp(column);
     tp.AddRow(column, "tid", "aid", "state", "minion address", "start time", "end time");
     for (std::vector< ::baidu::shuttle::sdk::TaskInstance >::const_iterator it = tasks.begin();
             it != tasks.end(); ++it) {
@@ -496,16 +626,18 @@ static void PrintTasksInfo(const std::vector< ::baidu::shuttle::sdk::TaskInstanc
                   (it->state == ::baidu::shuttle::sdk::kTaskUnknown) ?
                       "Unknown" : state_string[it->state],
                   it->minion_addr.c_str(),
-                  ParseTimeToReadable(it->start_time).c_str(),
-                  (it->end_time > it->start_time) ? ParseTimeToReadable(it->end_time).c_str() : "-");
+                  FromatLongTime(it->start_time).c_str(),
+                  (it->end_time > it->start_time) ? FromatLongTime(it->end_time).c_str() : "-");
     }
     printf("%s\n", tp.ToString().c_str());
 }
 
-static void PrintJobsInfo(const std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
+static void PrintJobsInfo(std::vector< ::baidu::shuttle::sdk::JobInstance >& jobs) {
     const int column = 5;
-    ::baidu::common::TPrinter tp(column);
+    ::baidu::shuttle::TPrinter tp(column);
+    tp.SetMaxColWidth(80);
     tp.AddRow(column, "job id", "job name", "state", "map(r/p/c)", "reduce(r/p/c)");
+    std::sort(jobs.begin(), jobs.end(), JobComparator());
     for (std::vector< ::baidu::shuttle::sdk::JobInstance >::const_iterator it = jobs.begin();
             it != jobs.end(); ++it) {
         std::string map_running = boost::lexical_cast<std::string>(it->map_stat.running)
@@ -536,10 +668,19 @@ static int MonitorJob() {
     memset(erase, ' ', 84);
     bool is_tty = ::isatty(fileno(stdout));
     int error_tolerance = 5;
+    int monitor_interval = 2;
+    if (!is_tty) {
+        monitor_interval = 20;
+    }
+    bool display_all_attemp = false;
     while (true) {
         ::baidu::shuttle::sdk::JobInstance job;
         std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
-        bool ok = shuttle->ShowJob(config::params[0], job, tasks);
+        const std::string timestamp = FromatLongTime(time(NULL));
+        std::string error_msg;
+        std::map<std::string, int64_t> counters;
+        bool ok = shuttle->ShowJob(config::params[0], job, tasks, 
+                                   true, display_all_attemp, error_msg, counters);
         if (!ok) {
             fprintf(stderr, "lost connection with master\n");
             if (error_tolerance-- <= 0) {
@@ -551,51 +692,72 @@ static int MonitorJob() {
         switch (job.state) {
         case ::baidu::shuttle::sdk::kPending:
             if (is_tty) {
-                printf("\rjob pending...");
+                printf("\r[%s] job pending...", timestamp.c_str());
             } else {
-                puts("job pending...");
+                printf("[%s] job pending...\n", timestamp.c_str());
             }
             fflush(stdout);
             break;
         case ::baidu::shuttle::sdk::kRunning:
             if (is_tty) {
                 printf("\r%s", erase);
-                printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running",
+                printf("\r[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running",
+                        timestamp.c_str(),
                         job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             } else {
-                printf("job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                printf("[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                        timestamp.c_str(),
                         job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             }
             fflush(stdout);
             break;
         case ::baidu::shuttle::sdk::kCompleted:
+            if (!display_all_attemp) {
+                display_all_attemp = true;
+                break;
+            }
             if (is_tty) {
                 printf("\r%s", erase);
-                printf("\rjob is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                printf("\r[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                        timestamp.c_str(),
                         job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             } else {
-                printf("job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                printf("[%s] job is running, map: %d/%d, %d running; reduce: %d/%d, %d running\n",
+                        timestamp.c_str(),
                         job.map_stat.completed, job.map_stat.total, job.map_stat.running,
                         job.reduce_stat.completed, job.reduce_stat.total, job.reduce_stat.running);
             }
             fflush(stdout);
-            printf("job `%s' has completed\n", job.desc.name.c_str());
+            PrintJobPrediction(job, tasks);
+            printf("[%s] job `%s' has completed\n", timestamp.c_str(), job.desc.name.c_str());
             return 0;
         case ::baidu::shuttle::sdk::kFailed:
+            if (is_tty) {
+                fprintf(stderr, "\n[%s] job `%s' is failed\n", timestamp.c_str(), job.desc.name.c_str());
+            } else {
+                fprintf(stderr, "[%s] job `%s' is failed\n", timestamp.c_str(), job.desc.name.c_str());
+            }
+            fprintf(stderr, "=== error msg ===\n");
+            fprintf(stderr, "%s", error_msg.c_str());
+            fprintf(stderr, "==================\n");
+            fprintf(stderr, "check error details here: %s\n", (job.desc.output + "/_temporary/errors").c_str());
+            fflush(stderr);
+            delete shuttle;
+            return -1;
         case ::baidu::shuttle::sdk::kKilled:
             if (is_tty) {
-                fprintf(stderr, "\njob `%s' is failed\n", job.desc.name.c_str());
+                fprintf(stderr, "\n[%s] job `%s' is killed\n", timestamp.c_str(), job.desc.name.c_str());
             } else {
-                fprintf(stderr, "job `%s' is failed\n", job.desc.name.c_str());
+                fprintf(stderr, "[%s] job `%s' is killed\n", timestamp.c_str(), job.desc.name.c_str());
             }
             fflush(stderr);
             delete shuttle;
             return -1;
         }
-        sleep(2);
+        sleep(monitor_interval);
     }
     delete shuttle;
     if (error_tolerance <= 0) {
@@ -612,23 +774,23 @@ static int SubmitJob() {
     }
 
     if (config::file.empty()) {
-        fprintf(stderr, "file flag is needed, use --file to specify\n");
+        fprintf(stderr, "file flag is needed, use -file to specify\n");
         return -1;
     }
     if (config::input.empty()) {
-        fprintf(stderr, "input flag is needed, use --input to specify\n");
+        fprintf(stderr, "input flag is needed, use -input to specify\n");
         return -1;
     }
     if (config::output.empty()) {
-        fprintf(stderr, "output flag is needed, use --output to specify\n");
+        fprintf(stderr, "output flag is needed, use -output to specify\n");
         return -1;
     }
     if (config::map.empty()) {
-        fprintf(stderr, "map flag is needed, use --map to specify\n");
+        fprintf(stderr, "map flag is needed, use -mapper to specify\n");
         return -1;
     }
     if (config::reduce_tasks != 0 && config::reduce.empty()) {
-        fprintf(stderr, "reduce flag is needed, use --reduce to specify\n");
+        fprintf(stderr, "reduce flag is needed, use -reducer to specify\n");
         return -1;
     }
 /*  if (config::input_host.empty() || config::input_port.empty() ||
@@ -660,6 +822,7 @@ static int SubmitJob() {
     job_desc.output = config::output;
     job_desc.map_command = config::map;
     job_desc.reduce_command = config::reduce;
+    job_desc.combine_command = config::combine;
     job_desc.partition = config::partitioner;
     job_desc.map_total = config::map_tasks;
     job_desc.reduce_total = config::reduce_tasks;
@@ -678,10 +841,16 @@ static int SubmitJob() {
     job_desc.output_format = config::output_format;
     job_desc.pipe_style = config::pipe_style;
     job_desc.map_allow_duplicates = config::map_speculative_exec;
+    job_desc.check_counters = config::check_counters;
     job_desc.reduce_allow_duplicates = config::reduce_speculative_exec;
     job_desc.map_retry = config::map_retry;
     job_desc.reduce_retry = config::reduce_retry;
     job_desc.split_size = config::split_size;
+    job_desc.ignore_map_failures = config::ignore_map_failures;
+    job_desc.ignore_reduce_failures = config::ignore_reduce_failures;
+    job_desc.decompress_input = config::decompress_input;
+    job_desc.compress_output = config::compress_output;
+    job_desc.cmdenvs = config::cmdenvs;
 
     std::string jobid;
     bool ok = shuttle->SubmitJob(job_desc, jobid);
@@ -786,6 +955,22 @@ static int ListJobs() {
     return 0;
 }
 
+static void PrintJobCounters(const std::map<std::string, int64_t>& counters) {
+    if (counters.size() == 0) {
+        return;
+    }
+    ::baidu::shuttle::TPrinter tp(2);
+    tp.SetMaxColWidth(80);
+    printf("\n");
+    tp.AddRow(2, "Counter-Name", "Value");
+    std::map<std::string, int64_t>::const_iterator it;
+    for (it = counters.begin(); it != counters.end(); it++) {
+        tp.AddRow(2, it->first.c_str(),
+                  boost::lexical_cast<std::string>(it->second).c_str());
+    }
+    printf("%s\n", tp.ToString().c_str());
+}
+
 static int ShowJob() {
     std::string master_endpoint = GetMasterAddr();
     if (master_endpoint.empty()) {
@@ -800,7 +985,10 @@ static int ShowJob() {
 
     ::baidu::shuttle::sdk::JobInstance job;
     std::vector< ::baidu::shuttle::sdk::TaskInstance > tasks;
-    bool ok = shuttle->ShowJob(config::params[0], job, tasks, config::display_all);
+    std::string error_msg;
+    std::map<std::string, int64_t> counters;
+    bool ok = shuttle->ShowJob(config::params[0], job, tasks, 
+                               config::display_all, true, error_msg, counters);
     delete shuttle;
     done = true;
     if (!ok) {
@@ -809,7 +997,14 @@ static int ShowJob() {
     }
     std::sort(tasks.begin(), tasks.end(), TaskComparator());
     PrintJobDetails(job);
+    PrintJobPrediction(job, tasks);
+    PrintJobCounters(counters);
     PrintTasksInfo(tasks);
+    if (!error_msg.empty()) {
+        printf("===== error message =====\n");
+        printf("%s", error_msg.c_str());
+        printf("=========================\n");
+    }
     return 0;
 }
 
@@ -832,6 +1027,10 @@ void SignalHandler(int /*sig*/) {
 
 int main(int argc, char* argv[]) {
     ParseCommandLineFlags(&argc, &argv);
+    if (!config::err_msg.empty()) {
+        fprintf(stderr, "%s\n", config::err_msg.c_str());
+        return -1;
+    }
     ParseJobConfig();
     ParseNexusFile();
     if (argc < 2) {
