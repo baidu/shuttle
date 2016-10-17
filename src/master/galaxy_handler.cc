@@ -5,69 +5,94 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 
+DECLARE_string(cluster_address);
+DECLARE_string(cluster_user);
+DECLARE_string(cluster_token);
 DECLARE_int32(galaxy_deploy_step);
+DECLARE_int32(max_minions_per_host);
+DECLARE_string(galaxy_node_label);
+DECLARE_string(cluster_pool);
+DECLARE_bool(cpu_soft_limit);
+DECLARE_bool(memory_soft_limit);
 DECLARE_string(minion_path);
 DECLARE_string(nexus_server_list);
 DECLARE_string(nexus_root_path);
 DECLARE_string(master_path);
-DECLARE_string(galaxy_address);
 
 namespace baidu {
 namespace shuttle {
 
-static const int64_t default_additional_memory = 1024l * 1024 * 1024;
-static const int default_additional_millicores = 0;
-
-int GalaxyHandler::additional_millicores = default_additional_millicores;
-int64_t GalaxyHandler::additional_memory = default_additional_memory;
+::baidu::galaxy::Galaxy* GalaxyHandler::galaxy_ = NULL;
 
 GalaxyHandler::GalaxyHandler(JobDescriptor& job, const std::string& job_id, int node) :
-        galaxy_(NULL), job_(job), job_id_(job_id), node_(node) {
-    galaxy_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_galaxy_address);
+        job_(job), job_id_(job_id), node_(node) {
+    if (galaxy_ == NULL) {
+        galaxy_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_cluster_address);
+    }
     node_str_ = (job_.nodes(node).type() == kReduce) ? "m" : "r";
     node_str_ += boost::lexical_cast<std::string>(node);
     minion_name_ = job.name() + "_" + node_str_;
 }
 
 Status GalaxyHandler::Start() {
-    const ::baidu::galaxy::JobDescription& galaxy_job = PrepareGalaxyJob(job_.nodes(node_));
-    std::string minion_id;
-    if (galaxy_->SubmitJob(galaxy_job, &minion_id)) {
-        minion_id_ = minion_id;
-        galaxy_job_ = galaxy_job;
+    ::baidu::galaxy::sdk::SubmitJobRequest request;
+    ::baidu::galaxy::sdk::SubmitJobResponse response;
+    request.user.user = FLAGS_cluster_user;
+    request.user.token = FLAGS_cluster_token;
+    request.job = PrepareGalaxyJob(job_.nodes(node_));
+    if (galaxy_->SubmitJob(request, &response)) {
+        minion_id_ = response.jobid;
+        if (minion_id_.empty()) {
+            LOG(WARNING, "cannot get galaxy job id: %s", job_id_.c_str());
+            return kGalaxyError;
+        }
+        LOG(INFO, "galaxy job submitted: %s", minion_id_.c_str());
         return kOk;
     }
+    LOG(WARNING, "galaxy report error when submit new job, %s",
+            response.error_code.reason.c_str());
     return kGalaxyError;
 }
 
 Status GalaxyHandler::Kill() {
+    LOG(DEBUG, "kill galaxy job: %s", minion_id_.c_str());
     if (minion_id_.empty()) {
         return kOk;
     }
-    if (galaxy_->TerminateJob(minion_id_)) {
+    ::baidu::galaxy::sdk::RemoveJobRequest request;
+    ::baidu::galaxy::sdk::RemoveJobResponse response;
+    request.jobid = minion_id_;
+    request.user.user = FLAGS_cluster_user;
+    request.user.token = FLAGS_cluster_token;
+    if (galaxy_->RemoveJob(request, &response)) {
         return kOk;
     }
+    LOG(WARNING, "galaxy report error when kill job %s, %s",
+            job_id_.c_str(), response.error_code.reason.c_str());
     return kGalaxyError;
 }
 
 Status GalaxyHandler::SetPriority(const std::string& priority) {
-    ::baidu::galaxy::JobDescription job_desc = galaxy_job_;
-    job_desc.priority = priority;
-    if (!galaxy_->UpdateJob(minion_id_, job_desc)) {
-        return kGalaxyError;
-    }
-    galaxy_job_.priority = priority;
-    return kOk;
+    // Deprecated
+    return kGalaxyError;
 }
 
 Status GalaxyHandler::SetCapacity(int capacity) {
-    ::baidu::galaxy::JobDescription job_desc = galaxy_job_;
-    job_desc.replica = capacity;
-    if (!galaxy_->UpdateJob(minion_id_, job_desc)) {
-        return kGalaxyError;
+    ::baidu::galaxy::sdk::UpdateJobRequest request;
+    ::baidu::galaxy::sdk::UpdateJobResponse response;
+    request.user.user = FLAGS_cluster_user;
+    request.user.token = FLAGS_cluster_token;
+    request.jobid = minion_id_;
+    request.job = PrepareGalaxyJob(job_.nodes(node_));
+    request.job.deploy.replica = capacity;
+    request.operate = ::baidu::galaxy::sdk::kUpdateJobStart;
+    if (galaxy_->UpdateJob(minion_id_, job_desc)) {
+        job_.mutable_nodes(node_)->set_capacity(capacity);
+        return kOk;
     }
-    galaxy_job_.replica = capacity;
-    return kOk;
+    LOG(WARNING, "galaxy report error when update job %s, %s"
+            job_id_.c_str(), response.error_code.reason.c_str());
+    return kGalaxyError;
 }
 
 Status GalaxyHandler::Load(const std::string& galaxy_jobid) {
@@ -80,16 +105,46 @@ std::string GalaxyHandler::Dump() {
     return minion_id_;
 }
 
-::baidu::galaxy::JobDescription GalaxyHandler::PrepareGalaxyJob(const NodeConfig& node) {
-    ::baidu::galaxy::JobDescription galaxy_job;
-    galaxy_job.job_name = minion_name_ + "@minion";
-    galaxy_job.type = "kLongRun";
-    galaxy_job.priority = "kOnline";
-    galaxy_job.replica = node.capacity();
-    galaxy_job.deploy_step = FLAGS_galaxy_deploy_step;
-    galaxy_job.pod.version = "1.0.0";
-    galaxy_job.pod.requirement.millicores = node.millicores() + additional_millicores;
-    galaxy_job.pod.requirement.memory = node.memory() + additional_memory;
+::baidu::galaxy::sdk::JobDescription
+GalaxyHandler::PrepareGalaxyJob(const std::string& name, const NodeConfig& node) {
+    ::baidu::galaxy::sdk::JobDescription job;
+    job.name = name + "@minion";
+    job.type = ::baidu::galaxy::sdk::kJobBatch;
+    job.version = "1.0.0";
+    job.deploy.replica = std::min(node.capacity(), node.total() * 6 / 5);
+    job.deploy.step = std::min(FLAGS_galaxy_deploy_step, job.deploy.replica);
+    job.deploy.interval = 1;
+    job.deploy.max_per_host = FLAGS_max_minions_per_host;
+    job.deploy.tag = FLAGS_galaxy_node_label;
+    boost::split(job.deploy.pools, FLAGS_cluster_pool, boost::is_any_of(","));
+    job.deploy.update_break_count = 0;
+    ::baidu::galaxy::sdk::PodDescription& pod = job.pod;
+    pod.workspace_volum.size = (3L << 30);
+    pod.workspace_volum.medium = ::baidu::galaxy::sdk::kDisk;
+    pod.workspace_volum.exclusive = false;
+    pod.workspace_volum.readonly = false;
+    pod.workspace_volum.use_symlink = false;
+    pod.workspace_volum.dest_path = "/home/shuttle";
+    pod.workspace_volum.type = ::baidu::galaxy::sdk::kEmptyDir;
+    ::baidu::galaxy::sdk::TaskDescription task;
+    task.cpu.milli_core = node.millicores() + additional_millicores;
+    task.cpu.excess = FLAGS_cpu_soft_limit;
+    task.memory.size = node.memory() + additional_memory;
+    task.memory.excess = FLAGS_memory_soft_limit;
+    task.tcp_throt.recv_bps_quota = (80L << 20);
+    task.tcp_throt.recv_bps_excess = true;
+    task.tcp_throt.send_bps_quota = (80L << 20);
+    task.tcp_throt.send_bps_excess = true;
+    task.blkio.weight = 50;
+    ::baidu::galaxy::sdk::PortRequired port_req;
+    port_req.port = "dynamic";
+    port_req.port_name = "NFS_CLIENT_PORT";
+    task.ports.push_back(port_req);
+    port_req.port_name = "MINION_PORT";
+    task.ports.push_back(port_req);
+    task.exe_package.package.source_path = FLAGS_minion_path;
+    task.exe_package.package.dest_path = ".";
+    task.exe_package.package.version = "1.0.0";
     // TODO Need to compatible with minion
     // XXX Changed: app_package is separated by comma to store more values
     std::string app_package, cache_archive;
@@ -109,16 +164,9 @@ std::string GalaxyHandler::Dump() {
             << " -nexus_addr=" << FLAGS_nexus_server_list
             << " -master_nexus_path=" << FLAGS_nexus_root_path + FLAGS_master_path
             << " -node=" << node_ << " -kill_task";
-    ::baidu::galaxy::TaskDescription minion;
-    minion.offset = 1;
-    minion.binary = FLAGS_minion_path;
-    minion.source_type = "kSourceTypeFTP";
-    minion.start_cmd = ss.str().c_str();
-    minion.stop_cmd = ss_stop.str().c_str();
-    minion.requirement = galaxy_job.pod.requirement;
-    minion.mem_isolation_type = "kMemIsolationCgroup";
-    minion.cpu_isolation_type = "kCpuIsolationHard";
-    galaxy_job.pod.tasks.push_back(minion);
+    task.exe_package.start_cmd = ss.str();
+    task.exe_package.stop_cmd = ss_stop.str();
+    task.data_package.reload_cmd = task.exe_package.start_cmd;
     return galaxy_job;
 }
 
