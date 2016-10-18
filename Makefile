@@ -7,23 +7,17 @@ include depends.mk
 # Compiler related
 OPT ?= -O2 -g2
 CXX = g++
-INCPATH = -I./ -I./src -I$(SOFA_PBRPC_DIR)/src -I$(PROTOBUF_DIR)/include -I$(BOOST_HEADER_DIR) \
-		  -I$(GFLAGS_DIR)/include -I$(SNAPPY_DIR)/include -I$(LIB_HDFS_DIR)/output/include \
-		  -I$(GALAXY_DIR)/src/sdk -I$(GALAXY_DIR)/thirdsrc/common/include \
-		  -I$(GALAXY_DIR)/thirdsrc/ins/sdk
+INCPATH = -I./ -I./src -I$(BOOST_HEADER_DIR) -I$(LIB_HDFS_DIR)/output/include \
+		  -I$(GALAXY_DIR)/src/sdk -I$(GALAXY_DIR)/thirdparty/include
 CXXFLAGS += $(OPT) -pipe -MMD -W -Wall -fPIC \
 			-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DHAVE_SNAPPY $(INCPATH)
 LDFLAGS += -L$(GALAXY_DIR) -lgalaxy_sdk \
-		   -L$(GALAXY_DIR)/thirdsrc/common -lcommon \
-		   -L$(GALAXY_DIR)/thirdsrc/ins -lins_sdk \
-		   -L$(SOFA_PBRPC_DIR)/output/lib -lsofa-pbrpc \
-		   -L$(PROTOBUF_DIR)/lib -lprotobuf \
-		   -L$(GFLAGS_DIR)/lib -lgflags \
-		   -L$(SNAPPY_DIR)/lib -lsnappy \
+		   -L$(GALAXY_DIR)/thirdparty/lib \
+		   -lcommon -lins_sdk -lglog -lsofa-pbrpc -lprotobuf -lgflags -lsnappy \
 		   -L$(LIB_HDFS_DIR)/output/lib -lhdfs \
 		   -L$(JVM_LIB_DIR) -ljvm \
 		   -lpthread -lz -lrt
-PROTOC = $(PROTOBUF_DIR)/bin/protoc
+PROTOC = $(GALAXY_DIR)/thirdparty/bin/protoc
 
 # Source related constants
 PROTO_FILE = $(wildcard proto/*.proto)
@@ -66,11 +60,12 @@ INLET_OBJ = $(patsubst %.cc, %.o, $(INLET_SRC))
 
 COMBINER_SRC = $(wildcard src/minion/combiner/*.cc) \
 			   proto/shuttle.pb.cc \
+			   $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC) \
 			   src/minion/common/streaming.cc src/minion/common/emitter.cc \
 			   src/minion/output/partition.cc
 COMBINER_HEADER = $(wildcard src/minion/combiner/*.h) \
 				  proto/shuttle.pb.h \
-				  $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC) \
+				  $(FILE_TYPES_HEADER) $(FORMAT_FILE_TYPES_HEADER) \
 				  src/minion/common/streaming.h src/minion/common/emitter.h \
 				  src/minion/common/log_name.h src/minion/output/partition.h \
 				  src/common/format/plain_text.h
@@ -120,13 +115,16 @@ TOOL_SORTFILE_SRC = src/tool/sortfile_tool.cc src/minion/input/merger.cc \
 					proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
 TOOL_SORTFILE_OBJ = $(patsubst %.cc, %.o, $(TOOL_SORTFILE_SRC))
 
-OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ)
+OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ) \
+	   $(TOOL_PARTITION_OBJ) $(TOOL_SORTFILE_OBJ)
 BIN = master minion inlet combiner outlet phaser tricorder
 TESTS = file_test fileformat_test scanner_test merger_test dag_test rm_test
 DEPS = $(patsubst %.o, %.d, $(OBJS))
 
 # Default build all binary files except tests
 all: $(BIN)
+	-@rm -rf $(DEPS)
+	@echo 'make all done.'
 
 # Dependencies
 $(OBJS): $(PROTO_HEADER)
@@ -134,7 +132,7 @@ $(OBJS): $(PROTO_HEADER)
 
 # Building targets
 %.pb.cc %.pb.h: %.proto
-	$(PROTOC) --proto_path=./proto --proto_path=$(PROTOBUF_DIR)/include --cpp_out=./proto $<
+	$(PROTOC) --proto_path=./proto --cpp_out=./proto $<
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCPATH) -c $< -o $@

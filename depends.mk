@@ -1,40 +1,27 @@
 # This file is used to record path of dependencies
 # Modify following variables to proper dependency directory
 # shuttle dependencies:
+#   galaxy : for job submitting
+#   boost : for library functions
+#   libhdfs & jvm : for read/write on HDFS
+#
+# Following dependencies are also needed but will be handled by Galaxy:
 #   sofa-pbrpc : for network communication
 #   protobuf : for network protocol
-#   boost : for library functions
 #   gflags : for command line parse in master/minion tools
 #   snappy : for data compression/uncompression
-#   libhdfs : for read/write on HDFS
-#   galaxy : for job submitting
 #   gtest(optional) : for unittest
 #
-
-# sofa-pbrpc
-SOFA_PBRPC_DIR=../../opensource/sofa-pbrpc
-
-# Protocol buffer
-PROTOBUF_DIR=../../../third-64/protobuf
-
-# Boost
-BOOST_HEADER_DIR=../../../third-64/boost/include
-
-# GFlags
-GFLAGS_DIR=../../../third-64/gflags
-
-# Snappy
-SNAPPY_DIR=../../../third-64/snappy
-
-# HDFS library
-LIB_HDFS_DIR=../../inf/computing/libhdfs
-
-# JVM Library
-JVM_LIB_DIR=../../inf/computing/java6/jre/lib/amd64/server
 
 # Galaxy
 GALAXY_DIR=./galaxy
 
-# GTest
-GTEST_DIR=../../../third-64/gtest
+# Boost
+BOOST_HEADER_DIR=./galaxy/thirdparty/boost_1_57_0
+
+# HDFS library
+LIB_HDFS_DIR=../../../inf/computing/libhdfs
+
+# JVM Library
+JVM_LIB_DIR=../../../inf/computing/java6/jre/lib/amd64/server
 
