@@ -2,12 +2,13 @@
 
 // Used in galaxy_handler.cc
 DEFINE_string(cluster_address, "0.0.0.0:", "entrance address of cluster");
+DEFINE_string(galaxy_am_path, "", "galaxy app master path on nexus");
 DEFINE_string(cluster_user, "shuttle", "username for access to cluster manager");
 DEFINE_string(cluster_token, "", "token for access to cluster manager");
 DEFINE_int32(galaxy_deploy_step, 30, "galaxy option to determine the step of deploy");
 DEFINE_int32(max_minions_per_host, 5, "limit of minions on a single host");
 DEFINE_string(galaxy_node_label, "", "node label for Galaxy deploymenet");
-DEFINE_string(cluster_pool, "pools for minions to deploy");
+DEFINE_string(cluster_pool, "", "pools for minions to deploy");
 DEFINE_bool(cpu_soft_limit, false, "switch for soft limit of cpu");
 DEFINE_bool(memory_soft_limit, false, "switch for soft limit of memory");
 DEFINE_string(minion_path, "ftp://", "minion ftp path for galaxy to fetch");

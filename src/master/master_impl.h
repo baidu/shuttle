@@ -4,7 +4,6 @@
 #include <map>
 #include <set>
 
-#include "galaxy.h"
 #include "ins_sdk.h"
 #include "mutex.h"
 #include "thread_pool.h"

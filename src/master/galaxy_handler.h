@@ -1,7 +1,7 @@
 #ifndef _BAIDU_SHUTTLE_GALAXY_HANDLER_H_
 #define _BAIDU_SHUTTLE_GALAXY_HANDLER_H_
 #include "cluster_handler.h"
-#include "galaxy.h"
+#include "galaxy_sdk_appmaster.h"
 
 namespace baidu {
 namespace shuttle {
@@ -27,12 +27,12 @@ public:
     virtual std::string Dump();
 
 private:
-    ::baidu::galaxy::JobDescription PrepareGalaxyJob(const NodeConfig& node);
+    ::baidu::galaxy::sdk::JobDescription PrepareGalaxyJob(
+            const std::string& name, const NodeConfig& node);
 
 private:
     // For galaxy manangement
-    static ::baidu::galaxy::Galaxy* galaxy_;
-    ::baidu::galaxy::sdk::User user_;
+    static ::baidu::galaxy::sdk::AppMaster* galaxy_;
     std::string minion_id_;
 
     // Minion information

@@ -9,13 +9,13 @@ OPT ?= -O2 -g2
 CXX = g++
 INCPATH = -I./ -I./src -I$(SOFA_PBRPC_DIR)/src -I$(PROTOBUF_DIR)/include -I$(BOOST_HEADER_DIR) \
 		  -I$(GFLAGS_DIR)/include -I$(SNAPPY_DIR)/include -I$(LIB_HDFS_DIR)/output/include \
-		  -I$(GALAXY_DIR)/output/include -I$(GALAXY_DIR)/common/include \
-		  -I$(GALAXY_DIR)/ins/output/include
+		  -I$(GALAXY_DIR)/src/sdk -I$(GALAXY_DIR)/thirdsrc/common/include \
+		  -I$(GALAXY_DIR)/thirdsrc/ins/sdk
 CXXFLAGS += $(OPT) -pipe -MMD -W -Wall -fPIC \
 			-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DHAVE_SNAPPY $(INCPATH)
-LDFLAGS += -L$(GALAXY_DIR)/output/lib -lgalaxy \
-		   -L$(GALAXY_DIR)/common -lcommon \
-		   -L$(GALAXY_DIR)/ins/output/lib -lins_sdk \
+LDFLAGS += -L$(GALAXY_DIR) -lgalaxy_sdk \
+		   -L$(GALAXY_DIR)/thirdsrc/common -lcommon \
+		   -L$(GALAXY_DIR)/thirdsrc/ins -lins_sdk \
 		   -L$(SOFA_PBRPC_DIR)/output/lib -lsofa-pbrpc \
 		   -L$(PROTOBUF_DIR)/lib -lprotobuf \
 		   -L$(GFLAGS_DIR)/lib -lgflags \

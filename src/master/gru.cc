@@ -516,8 +516,8 @@ Status BasicGru::Load(const std::string& serialized) {
     state_ = backup_gru.state();
     start_time_ = backup_gru.start_time();
     finish_time_ = backup_gru.finish_time();
-    if (backup_gru.has_galaxy_handler()) {
-        cluster_->Load(backup_gru.galaxy_handler());
+    if (backup_gru.has_cluster_handler()) {
+        cluster_->Load(backup_gru.cluster_handler());
     } else {
         delete cluster_;
         cluster_ = NULL;
@@ -555,7 +555,7 @@ std::string BasicGru::Dump() {
     backup_gru.set_start_time(start_time_);
     backup_gru.set_finish_time(finish_time_);
     if (cluster_ != NULL) {
-        backup_gru.set_galaxy_handler(galaxy_->Dump());
+        backup_gru.set_cluster_handler(cluster_->Dump());
     }
     DumpResourceManager(&backup_gru);
     for (std::vector< std::vector<AllocateItem*> >::iterator it = allocation_table_.begin();

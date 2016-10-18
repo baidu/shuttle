@@ -27,7 +27,7 @@ message GruCollection {
     required JobState state = 1;
     required int64 start_time = 2;
     required int64 finish_time = 3;
-    required string galaxy_handler = 4;
+    required string cluster_handler = 4;
     repeated BackupResourceItem resources = 5;
     message Duplications {
         repeated BackupAllocateItem attempts = 1;

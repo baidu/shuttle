@@ -1,11 +1,14 @@
 #include "galaxy_handler.h"
 
 #include <sstream>
+#include <algorithm>
 #include <gflags/gflags.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include "logging.h"
 
 DECLARE_string(cluster_address);
+DECLARE_string(galaxy_am_path);
 DECLARE_string(cluster_user);
 DECLARE_string(cluster_token);
 DECLARE_int32(galaxy_deploy_step);
@@ -22,12 +25,13 @@ DECLARE_string(master_path);
 namespace baidu {
 namespace shuttle {
 
-::baidu::galaxy::Galaxy* GalaxyHandler::galaxy_ = NULL;
+::baidu::galaxy::sdk::AppMaster* GalaxyHandler::galaxy_ = NULL;
 
 GalaxyHandler::GalaxyHandler(JobDescriptor& job, const std::string& job_id, int node) :
         job_(job), job_id_(job_id), node_(node) {
     if (galaxy_ == NULL) {
-        galaxy_ = ::baidu::galaxy::Galaxy::ConnectGalaxy(FLAGS_cluster_address);
+        galaxy_ = ::baidu::galaxy::sdk::AppMaster::ConnectAppMaster(
+                FLAGS_cluster_address, FLAGS_galaxy_am_path);
     }
     node_str_ = (job_.nodes(node).type() == kReduce) ? "m" : "r";
     node_str_ += boost::lexical_cast<std::string>(node);
@@ -39,7 +43,7 @@ Status GalaxyHandler::Start() {
     ::baidu::galaxy::sdk::SubmitJobResponse response;
     request.user.user = FLAGS_cluster_user;
     request.user.token = FLAGS_cluster_token;
-    request.job = PrepareGalaxyJob(job_.nodes(node_));
+    request.job = PrepareGalaxyJob(minion_name_, job_.nodes(node_));
     if (galaxy_->SubmitJob(request, &response)) {
         minion_id_ = response.jobid;
         if (minion_id_.empty()) {
@@ -72,7 +76,7 @@ Status GalaxyHandler::Kill() {
     return kGalaxyError;
 }
 
-Status GalaxyHandler::SetPriority(const std::string& priority) {
+Status GalaxyHandler::SetPriority(const std::string& /*priority*/) {
     // Deprecated
     return kGalaxyError;
 }
@@ -83,21 +87,20 @@ Status GalaxyHandler::SetCapacity(int capacity) {
     request.user.user = FLAGS_cluster_user;
     request.user.token = FLAGS_cluster_token;
     request.jobid = minion_id_;
-    request.job = PrepareGalaxyJob(job_.nodes(node_));
+    request.job = PrepareGalaxyJob(minion_name_, job_.nodes(node_));
     request.job.deploy.replica = capacity;
     request.operate = ::baidu::galaxy::sdk::kUpdateJobStart;
-    if (galaxy_->UpdateJob(minion_id_, job_desc)) {
+    if (galaxy_->UpdateJob(request, &response)) {
         job_.mutable_nodes(node_)->set_capacity(capacity);
         return kOk;
     }
-    LOG(WARNING, "galaxy report error when update job %s, %s"
+    LOG(WARNING, "galaxy report error when update job %s, %s",
             job_id_.c_str(), response.error_code.reason.c_str());
     return kGalaxyError;
 }
 
 Status GalaxyHandler::Load(const std::string& galaxy_jobid) {
     minion_id_ = galaxy_jobid;
-    galaxy_job_ = PrepareGalaxyJob(job_.nodes(node_));
     return kOk;
 }
 
@@ -112,7 +115,8 @@ GalaxyHandler::PrepareGalaxyJob(const std::string& name, const NodeConfig& node)
     job.type = ::baidu::galaxy::sdk::kJobBatch;
     job.version = "1.0.0";
     job.deploy.replica = std::min(node.capacity(), node.total() * 6 / 5);
-    job.deploy.step = std::min(FLAGS_galaxy_deploy_step, job.deploy.replica);
+    job.deploy.step = std::min(static_cast<uint32_t>(FLAGS_galaxy_deploy_step),
+            job.deploy.replica);
     job.deploy.interval = 1;
     job.deploy.max_per_host = FLAGS_max_minions_per_host;
     job.deploy.tag = FLAGS_galaxy_node_label;
@@ -167,7 +171,7 @@ GalaxyHandler::PrepareGalaxyJob(const std::string& name, const NodeConfig& node)
     task.exe_package.start_cmd = ss.str();
     task.exe_package.stop_cmd = ss_stop.str();
     task.data_package.reload_cmd = task.exe_package.start_cmd;
-    return galaxy_job;
+    return job;
 }
 
 }
