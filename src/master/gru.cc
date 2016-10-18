@@ -36,12 +36,12 @@ public:
     // General initialization
     BasicGru(JobDescriptor& job, const std::string& job_id, int node) :
             manager_(NULL), job_id_(job_id),  rpc_client_(NULL), job_(job), state_(kPending),
-            galaxy_(NULL), node_(node), cur_node_(NULL), total_tasks_(0),
+            cluster_(NULL), node_(node), cur_node_(NULL), total_tasks_(0),
             start_time_(0), finish_time_(0), killed_(0), failed_(0), end_game_begin_(0),
             allow_duplicates_(true), need_dismissed_(0), dismissed_(0), next_phase_begin_(0),
             nearly_finish_callback_(0), finished_callback_(0), monitor_(1) {
         rpc_client_ = new RpcClient();
-        galaxy_ = new GalaxyHandler(job_, job_id_, node_);
+        cluster_ = new GalaxyHandler(job_, job_id_, node_);
         cur_node_ = job_.mutable_nodes(node_);
         allow_duplicates_ = cur_node_->allow_duplicates();
         monitor_.AddTask(boost::bind(&BasicGru::KeepMonitoring, this));
@@ -121,7 +121,7 @@ protected:
     Mutex meta_mu_;
     JobState state_;
     // Carefully initialized
-    GalaxyHandler* galaxy_;
+    ClusterHandler* cluster_;
     // Carefully initialized
     int node_;
     // Carefully initialized
@@ -245,7 +245,7 @@ Status BasicGru::Start() {
     }
 
     BuildEndGameCounters();
-    if (galaxy_->Start() != kOk) {
+    if (cluster_->Start() != kOk) {
         state_ = kFailed;
         LOG(WARNING, "galaxy report error when submitting a new job: %s", job_id_.c_str());
         return kGalaxyError;
@@ -397,7 +397,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
             if (finished_callback_ != 0) {
                 finished_callback_(kCompleted);
             }
-            galaxy_->Kill();
+            cluster_->Kill();
             ShutDown(kCompleted);
             // XXX Maybe free resource manager
         }
@@ -482,7 +482,7 @@ TaskStatistics BasicGru::GetStatistics() {
 }
 
 Status BasicGru::SetCapacity(int capacity) {
-    if (galaxy_ == NULL) {
+    if (cluster_ == NULL) {
         MutexLock lock(&meta_mu_);
         if (state_ == kRunning || state_ == kPending) {
             cur_node_->set_capacity(capacity);
@@ -490,7 +490,7 @@ Status BasicGru::SetCapacity(int capacity) {
         }
         return kGalaxyError;
     }
-    if (galaxy_->SetCapacity(capacity) != kOk) {
+    if (cluster_->SetCapacity(capacity) != kOk) {
         return kGalaxyError;
     }
     MutexLock lock(&meta_mu_);
@@ -499,10 +499,10 @@ Status BasicGru::SetCapacity(int capacity) {
 }
 
 Status BasicGru::SetPriority(const std::string& priority) {
-    if (galaxy_ == NULL) {
+    if (cluster_ == NULL) {
         return kGalaxyError;
     }
-    if (galaxy_->SetPriority(priority) != kOk) {
+    if (cluster_->SetPriority(priority) != kOk) {
         return kGalaxyError;
     }
     return kOk;
@@ -517,10 +517,10 @@ Status BasicGru::Load(const std::string& serialized) {
     start_time_ = backup_gru.start_time();
     finish_time_ = backup_gru.finish_time();
     if (backup_gru.has_galaxy_handler()) {
-        galaxy_->Load(backup_gru.galaxy_handler());
+        cluster_->Load(backup_gru.galaxy_handler());
     } else {
-        delete galaxy_;
-        galaxy_ = NULL;
+        delete cluster_;
+        cluster_ = NULL;
     }
     LoadResourceManager(backup_gru);
     if (manager_ == NULL) {
@@ -554,7 +554,7 @@ std::string BasicGru::Dump() {
     backup_gru.set_state(state_);
     backup_gru.set_start_time(start_time_);
     backup_gru.set_finish_time(finish_time_);
-    if (galaxy_ != NULL) {
+    if (cluster_ != NULL) {
         backup_gru.set_galaxy_handler(galaxy_->Dump());
     }
     DumpResourceManager(&backup_gru);
@@ -742,10 +742,10 @@ void BasicGru::CancelOtherAttempts(int no, int finished_attempt) {
 
 void BasicGru::ShutDown(JobState state) {
     meta_mu_.Lock();
-    if (galaxy_ != NULL) {
+    if (cluster_ != NULL) {
         LOG(INFO, "node %d phase finished, kill: %s", node_, job_id_.c_str());
-        delete galaxy_;
-        galaxy_ = NULL;
+        delete cluster_;
+        cluster_ = NULL;
     }
     state_ = state;
     monitor_.Stop(true);
