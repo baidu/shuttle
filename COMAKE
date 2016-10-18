@@ -34,7 +34,7 @@ LIBS('galaxy/common/libcommon.a galaxy/ins/libins_sdk.a ./galaxy/libgalaxy.a')
 LDFLAGS('-lpthread -lz')
 
 #依赖模块
-CONFIGS('public/sofa-pbrpc@trunk@comake')
+CONFIGS('ps/opensource/sofa-pbrpc@trunk@comake')
 CONFIGS('third-64/gtest@1.6.0.100')
 CONFIGS('thirdsrc/protobuf@2.6.2.0')
 CONFIGS('third-64/boost@1.63.0.101')
