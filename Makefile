@@ -7,7 +7,7 @@ include depends.mk
 # Compiler related
 OPT ?= -O2 -g2
 CXX = g++
-INCPATH = -I./ -I./src -I$(BOOST_HEADER_DIR) -I$(LIB_HDFS_DIR)/output/include \
+INCPATH = -I./src -I$(BOOST_HEADER_DIR) -I$(LIB_HDFS_DIR)/output/include \
 		  -I$(GALAXY_DIR)/src/sdk -I$(GALAXY_DIR)/thirdparty/include
 CXXFLAGS += $(OPT) -pipe -MMD -W -Wall -fPIC \
 			-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DHAVE_SNAPPY $(INCPATH)
@@ -20,13 +20,13 @@ LDFLAGS += -L$(GALAXY_DIR) -lgalaxy_sdk \
 PROTOC = $(GALAXY_DIR)/thirdparty/bin/protoc
 
 # Source related constants
-PROTO_FILE = $(wildcard proto/*.proto)
+PROTO_FILE = $(wildcard src/proto/*.proto)
 PROTO_SRC = $(patsubst %.proto, %.pb.cc, $(PROTO_FILE))
 PROTO_HEADER = $(patsubst %.proto, %.pb.h, $(PROTO_FILE))
 PROTO_OBJ = $(patsubst %.cc, %.o, $(PROTO_SRC))
 
 FORMAT_FILE_TYPES_SRC = $(wildcard src/common/format/*.cc) \
-						proto/sortfile.pb.cc src/common/fileformat.cc
+						src/proto/sortfile.pb.cc src/common/fileformat.cc
 FORMAT_FILE_TYPES_HEADER = $(patsubst %.cc, %.h, $(FORMAT_FILE_TYPES_SRC))
 FILE_TYPES_SRC = src/common/file.cc $(wildcard src/common/file/*.cc)
 FILE_TYPES_HEADER = $(patsubst %.cc, %.h, $(FILE_TYPES_SRC))
@@ -34,7 +34,7 @@ SCANNER_SUPPORT_SRC = src/common/scanner.cc $(FORMAT_FILE_TYPES_SRC) $(FILE_TYPE
 SCANNER_SUPPORT_HEADER = $(patsubst %.cc, %.h, $(SCANNER_SUPPORT_SRC))
 
 MASTER_SRC = $(wildcard src/master/*.cc) \
-			 $(filter-out proto/sortfile.pb.cc, $(PROTO_SRC)) $(SCANNER_SUPPORT_SRC) \
+			 $(filter-out src/proto/sortfile.pb.cc, $(PROTO_SRC)) $(SCANNER_SUPPORT_SRC) \
 			 src/common/dag_scheduler.cc
 MASTER_HEADER = $(wildcard src/master/*.h) \
 				$(PROTO_HEADER) $(SCANNER_SUPPORT_SRC) \
@@ -42,29 +42,29 @@ MASTER_HEADER = $(wildcard src/master/*.h) \
 MASTER_OBJ = $(patsubst %.cc, %.o, $(MASTER_SRC))
 
 MINION_SRC = $(wildcard src/minion/container/*.cc) \
-			 proto/shuttle.pb.cc proto/minion.pb.cc proto/master.pb.cc \
+			 src/proto/shuttle.pb.cc src/proto/minion.pb.cc src/proto/master.pb.cc \
 			 $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC) \
 			 src/common/dag_scheduler.cc
 MINION_HEADER = $(wildcard src/minion/container/*.h) \
-				proto/shuttle.pb.h proto/minion.pb.h proto/master.pb.h \
+				src/proto/shuttle.pb.h src/proto/minion.pb.h src/proto/master.pb.h \
 				$(FILE_TYPES_HEADER) $(FORMAT_FILE_TYPES_HEADER) \
 				src/common/dag_scheduler.h src/common/rpc_client.h
 MINION_OBJ = $(patsubst %.cc, %.o, $(MINION_SRC))
 
 INLET_SRC = $(wildcard src/minion/input/*.cc) \
-			proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
+			src/proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
 INLET_HEADER = $(wildcard src/minion/input/*.h) \
-			   proto/shuttle.pb.h $(SCANNER_SUPPORT_HEADER) \
+			   src/proto/shuttle.pb.h $(SCANNER_SUPPORT_HEADER) \
 			   src/minion/common/log_name.h
 INLET_OBJ = $(patsubst %.cc, %.o, $(INLET_SRC))
 
 COMBINER_SRC = $(wildcard src/minion/combiner/*.cc) \
-			   proto/shuttle.pb.cc \
+			   src/proto/shuttle.pb.cc \
 			   $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC) \
 			   src/minion/common/streaming.cc src/minion/common/emitter.cc \
 			   src/minion/output/partition.cc
 COMBINER_HEADER = $(wildcard src/minion/combiner/*.h) \
-				  proto/shuttle.pb.h \
+				  src/proto/shuttle.pb.h \
 				  $(FILE_TYPES_HEADER) $(FORMAT_FILE_TYPES_HEADER) \
 				  src/minion/common/streaming.h src/minion/common/emitter.h \
 				  src/minion/common/log_name.h src/minion/output/partition.h \
@@ -72,16 +72,16 @@ COMBINER_HEADER = $(wildcard src/minion/combiner/*.h) \
 COMBINER_OBJ = $(patsubst %.cc, %.o, $(COMBINER_SRC))
 
 OUTLET_SRC = $(wildcard src/minion/output/*.cc) \
-			 proto/shuttle.pb.cc \
+			 src/proto/shuttle.pb.cc \
 			 $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC) \
 			 src/minion/common/streaming.cc src/minion/common/emitter.cc
 OUTLET_HEADER = $(wildcard src/minion/output/*.h) \
-				proto/shuttle.pb.h src/minion/common/log_name.h \
+				src/proto/shuttle.pb.h src/minion/common/log_name.h \
 				$(FILE_TYPES_HEADER) $(FORMAT_FILE_TYPES_HEADER) \
 				src/minion/common/streaming.h src/minion/common/emitter.h
 OUTLET_OBJ = $(patsubst %.cc, %.o, $(OUTLET_SRC))
 
-TEST_FILE_SRC = src/test/file.test.cc proto/shuttle.pb.cc \
+TEST_FILE_SRC = src/test/file.test.cc src/proto/shuttle.pb.cc \
 				$(FILE_TYPES_SRC)
 TEST_FILE_OBJ = $(patsubst %.cc, %.o, $(TEST_FILE_SRC))
 
@@ -94,25 +94,25 @@ TEST_SCANNER_SRC = src/test/scanner.test.cc \
 TEST_SCANNER_OBJ = $(patsubst %.cc, %.o, $(TEST_SCANNER_SRC))
 
 TEST_MERGER_SRC = src/test/merger.test.cc src/minion/input/merger.cc \
-				  proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
+				  src/proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
 TEST_MERGER_OBJ = $(patsubst %.cc, %.o, $(TEST_MERGER_SRC))
 
 TEST_DAG_SCHEDULER_SRC = src/test/dag_scheduler.test.cc \
 						 src/common/dag_scheduler.cc \
-						 proto/shuttle.proto
+						 src/proto/shuttle.proto
 TEST_DAG_SCHEDULER_OBJ = $(patsubst %.cc, %.o, $(TEST_DAG_SCHEDULER_SRC))
 
 TEST_RESOURCE_MANAGER_SRC = src/test/resource_manager.test.cc \
 							src/master/resource_manager.cc src/master/master_flags.cc \
-							proto/shuttle.proto $(SCANNER_SUPPORT_SRC)
+							src/proto/shuttle.proto $(SCANNER_SUPPORT_SRC)
 TEST_RESOURCE_MANAGER_OBJ = $(patsubst %.cc, %.o, $(TEST_RESOURCE_MANAGER_SRC))
 
 TOOL_PARTITION_SRC = src/tool/partition_tool.cc src/minion/output/partition.cc \
-					 proto/shuttle.pb.cc
+					 src/proto/shuttle.pb.cc
 TOOL_PARTITION_OBJ = $(patsubst %.cc, %.o, $(TOOL_PARTITION_SRC))
 
 TOOL_SORTFILE_SRC = src/tool/sortfile_tool.cc src/minion/input/merger.cc \
-					proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
+					src/proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
 TOOL_SORTFILE_OBJ = $(patsubst %.cc, %.o, $(TOOL_SORTFILE_SRC))
 
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ) \
@@ -132,7 +132,7 @@ $(OBJS): $(PROTO_HEADER)
 
 # Building targets
 %.pb.cc %.pb.h: %.proto
-	$(PROTOC) --proto_path=./proto --cpp_out=./proto $<
+	$(PROTOC) --proto_path=./src/proto --cpp_out=./src/proto $<
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCPATH) -c $< -o $@
