@@ -250,6 +250,24 @@ bool File::ParseFullAddress(const std::string& address,
     return true;
 }
 
+bool File::BuildFullAddress(const FileType type, const std::string& host,
+        const std::string& port, const std::string& path, std::string& address) {
+    switch (type) {
+    case kLocalFs: address = "file://"; break;
+    case kInfHdfs: address = "hdfs://"; break;
+    default:
+        LOG(WARNING, "invalid file type: %d", type);
+        return false;
+    }
+    address += host;
+    if (!host.empty() && !port.empty()) {
+        address += ":";
+        address += port;
+    }
+    address += path;
+    return true;
+}
+
 bool File::ConnectInfHdfs(const Param& param, void** fs) {
     if (fs == NULL) {
         return false;

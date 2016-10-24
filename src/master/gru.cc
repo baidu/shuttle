@@ -776,8 +776,10 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
     File::Param param = File::BuildParam(output);
     File* fs = File::Create(kInfHdfs, param);
     std::string temp;
-    File::ParseFullAddress(output.path(),
-            /* type */NULL, /* host */NULL, /* port */NULL, &temp);
+    if (!File::ParseFullAddress(output.path(),
+            /* type */NULL, /* host */NULL, /* port */NULL, &temp)) {
+        temp = output.path();
+    }
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdir(temp);
     delete fs;
@@ -813,22 +815,22 @@ bool AlphaGru::CleanTempDir() {
 void AlphaGru::NormalizeDfsinfo(std::vector<DfsInfo>& infos) {
     std::vector<DfsInfo>::iterator it = infos.begin();
     while (it != infos.end()) {
-        // TODO use more universal method
-        const std::string& path = it->path();
-        if (boost::starts_with(path, "hdfs://")) {
-            if (path.find_first_of(':', 7) == std::string::npos) {
-                it = infos.erase(it);
-            } else {
-                std::string host, port;
-                File::ParseFullAddress(path, NULL, &host, &port, NULL);
+        const std::string& address = it->path();
+        FileType type = kInfHdfs;
+        std::string host, port, path;
+        if (File::ParseFullAddress(address, &type, &host, &port, &path)) {
+            if (!host.empty() && !port.empty()) {
+                // Use info in schema
                 it->set_host(host);
                 it->set_port(port);
                 ++it;
+            } else {
+                it = infos.erase(it);
             }
         } else {
-            if (it->has_host() && it->has_port()) {
-                std::string path = "hdfs://" + it->host() + ":" +
-                    boost::lexical_cast<std::string>(it->port()) + it->path();
+            if (it->has_host() && it->has_port() &&
+                    File::BuildFullAddress(type, it->host(), it->port(), address, path)) {
+                // Use DfsInfo to build full address
                 it->set_path(path);
                 ++it;
             } else {
@@ -915,8 +917,10 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
     File::Param param = File::BuildParam(output);
     File* fs = File::Create(kInfHdfs, param);
     std::string temp;
-    File::ParseFullAddress(output.path(),
-            /* type */NULL, /* host */NULL, /* port */NULL, &temp);
+    if (!File::ParseFullAddress(output.path(),
+            /* type */NULL, /* host */NULL, /* port */NULL, &temp)) {
+        temp = output.path();
+    }
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdir(temp);
     delete fs;

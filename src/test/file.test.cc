@@ -165,6 +165,36 @@ TEST(FileToolsTest, ParseAddressTest) {
     EXPECT_TRUE(!File::ParseFullAddress(address, &type, &host, &port, &path));
 }
 
+TEST(FileToolsTest, BuildAddressTest) {
+    std::string address;
+
+    EXPECT_TRUE(File::BuildFullAddress(kInfHdfs, "localhost", "9999",
+            "/home/test/hdfs.file", address));
+    EXPECT_EQ(address, "hdfs://localhost:9999/home/test/hdfs.file");
+
+    EXPECT_TRUE(File::BuildFullAddress(kInfHdfs, "localhost", "",
+            "/no/port/test.file", address));
+    EXPECT_EQ(address, "hdfs://localhost/no/port/test.file");
+
+    EXPECT_TRUE(File::BuildFullAddress(kInfHdfs, "", "6666",
+            "/no/host/test.file", address));
+    EXPECT_EQ(address, "hdfs:///no/host/test.file");
+
+    EXPECT_TRUE(File::BuildFullAddress(kInfHdfs, "", "", "", address));
+    EXPECT_EQ(address, "hdfs://");
+
+    EXPECT_TRUE(File::BuildFullAddress(kLocalFs, "localhost", "80",
+            "/home/test/local.file", address));
+    EXPECT_EQ(address, "file://localhost:80/home/test/local.file");
+
+    EXPECT_TRUE(File::BuildFullAddress(kLocalFs, "", "",
+            "/normal/local/test.file", address));
+    EXPECT_EQ(address, "file:///normal/local/test.file");
+
+    EXPECT_TRUE(!File::BuildFullAddress((FileType)100, "localhost", "9999",
+            "/invalid/file/type/test.file", address));
+}
+
 TEST(FileToolsTest, PatternMatchTest) {
     // --- Perfect match test ---
     std::string pattern = "test_string";

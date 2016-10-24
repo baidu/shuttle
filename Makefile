@@ -17,6 +17,7 @@ LDFLAGS += -L$(GALAXY_DIR) -lgalaxy_sdk \
 		   -L$(LIB_HDFS_DIR)/output/lib -lhdfs \
 		   -L$(JVM_LIB_DIR) -ljvm \
 		   -lpthread -lz -lrt
+TESTFLAGS = -L$(GALAXY_DIR)/thirdparty/lib -lgtest
 PROTOC = $(GALAXY_DIR)/thirdparty/bin/protoc
 
 # Source related constants
@@ -86,7 +87,7 @@ TEST_FILE_SRC = src/test/file.test.cc src/proto/shuttle.pb.cc \
 TEST_FILE_OBJ = $(patsubst %.cc, %.o, $(TEST_FILE_SRC))
 
 TEST_FILE_FORMAT_SRC = src/test/fileformat.test.cc \
-					   $(FORMAT_FILE_TYPES_SRC)
+					   $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC)
 TEST_FILE_FORMAT_OBJ = $(patsubst %.cc, %.o, $(TEST_FILE_FORMAT_SRC))
 
 TEST_SCANNER_SRC = src/test/scanner.test.cc \
@@ -99,12 +100,12 @@ TEST_MERGER_OBJ = $(patsubst %.cc, %.o, $(TEST_MERGER_SRC))
 
 TEST_DAG_SCHEDULER_SRC = src/test/dag_scheduler.test.cc \
 						 src/common/dag_scheduler.cc \
-						 src/proto/shuttle.proto
+						 src/proto/shuttle.pb.cc
 TEST_DAG_SCHEDULER_OBJ = $(patsubst %.cc, %.o, $(TEST_DAG_SCHEDULER_SRC))
 
 TEST_RESOURCE_MANAGER_SRC = src/test/resource_manager.test.cc \
 							src/master/resource_manager.cc src/master/master_flags.cc \
-							src/proto/shuttle.proto $(SCANNER_SUPPORT_SRC)
+							src/proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
 TEST_RESOURCE_MANAGER_OBJ = $(patsubst %.cc, %.o, $(TEST_RESOURCE_MANAGER_SRC))
 
 TOOL_PARTITION_SRC = src/tool/partition_tool.cc src/minion/output/partition.cc \
@@ -116,6 +117,8 @@ TOOL_SORTFILE_SRC = src/tool/sortfile_tool.cc src/minion/input/merger.cc \
 TOOL_SORTFILE_OBJ = $(patsubst %.cc, %.o, $(TOOL_SORTFILE_SRC))
 
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ) \
+	   $(TEST_FILE_OBJ) $(TEST_FILE_FORMAT_OBJ) $(TEST_SCANNER_OBJ) $(TEST_MERGER_OBJ) \
+	   $(TEST_DAG_SCHEDULER_OBJ) $(TEST_RESOURCE_MANAGER_OBJ) \
 	   $(TOOL_PARTITION_OBJ) $(TOOL_SORTFILE_OBJ)
 BIN = master minion inlet combiner outlet phaser tricorder
 TESTS = file_test fileformat_test scanner_test merger_test dag_test rm_test
@@ -137,6 +140,9 @@ $(OBJS): $(PROTO_HEADER)
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCPATH) -c $< -o $@
 
+test: $(TESTS)
+	@echo 'make test done'
+
 master: $(MASTER_OBJ)
 	$(CXX) $(MASTER_OBJ) -o $@ $(LDFLAGS)
 
@@ -153,22 +159,22 @@ outlet: $(OUTLET_OBJ)
 	$(CXX) $(OUTLET_OBJ) -o $@ $(LDFLAGS)
 
 file_test: $(TEST_FILE_OBJ)
-	$(CXX) $(TEST_FILE_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TEST_FILE_OBJ) -o $@ $(LDFLAGS) $(TESTFLAGS)
 
 fileformat_test: $(TEST_FILE_FORMAT_OBJ)
-	$(CXX) $(TEST_FILE_FORMAT_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TEST_FILE_FORMAT_OBJ) -o $@ $(LDFLAGS) $(TESTFLAGS)
 
 scanner_test: $(TEST_SCANNER_OBJ)
-	$(CXX) $(TEST_SCANNER_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TEST_SCANNER_OBJ) -o $@ $(LDFLAGS) $(TESTFLAGS)
 
 merger_test: $(TEST_MERGER_OBJ)
-	$(CXX) $(TEST_MERGER_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TEST_MERGER_OBJ) -o $@ $(LDFLAGS) $(TESTFLAGS)
 
 dag_test: $(TEST_DAG_SCHEDULER_OBJ)
-	$(CXX) $(TEST_DAG_SCHEDULER_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TEST_DAG_SCHEDULER_OBJ) -o $@ $(LDFLAGS) $(TESTFLAGS)
 
 rm_test: $(TEST_RESOURCE_MANAGER_OBJ)
-	$(CXX) $(TEST_RESOURCE_MANAGER_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TEST_RESOURCE_MANAGER_OBJ) -o $@ $(LDFLAGS) $(TESTFLAGS)
 
 phaser: $(TOOL_PARTITION_OBJ)
 	$(CXX) $(TOOL_PARTITION_OBJ) -o $@ $(LDFLAGS)
@@ -178,9 +184,10 @@ tricorder: $(TOOL_SORTFILE_OBJ)
 
 .PHONY: clean install output
 clean:
-	rm -rf output/
-	rm -rf $(BIN) $(TESTS) $(OBJS) $(DEPS)
-	rm -rf $(PROTO_SRC) $(PROTO_HEADER)
+	@rm -rf output/
+	@rm -rf $(BIN) $(TESTS) $(OBJS) $(DEPS)
+	@rm -rf $(PROTO_SRC) $(PROTO_HEADER)
+	@echo 'make clean done'
 
 output: $(BIN)
 	mkdir -p output/bin

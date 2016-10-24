@@ -77,6 +77,11 @@ public:
     static bool ParseFullAddress(const std::string& address,
             FileType* type, std::string* host, std::string* port, std::string* path);
     /*
+     * Create address using above schema
+     */
+    static bool BuildFullAddress(const FileType type, const std::string& host,
+            const std::string& port, const std::string& path, std::string& address);
+    /*
      * Connect to HDFS. caller has to include hdfs sdk header for hdfsFS struct
      */
     static bool ConnectInfHdfs(const Param& param, void** fs);
