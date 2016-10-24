@@ -23,7 +23,6 @@ message SubmitJobResponse {
 
 message UpdateJobRequest {
     required string jobid = 1;
-    optional JobPriority priority = 2;
     message UpdatedNode {
         required int32 node = 1;
         required int32 capacity = 2;

@@ -24,7 +24,7 @@ public:
     ~JobTracker();
 
     Status Start();
-    Status Update(const std::string& priority, const std::vector<UpdateItem>& nodes);
+    Status Update(const std::vector<UpdateItem>& nodes);
     Status Kill();
     
     ResourceItem* Assign(int node, const std::string& endpoint, Status* status);

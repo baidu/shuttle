@@ -20,7 +20,6 @@ public:
     virtual Status Start();
     virtual Status Kill();
 
-    virtual Status SetPriority(const std::string& priority);
     virtual Status SetCapacity(int capacity);
 
     virtual Status Load(const std::string& galaxy_jobid);

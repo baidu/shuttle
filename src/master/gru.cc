@@ -77,7 +77,6 @@ public:
     }
 
     virtual Status SetCapacity(int capacity);
-    virtual Status SetPriority(const std::string& priority);
 
     // Notice: Be sure to use these callback registration before gru starts
     virtual void RegisterNearlyFinishCallback(const boost::function<void ()>& callback) {
@@ -495,16 +494,6 @@ Status BasicGru::SetCapacity(int capacity) {
     }
     MutexLock lock(&meta_mu_);
     cur_node_->set_capacity(capacity);
-    return kOk;
-}
-
-Status BasicGru::SetPriority(const std::string& priority) {
-    if (cluster_ == NULL) {
-        return kGalaxyError;
-    }
-    if (cluster_->SetPriority(priority) != kOk) {
-        return kGalaxyError;
-    }
     return kOk;
 }
 

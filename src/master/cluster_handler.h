@@ -17,7 +17,6 @@ public:
     virtual Status Start() = 0;
     virtual Status Kill() = 0;
 
-    virtual Status SetPriority(const std::string& priority) = 0;
     virtual Status SetCapacity(int capacity) = 0;
 
     virtual Status Load(const std::string& cluster_jobid) = 0;

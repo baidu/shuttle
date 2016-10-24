@@ -18,13 +18,6 @@ enum Status {
     kUnKnown = 20;
 }
 
-enum JobPriority {
-    kVeryHigh = 0;
-    kHigh = 1;
-    kNormal = 2;
-    kLow = 3;
-}
-
 enum JobState {
     kPending = 0;
     kRunning = 1;
@@ -102,17 +95,15 @@ message NodeConfig {
 
 message JobDescriptor {
     optional string name = 1;
-    optional string user = 2;
-    optional JobPriority priority = 3;
-    repeated string files = 4;
-    optional string cache_archive = 5;
-    optional PipeStyle pipe_style = 6;
-    optional int64 split_size = 7;
-    repeated NodeConfig nodes = 8;
+    repeated string files = 2;
+    optional string cache_archive = 3;
+    optional PipeStyle pipe_style = 4;
+    optional int64 split_size = 5;
+    repeated NodeConfig nodes = 6;
     message NodeNeigbor {
         repeated int32 next = 1;
     }
-    repeated NodeNeigbor map = 9;
+    repeated NodeNeigbor map = 7;
 }
 
 message TaskInput {

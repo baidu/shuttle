@@ -55,26 +55,8 @@ Status JobTracker::Start() {
     return ret_val;
 }
 
-Status JobTracker::Update(const std::string& priority, const std::vector<UpdateItem>& nodes) {
+Status JobTracker::Update(const std::vector<UpdateItem>& nodes) {
     int error_times = 0;
-    // Update priority
-    if (!priority.empty()) {
-        for (std::vector<Gru*>::iterator it = grus_.begin();
-                it != grus_.end(); ++it) {
-            Gru* cur = *it;
-            if (cur == NULL) {
-                continue;
-            }
-            JobState state = cur->GetState();
-            if (state != kRunning && state != kPending) {
-                continue;
-            }
-            if (cur->SetPriority(priority) != kOk) {
-                ++error_times;
-            }
-        }
-    }
-    // Update capacity
     for (std::vector<UpdateItem>::const_iterator it = nodes.begin();
             it != nodes.end(); ++it) {
         if (static_cast<size_t>(it->node) > grus_.size() || grus_[it->node] == NULL) {

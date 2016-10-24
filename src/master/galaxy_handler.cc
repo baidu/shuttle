@@ -76,11 +76,6 @@ Status GalaxyHandler::Kill() {
     return kGalaxyError;
 }
 
-Status GalaxyHandler::SetPriority(const std::string& /*priority*/) {
-    // Deprecated
-    return kGalaxyError;
-}
-
 Status GalaxyHandler::SetCapacity(int capacity) {
     ::baidu::galaxy::sdk::UpdateJobRequest request;
     ::baidu::galaxy::sdk::UpdateJobResponse response;

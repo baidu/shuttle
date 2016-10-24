@@ -57,7 +57,6 @@ public:
     
     // Property setters
     virtual Status SetCapacity(int capacity) = 0;
-    virtual Status SetPriority(const std::string& priority) = 0;
 
     // Notify upper job tracker the nearly finish and finish state,
     // so that the job tracker could pull up next phrase or change some states

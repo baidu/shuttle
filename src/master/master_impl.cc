@@ -82,14 +82,7 @@ void MasterImpl::UpdateJob(::google::protobuf::RpcController* /*controller*/,
                            const ::baidu::shuttle::UpdateJobRequest* request,
                            ::baidu::shuttle::UpdateJobResponse* response,
                            ::google::protobuf::Closure* done) {
-    static const char* galaxy_priority[] = {
-        "kMonitor",
-        "kOnline",
-        "kOffline",
-        "kBestEffort"
-    };
     const std::string& job_id = request->jobid();
-    std::string priority = request->has_priority() ? galaxy_priority[request->priority()] : "";
     size_t size = request->capacities().size();
     std::vector<UpdateItem> nodes;
     nodes.resize(size);
@@ -106,7 +99,7 @@ void MasterImpl::UpdateJob(::google::protobuf::RpcController* /*controller*/,
         }
     }
     if (jobtracker != NULL) {
-        Status status = jobtracker->Update(priority, nodes);
+        Status status = jobtracker->Update(nodes);
         response->set_status(status);
     } else {
         LOG(WARNING, "try to update an inexist job: %s", job_id.c_str());
