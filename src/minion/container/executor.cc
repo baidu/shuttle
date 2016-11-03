@@ -74,6 +74,17 @@ Status Executor::Stop(int32_t task_id) {
 }
 
 void Executor::SetEnv() {
+    for (int i = 0; i < node_->cmdenvs_size(); ++i) {
+        const std::string& env = node_->cmdenvs(i);
+        size_t sep = env.find_first_of("=");
+        if (sep == std::string::npos) {
+            continue;
+        }
+        const std::string& key = env.substr(0, sep);
+        const std::string& value = env.substr(sep + 1);
+        LOG(INFO, "user env: %s -> %s", key.c_str(), value.c_str());
+        ::setenv(key.c_str(), value.c_str(), 1);
+    }
     ::setenv("mapred_job_id", job_id_.c_str(), 1);
     ::setenv("mapred_job_name", job_->name().c_str(), 1);
     ::setenv("mapred_output_dir", node_->output().path().c_str(), 1);

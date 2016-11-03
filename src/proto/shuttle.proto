@@ -52,7 +52,7 @@ message DfsInfo {
     optional string host = 2;
     optional string port = 3;
     optional string user = 4;
-    optional string password = 5;    
+    optional string password = 5;
 }
 
 enum InputFormat {
@@ -91,6 +91,11 @@ message NodeConfig {
     optional bool allow_duplicates = 16 [default = true];
     optional int32 retry = 17;
     optional string combiner = 18;
+    optional bool check_counters = 19;
+    optional int32 ignore_failures = 20;
+    optional bool decompress_input = 21;
+    optional bool compress_output = 22;
+    repeated string cmdenvs = 23;
 }
 
 message JobDescriptor {
