@@ -28,35 +28,22 @@ PROTO_OBJ = $(patsubst %.cc, %.o, $(PROTO_SRC))
 
 FORMAT_FILE_TYPES_SRC = $(wildcard src/common/format/*.cc) \
 						src/proto/sortfile.pb.cc src/common/fileformat.cc
-FORMAT_FILE_TYPES_HEADER = $(patsubst %.cc, %.h, $(FORMAT_FILE_TYPES_SRC))
 FILE_TYPES_SRC = src/common/file.cc $(wildcard src/common/file/*.cc)
-FILE_TYPES_HEADER = $(patsubst %.cc, %.h, $(FILE_TYPES_SRC))
 SCANNER_SUPPORT_SRC = src/common/scanner.cc $(FORMAT_FILE_TYPES_SRC) $(FILE_TYPES_SRC)
-SCANNER_SUPPORT_HEADER = $(patsubst %.cc, %.h, $(SCANNER_SUPPORT_SRC))
 
 MASTER_SRC = $(wildcard src/master/*.cc) \
 			 $(filter-out src/proto/sortfile.pb.cc, $(PROTO_SRC)) $(SCANNER_SUPPORT_SRC) \
 			 src/common/dag_scheduler.cc
-MASTER_HEADER = $(wildcard src/master/*.h) \
-				$(PROTO_HEADER) $(SCANNER_SUPPORT_SRC) \
-				src/common/dag_scheduler.h src/common/rpc_client.h
 MASTER_OBJ = $(patsubst %.cc, %.o, $(MASTER_SRC))
 
 MINION_SRC = $(wildcard src/minion/container/*.cc) \
 			 src/proto/shuttle.pb.cc src/proto/minion.pb.cc src/proto/master.pb.cc \
 			 $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC) \
 			 src/common/dag_scheduler.cc
-MINION_HEADER = $(wildcard src/minion/container/*.h) \
-				src/proto/shuttle.pb.h src/proto/minion.pb.h src/proto/master.pb.h \
-				$(FILE_TYPES_HEADER) $(FORMAT_FILE_TYPES_HEADER) \
-				src/common/dag_scheduler.h src/common/rpc_client.h
 MINION_OBJ = $(patsubst %.cc, %.o, $(MINION_SRC))
 
 INLET_SRC = $(wildcard src/minion/input/*.cc) \
 			src/proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
-INLET_HEADER = $(wildcard src/minion/input/*.h) \
-			   src/proto/shuttle.pb.h $(SCANNER_SUPPORT_HEADER) \
-			   src/minion/common/log_name.h
 INLET_OBJ = $(patsubst %.cc, %.o, $(INLET_SRC))
 
 COMBINER_SRC = $(wildcard src/minion/combiner/*.cc) \
@@ -64,22 +51,12 @@ COMBINER_SRC = $(wildcard src/minion/combiner/*.cc) \
 			   $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC) \
 			   src/minion/common/streaming.cc src/minion/common/emitter.cc \
 			   src/minion/output/partition.cc
-COMBINER_HEADER = $(wildcard src/minion/combiner/*.h) \
-				  src/proto/shuttle.pb.h \
-				  $(FILE_TYPES_HEADER) $(FORMAT_FILE_TYPES_HEADER) \
-				  src/minion/common/streaming.h src/minion/common/emitter.h \
-				  src/minion/common/log_name.h src/minion/output/partition.h \
-				  src/common/format/plain_text.h
 COMBINER_OBJ = $(patsubst %.cc, %.o, $(COMBINER_SRC))
 
 OUTLET_SRC = $(wildcard src/minion/output/*.cc) \
 			 src/proto/shuttle.pb.cc \
 			 $(FILE_TYPES_SRC) $(FORMAT_FILE_TYPES_SRC) \
 			 src/minion/common/streaming.cc src/minion/common/emitter.cc
-OUTLET_HEADER = $(wildcard src/minion/output/*.h) \
-				src/proto/shuttle.pb.h src/minion/common/log_name.h \
-				$(FILE_TYPES_HEADER) $(FORMAT_FILE_TYPES_HEADER) \
-				src/minion/common/streaming.h src/minion/common/emitter.h
 OUTLET_OBJ = $(patsubst %.cc, %.o, $(OUTLET_SRC))
 
 TEST_FILE_SRC = src/test/file.test.cc src/proto/shuttle.pb.cc \
