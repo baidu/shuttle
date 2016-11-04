@@ -29,6 +29,7 @@ public:
     
     ResourceItem* Assign(int node, const std::string& endpoint, Status* status);
     Status Finish(int node, int no, int attempt, TaskState state);
+    Status SaveCounters(int node, const std::map<std::string, int64_t>& counters);
 
     std::string GetJobId() {
         return job_id_;
@@ -49,6 +50,7 @@ public:
     Status GetStatistics(std::vector<TaskStatistics>& stats);
     // Notice: Currently input info is not included
     Status GetTaskOverview(std::vector<TaskOverview>& tasks);
+    Status GetCounters(std::map<std::string, int64_t>& counters);
 
     // Serialize and unserialize meta info
     Status Load(const std::string& serialized);

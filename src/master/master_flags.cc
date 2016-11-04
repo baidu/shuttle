@@ -27,6 +27,7 @@ DEFINE_int32(replica_num, 3, "max replicas of a single task");
 DEFINE_int32(left_percent, 120, "percentage of left minions when there's no more resource for minion");
 DEFINE_int32(first_sleeptime, 10, "timeout bound in seconds for a minion response");
 DEFINE_int32(time_tolerance, 120, "longest time interval of the monitor sleep");
+DEFINE_int32(max_counters_per_job, 10000, "max number of counters in a single job");
 DEFINE_string(temporary_dir, "/_temporary/", "define the accepted temporary directory");
 
 // Used in master_impl.cc

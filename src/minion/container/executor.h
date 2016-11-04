@@ -24,8 +24,7 @@ public:
 
     TaskState Exec(const JobDescriptor& job, const TaskInfo& task);
     Status Stop(int32_t task_id);
-    bool ParseCounters(const std::string& work_dir,
-            std::map<std::string, int64_t>& counters);
+    bool ParseCounters(std::map<std::string, int64_t>& counters);
 private:
     void SetEnv();
     bool PrepareOutputDir();

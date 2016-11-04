@@ -1,6 +1,7 @@
 #ifndef _BAIDU_SHUTTLE_GRU_H_
 #define _BAIDU_SHUTTLE_GRU_H_
 #include <string>
+#include <map>
 #include <boost/function.hpp>
 #include "proto/shuttle.pb.h"
 #include "proto/master.pb.h"
@@ -46,9 +47,11 @@ public:
     virtual Status Kill() = 0;
     virtual ResourceItem* Assign(const std::string& endpoint, Status* status) = 0;
     virtual Status Finish(int no, int attempt, TaskState state) = 0;
+    virtual Status SaveCounters(const std::map<std::string, int64_t>& counters) = 0;
 
     // Data getters
     virtual Status GetHistory(std::vector<AllocateItem>& buf) = 0;
+	virtual Status GetCounters(std::map<std::string, int64_t>& counters) = 0;
     virtual JobState GetState() = 0;
     virtual time_t GetStartTime() = 0;
     virtual time_t GetFinishTime() = 0;

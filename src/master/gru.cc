@@ -25,6 +25,7 @@ DECLARE_int32(replica_num);
 DECLARE_int32(left_percent);
 DECLARE_int32(first_sleeptime);
 DECLARE_int32(time_tolerance);
+DECLARE_int32(max_counters_per_job);
 DECLARE_string(temporary_dir);
 
 namespace baidu {
@@ -57,8 +58,14 @@ public:
     virtual Status Kill();
     virtual ResourceItem* Assign(const std::string& endpoint, Status* status);
     virtual Status Finish(int no, int attempt, TaskState state);
+    virtual Status SaveCounters(const std::map<std::string, int64_t>& counters);
 
     virtual Status GetHistory(std::vector<AllocateItem>& buf);
+    virtual Status GetCounters(std::map<std::string, int64_t>& counters) {
+        MutexLock lock(&meta_mu_);
+        counters = counters_;
+        return kOk;
+    }
     virtual JobState GetState() {
         MutexLock lock(&meta_mu_);
         return state_;
@@ -145,6 +152,7 @@ protected:
     // When this many tasks is done, the next phase is supposed to be pulled up
     // Carefully initialized
     int next_phase_begin_;
+    std::map<std::string, int64_t> counters_;
     boost::function<void ()> nearly_finish_callback_;
     boost::function<void (JobState)> finished_callback_;
 
@@ -362,6 +370,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
         }
     }
 
+    Status ret = kOk;
     switch (state) {
     case kTaskCompleted:
         if (!manager_->FinishItem(cur->no)) {
@@ -369,6 +378,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
             LOG(WARNING, "node %d ignores finish request < no - %d, attempt - %d >: %s",
                     node_, cur->no, cur->attempt, job_id_.c_str());
             state = kTaskCanceled;
+            ret = kHasCompleted;
             break;
         }
         int completed = manager_->Done();
@@ -401,7 +411,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
             // XXX Maybe free resource manager
         }
         break;
-    case kTaskFailed: {
+    case kTaskFailed: { // start a code block to use temp variable
         manager_->ReturnBackItem(cur->no);
         // XXX Data format and protocol here is not compatible with master branch
         // XXX Needs attention
@@ -423,7 +433,7 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
                 finished_callback_(kFailed);
             }
         }
-        }
+        } // end of the code block
         break;
     case kTaskKilled:
         manager_->ReturnBackItem(cur->no);
@@ -441,11 +451,22 @@ Status BasicGru::Finish(int no, int attempt, TaskState state) {
         cur->state = state;
         cur->period = std::time(NULL) - cur->alloc_time;
     }
-    if (state != kTaskCompleted || !allow_duplicates_) {
-        return kOk;
+    if (state == kTaskCompleted && allow_duplicates_) {
+        CancelOtherAttempts(cur->no, cur->attempt);
     }
+    return ret;
+}
 
-    CancelOtherAttempts(cur->no, cur->attempt);
+Status BasicGru::SaveCounters(const std::map<std::string, int64_t>& counters) {
+    MutexLock lock(&meta_mu_);
+    if (counters_.size() > static_cast<size_t>(FLAGS_max_counters_per_job)) {
+        LOG(WARNING, "too many counters defined: %d", counters_.size());
+        return kNoMore;
+    }
+    for (std::map<std::string, int64_t>::const_iterator it = counters.begin();
+            it != counters.end(); ++it) {
+        counters_[it->first] += it->second;
+    }
     return kOk;
 }
 

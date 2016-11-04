@@ -292,6 +292,22 @@ void MasterImpl::FinishTask(::google::protobuf::RpcController* /*controller*/,
     if (jobtracker != NULL) {
         Status status = jobtracker->Finish(request->node(),
                 request->task_id(), request->attempt_id(), request->task_state());
+        // Save counters when task is completed
+        if (request->task_state() == kTaskCompleted) {
+            if (status != kHasCompleted) {
+                std::map<std::string, int64_t> counters;
+                // Fill counters
+                google::protobuf::RepeatedPtrField<TaskCounter>::const_iterator it;
+                for (it = request->counters().begin();
+                        it != request->counters().end(); ++it) {
+                    counters[it->key()] = it->value();
+                }
+                status = jobtracker->SaveCounters(request->node(), counters);
+            } else {
+                // Task may have been finished
+                status = kOk;
+            }
+        }
         response->set_status(status);
     } else {
         {

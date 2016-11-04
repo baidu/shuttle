@@ -175,9 +175,8 @@ bool Executor::PrepareOutputDir() {
     return true;
 }
 
-bool Executor::ParseCounters(const std::string& work_dir,
-        std::map<std::string, int64_t>& counters) {
-    const std::string err_path = work_dir + "stderr";
+bool Executor::ParseCounters(std::map<std::string, int64_t>& counters) {
+    const std::string err_path = work_dir_ + "stderr";
     // Open stderr file as plain text file
     FormattedFile* fp = FormattedFile::Create(kLocalFs, kPlainText, File::Param());
     if (fp == NULL || !fp->Open(err_path, kReadFile, File::Param())) {

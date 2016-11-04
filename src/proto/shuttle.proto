@@ -15,6 +15,7 @@ enum Status {
     kNotImplement = 11;
     kNoSuchTask = 12;
     kSuspend = 13;
+    kHasCompleted = 14;
     kUnKnown = 20;
 }
 

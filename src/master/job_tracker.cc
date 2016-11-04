@@ -109,6 +109,34 @@ Status JobTracker::Finish(int node, int no, int attempt, TaskState state) {
     return grus_[n]->Finish(no, attempt, state);
 }
 
+Status JobTracker::SaveCounters(int node,
+        const std::map<std::string, int64_t>& counters) {
+    size_t n = static_cast<size_t>(node);
+    if (n > grus_.size() || grus_[n] == NULL) {
+        LOG(WARNING, "inexist node, counters saving terminated: %s", job_id_.c_str());
+        return kNoSuchJob;
+    }
+    return grus_[n]->SaveCounters(counters);
+}
+
+Status JobTracker::GetCounters(std::map<std::string, int64_t>& counters) {
+    for (std::vector<Gru*>::iterator it = grus_.begin();
+            it != grus_.end(); ++it) {
+        if (*it == NULL) {
+            continue;
+        }
+        std::map<std::string, int64_t> cur;
+        if ((*it)->GetCounters(cur) != kOk) {
+            continue;
+        }
+        for (std::map<std::string, int64_t>::iterator it = cur.begin();
+                it != cur.end(); ++it) {
+            counters[it->first] += it->second;
+        }
+    }
+    return kOk;
+}
+
 Status JobTracker::GetStatistics(std::vector<TaskStatistics>& stats) {
     stats.clear();
     size_t size = grus_.size();

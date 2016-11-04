@@ -128,6 +128,13 @@ void MinionImpl::Run() {
             state_ = task_state;
         }
 
+        // ParseCounters
+        std::map<std::string, int64_t> counters;
+        const NodeConfig& cur_node = assign_response.job().nodes(task.node());
+        if (task_state == kTaskCompleted && cur_node.check_counters()) {
+            executor_->ParseCounters(counters);
+        }
+
         // Finish current task
         FinishTaskRequest finish_request;
         FinishTaskResponse finish_response;
@@ -137,6 +144,12 @@ void MinionImpl::Run() {
         finish_request.set_attempt_id(task.attempt_id());
         //finish_request.set_task_state(task_state);
         finish_request.set_endpoint(endpoint_);
+        for (std::map<std::string, int64_t>::iterator it = counters.begin();
+                it != counters.end(); ++it) {
+            TaskCounter* cur = finish_request.add_counters();
+            cur->set_key(it->first);
+            cur->set_value(it->second);
+        }
         do {
             ok = rpc_client_.SendRequest(stub, &Master_Stub::FinishTask,
                     &finish_request, &finish_response, 5, 1);
