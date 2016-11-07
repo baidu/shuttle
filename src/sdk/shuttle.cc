@@ -18,8 +18,7 @@ public:
     virtual ~ShuttleImpl();
     bool SubmitJob(const sdk::JobDescription& job_desc, std::string& job_id);
     bool UpdateJob(const std::string& job_id,
-                   const std::vector<sdk::UpdateItem>& new_capacities,
-                   const sdk::JobPriority& priority);
+                   const std::map<int32_t, int32_t>& new_capacities);
     bool KillJob(const std::string& job_id);
     bool KillTask(const std::string& job_id, int node,
                   int task_id, int attempt_id);
@@ -63,9 +62,6 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
     ::baidu::shuttle::SubmitJobResponse response;
     ::baidu::shuttle::JobDescriptor* job = request.mutable_job();
     job->set_name(job_desc.name);
-    job->set_user(job_desc.user);
-    job->set_priority((job_desc.priority == sdk::kUndefined) ?
-            kNormal : (JobPriority)job_desc.priority);
     std::copy(job_desc.files.begin(), job_desc.files.end(),
               ::google::protobuf::RepeatedFieldBackInserter(job->mutable_files()));
     job->set_cache_archive(job_desc.cache_archive);
@@ -107,6 +103,15 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
         node->set_partition_fields_num(cur.partition_fields_num);
         node->set_allow_duplicates(cur.allow_duplicates);
         node->set_retry(cur.retry);
+        node->set_combiner(cur.combiner);
+        node->set_check_counters(cur.check_counters);
+        node->set_ignore_failures(cur.ignore_failures);
+        node->set_decompress_input(cur.decompress_input);
+        node->set_compress_output(cur.compress_output);
+        for (std::vector<std::string>::const_iterator it = cur.cmdenvs.begin();
+                it != cur.cmdenvs.end(); ++it) {
+            node->add_cmdenvs(*it);
+        }
     }
     for (std::vector< std::vector<int32_t> >::const_iterator it = job_desc.map.begin();
             it != job_desc.map.end(); ++it) {
@@ -134,19 +139,15 @@ bool ShuttleImpl::SubmitJob(const sdk::JobDescription& job_desc, std::string& jo
 }
 
 bool ShuttleImpl::UpdateJob(const std::string& job_id,
-                            const std::vector<sdk::UpdateItem>& new_capacities,
-                            const sdk::JobPriority& priority) {
+                            const std::map<int32_t, int32_t>& new_capacities) {
     ::baidu::shuttle::UpdateJobRequest request;
     ::baidu::shuttle::UpdateJobResponse response;
     request.set_jobid(job_id);
-    if (priority != sdk::kUndefined) {
-        request.set_priority((JobPriority)priority);
-    }
-    for (std::vector<sdk::UpdateItem>::const_iterator it = new_capacities.begin();
+    for (std::map<int32_t, int32_t>::const_iterator it = new_capacities.begin();
             it != new_capacities.end(); ++it) {
         ::baidu::shuttle::UpdateJobRequest_UpdatedNode* cur = request.add_capacities();
-        cur->set_node(it->node);
-        cur->set_capacity(it->capacity);
+        cur->set_node(it->first);
+        cur->set_capacity(it->second);
     }
 
     bool ok = rpc_client_.SendRequest(master_stub_, &Master_Stub::UpdateJob,
@@ -262,8 +263,6 @@ void ShuttleImpl::ConvertJobInstance(const JobOverview& joboverview,
                                      sdk::JobInstance& job) {
     const JobDescriptor& desc = joboverview.desc();
     job.desc.name = desc.name();
-    job.desc.user = desc.user();
-    job.desc.priority = (sdk::JobPriority)desc.priority();
     job.desc.files.resize(desc.files().size());
     std::copy(desc.files().begin(), desc.files().end(), job.desc.files.begin());
     job.desc.cache_archive = desc.cache_archive();
@@ -303,6 +302,15 @@ void ShuttleImpl::ConvertJobInstance(const JobOverview& joboverview,
         cur.partition_fields_num = it->partition_fields_num();
         cur.allow_duplicates = it->allow_duplicates();
         cur.retry = it->retry();
+        cur.combiner = it->combiner();
+        cur.check_counters = it->check_counters();
+        cur.ignore_failures = it->ignore_failures();
+        cur.decompress_input = it->decompress_input();
+        cur.compress_output = it->compress_output();
+        ::google::protobuf::RepeatedPtrField<std::string>::const_iterator st;
+        for (st = it->cmdenvs().begin(); st != it->cmdenvs().end(); ++st) {
+            cur.cmdenvs.push_back(*st);
+        }
     }
 
     job.jobid = joboverview.jobid();
@@ -322,6 +330,6 @@ void ShuttleImpl::ConvertJobInstance(const JobOverview& joboverview,
     job.finish_time = joboverview.finish_time();
 }
 
-} //namespace shuttle
-} //namespace baidu
+} // namespace shuttle
+} // namespace baidu
 

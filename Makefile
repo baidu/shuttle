@@ -93,16 +93,20 @@ TOOL_SORTFILE_SRC = src/tool/sortfile_tool.cc src/minion/input/merger.cc \
 					src/proto/shuttle.pb.cc $(SCANNER_SUPPORT_SRC)
 TOOL_SORTFILE_OBJ = $(patsubst %.cc, %.o, $(TOOL_SORTFILE_SRC))
 
+LIB_SDK_SRC = $(wildcard src/sdk/*.cc)
+LIB_SDK_OBJ = $(patsubst %.cc, %.o, $(LIB_SDK_SRC))
+
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ) \
 	   $(TEST_FILE_OBJ) $(TEST_FILE_FORMAT_OBJ) $(TEST_SCANNER_OBJ) $(TEST_MERGER_OBJ) \
 	   $(TEST_DAG_SCHEDULER_OBJ) $(TEST_RESOURCE_MANAGER_OBJ) \
-	   $(TOOL_PARTITION_OBJ) $(TOOL_SORTFILE_OBJ)
+	   $(TOOL_PARTITION_OBJ) $(TOOL_SORTFILE_OBJ) $(LIB_SDK_OBJ)
 BIN = master minion inlet combiner outlet phaser tricorder
 TESTS = file_test fileformat_test scanner_test merger_test dag_test rm_test
+LIB = libshuttle.a
 DEPS = $(patsubst %.o, %.d, $(OBJS))
 
 # Default build all binary files except tests
-all: $(BIN)
+all: $(BIN) $(LIB)
 	-@rm -rf $(DEPS)
 	@echo 'make all done.'
 
@@ -158,6 +162,9 @@ phaser: $(TOOL_PARTITION_OBJ)
 
 tricorder: $(TOOL_SORTFILE_OBJ)
 	$(CXX) $(TOOL_SORTFILE_OBJ) -o $@ $(LDFLAGS)
+
+libshuttle.a: $(LIB_SDK_OBJ)
+	ar crs $@ $(LIB_SDK_OBJ)
 
 .PHONY: clean install output
 clean:

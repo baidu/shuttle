@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <vector>
+#include <map>
 #include <string>
 
 namespace baidu {
@@ -16,18 +17,6 @@ enum JobState {
     kFailed = 2,
     kKilled = 3,
     kCompleted = 4
-};
-
-enum JobPriority {
-    kVeryHigh = 0,
-    kHigh = 1,
-    kNormal = 2,
-    kLow = 3,
-    // In update interface, the undefined
-    //     means not to update priority
-    // Otherwise, it has the exact meaning
-    //     as kNormal
-    kUndefined = 10
 };
 
 enum TaskState {
@@ -102,23 +91,22 @@ struct NodeConfig {
     int32_t partition_fields_num;
     bool allow_duplicates;
     int32_t retry;
+    std::string combiner;
+    bool check_counters;
+    int32_t ignore_failures;
+    bool decompress_input;
+    bool compress_output;
+    std::vector<std::string> cmdenvs;
 };
 
 struct JobDescription {
     std::string name;
-    std::string user;
-    JobPriority priority;
     std::vector<std::string> files;
     std::string cache_archive;
     PipeStyle pipe_style;
     int64_t split_size;
     std::vector<NodeConfig> nodes;
     std::vector< std::vector<int32_t> > map;
-};
-
-struct UpdateItem {
-    int32_t node;
-    int32_t capacity;
 };
 
 struct TaskInstance {
@@ -143,7 +131,7 @@ struct JobInstance {
     int32_t finish_time;
 };
 
-} //namspace sdk
+} // namspace sdk
 
 class Shuttle {
 public:
@@ -152,8 +140,7 @@ public:
     virtual bool SubmitJob(const sdk::JobDescription& job_desc,
                            std::string& job_id) = 0;
     virtual bool UpdateJob(const std::string& job_id,
-                           const std::vector<sdk::UpdateItem>& new_capacities,
-                           const sdk::JobPriority& priority = sdk::kUndefined) = 0;
+                           const std::map<int32_t, int32_t>& new_capacities) = 0;
     virtual bool KillJob(const std::string& job_id) = 0;
     virtual bool KillTask(const std::string& job_id, int node,
                           int task_id, int attempt_id) = 0;
@@ -166,7 +153,8 @@ public:
     virtual void SetRpcTimeout(int timeout) = 0;
 };
 
-} //namespace shuttle
-} //namespace baidu
+} // namespace shuttle
+} // namespace baidu
 
 #endif
+
