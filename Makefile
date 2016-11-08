@@ -7,7 +7,7 @@ include depends.mk
 # Compiler related
 OPT ?= -O2 -g2
 CXX = g++
-INCPATH = -I./src -I$(BOOST_HEADER_DIR) -I$(LIB_HDFS_DIR)/output/include \
+INCPATH = -I./src -I$(BOOST_DIR) -I$(LIB_HDFS_DIR)/output/include \
 		  -I$(GALAXY_DIR)/src/sdk -I$(GALAXY_DIR)/thirdparty/include
 CXXFLAGS += $(OPT) -pipe -MMD -W -Wall -fPIC \
 			-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DHAVE_SNAPPY $(INCPATH)
@@ -96,18 +96,20 @@ TOOL_SORTFILE_OBJ = $(patsubst %.cc, %.o, $(TOOL_SORTFILE_SRC))
 LIB_SDK_SRC = $(wildcard src/sdk/*.cc)
 LIB_SDK_OBJ = $(patsubst %.cc, %.o, $(LIB_SDK_SRC))
 
+CLIENT_SRC = $(wildcard src/client/*.cc)
+CLIENT_OBJ = $(patsubst %.cc, %.o, $(CLIENT_SRC))
+
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ) \
 	   $(TEST_FILE_OBJ) $(TEST_FILE_FORMAT_OBJ) $(TEST_SCANNER_OBJ) $(TEST_MERGER_OBJ) \
 	   $(TEST_DAG_SCHEDULER_OBJ) $(TEST_RESOURCE_MANAGER_OBJ) \
-	   $(TOOL_PARTITION_OBJ) $(TOOL_SORTFILE_OBJ) $(LIB_SDK_OBJ)
-BIN = master minion inlet combiner outlet phaser tricorder
+	   $(TOOL_PARTITION_OBJ) $(TOOL_SORTFILE_OBJ) $(LIB_SDK_OBJ) $(CLIENT_OBJ)
+BIN = master minion inlet combiner outlet phaser tricorder shuttle-internal
 TESTS = file_test fileformat_test scanner_test merger_test dag_test rm_test
 LIB = libshuttle.a
 DEPS = $(patsubst %.o, %.d, $(OBJS))
 
 # Default build all binary files except tests
 all: $(BIN) $(LIB)
-	-@rm -rf $(DEPS)
 	@echo 'make all done.'
 
 # Dependencies
@@ -166,10 +168,15 @@ tricorder: $(TOOL_SORTFILE_OBJ)
 libshuttle.a: $(LIB_SDK_OBJ)
 	ar crs $@ $(LIB_SDK_OBJ)
 
+shuttle-internal: libshuttle.a $(CLIENT_OBJ)
+	$(CXX) $(CLIENT_OBJ) -o $@ -L. -lshuttle \
+		-L$(GALAXY_DIR)/thirdparty/lib -lins_sdk \
+		-L$(BOOST_DIR)/stage/lib -lboost_program_options
+
 .PHONY: clean install output
 clean:
 	@rm -rf output/
-	@rm -rf $(BIN) $(TESTS) $(OBJS) $(DEPS)
+	@rm -rf $(BIN) $(LIB) $(TESTS) $(OBJS) $(DEPS)
 	@rm -rf $(PROTO_SRC) $(PROTO_HEADER)
 	@echo 'make clean done'
 
