@@ -1,11 +1,13 @@
 #include <iostream>
+#include <fstream>
 #include <string>
-#include <boost/program_options.hpp>
+
 #include "sdk/shuttle.h"
 #include "client/config.h"
+#include "client/connector.h"
 
 int main(int argc, char** argv) {
-    Configuration config;
+    baidu::shuttle::Configuration config;
     int ret = config.ParseCommandLine(argc, argv);
     if (ret != 0) {
         return ret;
@@ -16,17 +18,35 @@ int main(int argc, char** argv) {
         return -1;
     }
     if (command == "json") {
+        const std::string& file_name = config.GetConf("file");
+        std::ostream& os = file_name.empty() ? std::cout : std::ofstream(file_name.c_str());
+        ret = config.BuildJson(os);
     } else if (command == "submit") {
+        baidu::shuttle::ShuttleConnector connector(&config);
+        ret = connector.Submit();
     } else if (command == "update") {
+        baidu::shuttle::ShuttleConnector connector(&config);
+        ret = connector.Update();
     } else if (command == "kill") {
+        baidu::shuttle::ShuttleConnector connector(&config);
+        ret = connector.Kill();
     } else if (command == "list") {
+        baidu::shuttle::ShuttleConnector connector(&config);
+        ret = connector.List();
     } else if (command == "status") {
+        baidu::shuttle::ShuttleConnector connector(&config);
+        ret = connector.Status();
     } else if (command == "monitor") {
+        baidu::shuttle::ShuttleConnector connector(&config);
+        ret = connector.Monitor();
+    } else if (command == "help") {
+        std::cerr << config.Help();
+        return 1;
     } else {
         std::cerr << "ERROR: " << command << " command is not recognized."
                   << "Please refer to help command" << std::endl;
-        return -1;
+        ret = -1;
     }
-    return 0;
+    return ret;
 }
 

@@ -8,7 +8,8 @@ include depends.mk
 OPT ?= -O2 -g2
 CXX = g++
 INCPATH = -I./src -I$(BOOST_DIR) -I$(LIB_HDFS_DIR)/output/include \
-		  -I$(GALAXY_DIR)/src/sdk -I$(GALAXY_DIR)/thirdparty/include
+		  -I$(GALAXY_DIR)/src/sdk -I$(GALAXY_DIR)/thirdparty/include \
+		  -I$(GALAXY_DIR)/thirdparty/rapidjson/include
 CXXFLAGS += $(OPT) -pipe -MMD -W -Wall -fPIC \
 			-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DHAVE_SNAPPY $(INCPATH)
 LDFLAGS += -L$(GALAXY_DIR) -lgalaxy_sdk \
@@ -96,7 +97,8 @@ TOOL_SORTFILE_OBJ = $(patsubst %.cc, %.o, $(TOOL_SORTFILE_SRC))
 LIB_SDK_SRC = $(wildcard src/sdk/*.cc)
 LIB_SDK_OBJ = $(patsubst %.cc, %.o, $(LIB_SDK_SRC))
 
-CLIENT_SRC = $(wildcard src/client/*.cc)
+CLIENT_SRC = $(wildcard src/client/*.cc) \
+			 src/proto/shuttle.pb.cc src/proto/master.pb.cc
 CLIENT_OBJ = $(patsubst %.cc, %.o, $(CLIENT_SRC))
 
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ) \
@@ -170,8 +172,10 @@ libshuttle.a: $(LIB_SDK_OBJ)
 
 shuttle-internal: libshuttle.a $(CLIENT_OBJ)
 	$(CXX) $(CLIENT_OBJ) -o $@ -L. -lshuttle \
-		-L$(GALAXY_DIR)/thirdparty/lib -lins_sdk \
-		-L$(BOOST_DIR)/stage/lib -lboost_program_options
+		-L$(GALAXY_DIR)/thirdparty/lib \
+		-lsofa-pbrpc -lins_sdk -lprotobuf -lsnappy -lgflags -lcommon \
+		-L$(BOOST_DIR)/stage/lib -lboost_program_options \
+		-lpthread -lrt -lz
 
 .PHONY: clean install output
 clean:

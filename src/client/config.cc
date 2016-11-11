@@ -206,7 +206,7 @@ std::string Configuration::Help() const {
         "options:\n"
         "    -h [ --help ]             show help information\n"
         "    -a [ --all ]              check all jobs including dead jobs in listing\n"
-        "    -i [ --immediate ]        return immediately after submitting without monitoring\n"
+        "    -i [ --immediate ]        return immediately without monitoring\n"
         "    --input ARG               input file of a job\n"
         "    --output ARG              output path of a job\n"
         "    -f [ --file ] ARG         upload local file to computing node\n"
