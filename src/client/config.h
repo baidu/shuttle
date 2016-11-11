@@ -2,7 +2,7 @@
 #define _BAIDU_SHUTTLE_CONFIG_H_
 #include <string>
 #include <vector>
-#include <boost/program_options.hpp>
+#include <iostream>
 #include "sdk/shuttle.h"
 
 namespace baidu {
@@ -14,14 +14,34 @@ public:
     ~Configuration() { }
 
     int ParseCommandLine(int argc, char** argv);
-    std::string Command() const {
-        return vars_.count("command") ? vars_["command"].as<std::string>() : "";
-    }
+    int ParseJson(std::istream& is);
+
+    int BuildJobDescription(sdk::JobDescription& job);
+    int BuildJson(std::ostream& os);
+
     std::string Help() const;
-    int BuildJobDescription(sdk::JobDescription& job) const;
+
+    std::string GetConf(const std::string& name) const {
+        std::map<std::string, std::string>::const_iterator it = kv_.find(name);
+        if (it == kv_.end()) {
+            return "";
+        }
+        return it->second;
+    }
+    void GetConf(const std::string& name,
+            std::vector<std::string>& value) const {
+        std::map< std::string, std::vector<std::string> >::const_iterator it
+            = multivalue_.find(name);
+        if (it == multivalue_.end()) {
+            return;
+        }
+        value = it->second;
+    }
 private:
-    boost::program_options::variables_map vars_;
-    std::map<std::string, std::string> conf_;
+    void InteractiveGetConfig();
+private:
+    std::map<std::string, std::string> kv_;
+    std::map< std::string, std::vector<std::string> > multivalue_;
 };
 
 }
