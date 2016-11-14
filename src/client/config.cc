@@ -35,10 +35,10 @@ int Configuration::ParseCommandLine(int argc, char** argv) {
         ("nexus-root", po::value<std::string>(), "")
         ("master", po::value<std::string>(), "")
         ("command", po::value<std::string>()->required(), "")
-        ("subcommand", po::value<std::string>(), "");
+        ("subcommand", po::value< std::vector<std::string> >(), "");
     po::positional_options_description positional;
     positional.add("command", 1);
-    positional.add("subcommand", 1);
+    positional.add("subcommand", -1);
     boost::program_options::variables_map vars;
     try {
         po::command_line_parser parser(argc, argv);
@@ -58,8 +58,10 @@ int Configuration::ParseCommandLine(int argc, char** argv) {
     }
     for (po::variables_map::iterator it = vars.begin();
             it != vars.end(); ++it) {
-        if (it->first == "input" || it->first == "files") {
+        if (it->first == "input" || it->first == "files" || it->first == "subcommand") {
             multivalue_[it->first] = it->second.as< std::vector<std::string> >();
+        } else if (it->first == "all" || it->first == "i" || it->first == "file") {
+            kv_[it->first] = "true";
         } else if (it->first == "jobconf") {
             continue;
         } else {
@@ -114,7 +116,7 @@ int Configuration::ParseJson(std::istream& is) {
         std::cerr << "ERROR: please provide a string as pipe" << std::endl;
         return -1;
     }
-    // TODO check subcommand
+    // TODO subcommand is a vector
     kv_["subcommand"] = std::string(doc["pipe"].GetString(), doc["pipe"].GetStringLength());
     if (doc.HasMember("split_size")) {
         if (doc["split_size"].IsNumber() && !doc["split_size"].IsDouble()) {
@@ -197,8 +199,8 @@ std::string Configuration::Help() const {
         "command:\n"
         "    help                              show help information\n"
         "    streaming/bistreaming [flags]     start a computing job\n"
-        "    update jobid [flags]              adjust the capacity of a phase\n"
-        "    kill jobid [node task attempt]    cancel a job or a certain task\n"
+        "    set jobid node new_capacity       adjust the capacity of a phase\n"
+        "    kill jobid [node-task-attempt]    cancel a job or a certain task\n"
         "    list [-a]                         get a list of current jobs\n"
         "    status jobid                      get details of a certain job\n"
         "    monitor jobid                     block and get job status periodically\n"

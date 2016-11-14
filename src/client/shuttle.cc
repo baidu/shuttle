@@ -17,14 +17,17 @@ int main(int argc, char** argv) {
         std::cerr << "ERROR: please offer a command" << std::endl;
         return -1;
     }
-    if (command == "json") {
+    if (command == "help" || config.GetConf("help") == "true") {
+        std::cerr << config.Help();
+        return 1;
+    } else if (command == "json") {
         const std::string& file_name = config.GetConf("file");
         std::ostream& os = file_name.empty() ? std::cout : std::ofstream(file_name.c_str());
         ret = config.BuildJson(os);
     } else if (command == "submit") {
         baidu::shuttle::ShuttleConnector connector(&config);
         ret = connector.Submit();
-    } else if (command == "update") {
+    } else if (command == "set") {
         baidu::shuttle::ShuttleConnector connector(&config);
         ret = connector.Update();
     } else if (command == "kill") {
@@ -39,9 +42,6 @@ int main(int argc, char** argv) {
     } else if (command == "monitor") {
         baidu::shuttle::ShuttleConnector connector(&config);
         ret = connector.Monitor();
-    } else if (command == "help") {
-        std::cerr << config.Help();
-        return 1;
     } else {
         std::cerr << "ERROR: " << command << " command is not recognized."
                   << "Please refer to help command" << std::endl;
