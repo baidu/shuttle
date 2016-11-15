@@ -1,27 +1,22 @@
-//Copied from github.com/baidu/common, add SetMaxColWidth method
-#ifndef  BAIDU_SHUTTLE_TPRINTER_H_
-#define  BAIDU_SHUTTLE_TPRINTER_H_
-
-#include <stdint.h>
-
+#ifndef  _BAIDU_SHUTTLE_TABLE_PRINTER_H_
+#define  _BAIDU_SHUTTLE_TABLE_PRINTER_H_
 #include <string>
 #include <vector>
-
+#include <stdint.h>
 
 namespace baidu {
 namespace shuttle {
 
-using std::string;
 class TPrinter {
 public:
-    typedef std::vector<string> Line;
+    typedef std::vector<std::string> Line;
     typedef std::vector<Line> Table;
 
     TPrinter();
     TPrinter(int cols);
     ~TPrinter();
 
-    bool AddRow(const std::vector<string>& cols);
+    bool AddRow(const std::vector<std::string>& cols);
 
     bool AddRow(int argc, ...);
 
@@ -29,24 +24,26 @@ public:
 
     void Print(bool has_head = true);
 
-    string ToString(bool has_head = true);
+    std::string ToString(bool has_head = true);
 
     void Reset();
 
     void Reset(int cols);
 
-    static string RemoveSubString(const string& input, const string& substr);
+    static std::string RemoveSubString(const std::string& input, const std::string& substr);
 
-	void SetMaxColWidth(uint32_t width);
+    void SetMaxColWidth(uint32_t width);
 
 private:
-	static const uint32_t kMaxColWidth = 50;
-	uint32_t _max_col_width;
+    static const uint32_t kMaxColWidth = 50;
+    uint32_t _max_col_width;
     size_t _cols;
     std::vector<int> _col_width;
     Table _table;
 };
 
-} // namespace shuttle
-} // namespace baidu
-#endif // BAIDU_SHUTTLE_TPRINTER_H_
+}
+}
+
+#endif
+

@@ -1,4 +1,3 @@
-//Copied from github.com/baidu/common, add SetMaxColWidth method
 #include "table_printer.h"
 
 #include <stdarg.h>
@@ -6,10 +5,10 @@
 #include <iostream>
 #include <sstream>
 
-#include "string_util.h"
-
 namespace baidu {
 namespace shuttle {
+
+using std::string;
 
 TPrinter::TPrinter() : _cols(0) {
 }
@@ -18,13 +17,13 @@ TPrinter::TPrinter(int cols) : _cols(cols) {
     if (cols > 0) {
         _col_width.resize(cols, 0);
     }
-	_max_col_width = kMaxColWidth;
+    _max_col_width = kMaxColWidth;
 }
 
 TPrinter::~TPrinter() {}
 
 void TPrinter::SetMaxColWidth(uint32_t width) {
-	_max_col_width = width;
+    _max_col_width = width;
 }
 
 bool TPrinter::AddRow(const std::vector<string>& cols) {
@@ -73,7 +72,9 @@ bool TPrinter::AddRow(const std::vector<int64_t>& cols) {
     }
     std::vector<string> v;
     for (size_t i = 0; i < cols.size(); ++i) {
-        v.push_back(common::NumToString(cols[i]));
+        std::stringstream ss;
+        ss << cols[i];
+        v.push_back(ss.str());
     }
     return AddRow(v);
 }
@@ -170,5 +171,6 @@ string TPrinter::RemoveSubString(const string& input, const string& substr) {
     return ret;
 }
 
-} // namespace common
 }
+}
+

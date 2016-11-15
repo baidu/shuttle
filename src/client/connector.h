@@ -22,12 +22,12 @@ public:
     int Monitor();
 private:
     std::string GetMasterAddr();
-    std::string Timestamp() {
+    std::string TimeString(time_t time) {
         static char buf[32] = { 0 };
-        time_t now = time(NULL);
-        ::strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ::localtime(&now));
+        ::strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ::localtime(&time));
         return buf;
     }
+    static const char* state_string[];
 private:
     Configuration* config_;
     Shuttle* sdk_;

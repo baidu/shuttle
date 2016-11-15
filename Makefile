@@ -98,7 +98,8 @@ LIB_SDK_SRC = $(wildcard src/sdk/*.cc)
 LIB_SDK_OBJ = $(patsubst %.cc, %.o, $(LIB_SDK_SRC))
 
 CLIENT_SRC = $(wildcard src/client/*.cc) \
-			 src/proto/shuttle.pb.cc src/proto/master.pb.cc
+			 src/proto/shuttle.pb.cc src/proto/master.pb.cc \
+			 src/common/table_printer.cc
 CLIENT_OBJ = $(patsubst %.cc, %.o, $(CLIENT_SRC))
 
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ) \

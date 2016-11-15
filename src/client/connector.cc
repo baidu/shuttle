@@ -4,10 +4,27 @@
 #include <unistd.h>
 #include "sdk/shuttle.h"
 #include "client/config.h"
+#include "common/table_printer.h"
 #include "ins_sdk.h"
 
 namespace baidu {
 namespace shuttle {
+
+struct JobComparator {
+    bool operator()(const sdk::JobInstance& lhs, const sdk::JobInstance& rhs) const {
+        if (lhs.state == sdk::kRunning && rhs.state != sdk::kRunning) {
+            return true;
+        }
+        if (lhs.state != sdk::kRunning && rhs.state == sdk::kRunning) {
+            return false;
+        }
+        return lhs.jobid > rhs.jobid;
+    }
+};
+
+const char* ShuttleConnector::state_string[] = {
+    "Pending", "Running", "Failed", "Killed", "Completed", "Canceled"
+};
 
 ShuttleConnector::ShuttleConnector(Configuration* config)
         : config_(config) {
@@ -112,11 +129,65 @@ int ShuttleConnector::Kill() {
 }
 
 int ShuttleConnector::List() {
-    return -1;
+    std::vector<sdk::JobInstance> jobs;
+    if (!sdk_->ListJobs(jobs, !config_->GetConf("all").empty())) {
+        std::cerr << "ERROR: failed to list job" << std::endl;
+        return -1;
+    }
+    // TODO
+    static const int column = 3;
+    TPrinter tp(column);
+    tp.SetMaxColWidth(80);
+    tp.AddRow(column, "job id", "job name", "state");
+    std::sort(jobs.begin(), jobs.end(), JobComparator());
+    for (std::vector<sdk::JobInstance>::iterator it = jobs.begin();
+            it != jobs.end(); ++it) {
+        tp.AddRow(column, it->jobid.c_str(),
+                it->desc.name.c_str(), state_string[it->state]);
+    }
+    tp.Print(true);
+    return 0;
 }
 
 int ShuttleConnector::Status() {
-    return -1;
+    sdk::JobInstance job;
+    std::vector<sdk::TaskInstance> tasks;
+    std::vector<std::string> subcommands;
+    config_->GetConf("subcommand", subcommands);
+    if (subcommands.empty()) {
+        std::cerr << "ERROR: please provide job id to kill" << std::endl;
+        return -1;
+    }
+    if (!sdk_->ShowJob(subcommands[0], job, tasks, !config_->GetConf("all").empty())) {
+        std::cerr << "ERROR: failed to show details of job" << std::endl;
+        return -1;
+    }
+    // TODO
+    std::cout << "Job Name: " << job.desc.name << std::endl;
+    std::cout << "Job ID: " << job.jobid << std::endl;
+    std::cout << "State: " << state_string[job.state] << std::endl;
+    std::cout << "Start time: " << TimeString(job.start_time) << std::endl;
+    std::cout << "Finish time: " << (job.finish_time == 0 ? "-" :
+            TimeString(job.finish_time)) << std::endl;
+    // TODO
+    static const int task_col = 7;
+    TPrinter task_tp(task_col);
+    task_tp.AddRow(task_col, "nid", "tid", "aid", "state", "minion address",
+            "start time", "end time");
+    for (std::vector<sdk::TaskInstance>::iterator it = tasks.begin();
+            it != tasks.end(); ++it) {
+        task_tp.AddRow(task_col,
+            boost::lexical_cast<std::string>(it->node).c_str(),
+            boost::lexical_cast<std::string>(it->task_id).c_str(),
+            boost::lexical_cast<std::string>(it->attempt_id).c_str(),
+            state_string[it->state],
+            it->minion_addr.c_str(),
+            TimeString(it->start_time).c_str(),
+            (it->finish_time > it->start_time) ? TimeString(it->finish_time).c_str() : "-"
+        );
+    }
+    task_tp.Print(true);
+    return 0;
 }
 
 int ShuttleConnector::Monitor() {
@@ -144,9 +215,9 @@ int ShuttleConnector::Monitor() {
         case sdk::kPending:
             if (is_tty) {
                 std::cout << "\x1B[2K\x1B[0E"
-                    << "[" << Timestamp() << "] job is pending...";
+                    << "[" << TimeString(time(NULL)) << "] job is pending...";
             } else {
-                std::cout << "[" << Timestamp() << "] job is pending..." << std::endl;
+                std::cout << "[" << TimeString(time(NULL)) << "] job is pending..." << std::endl;
             }
             std::flush(std::cout);
             break;
