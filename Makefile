@@ -12,12 +12,14 @@ INCPATH = -I./src -I$(BOOST_DIR) -I$(LIB_HDFS_DIR)/output/include \
 		  -I$(GALAXY_DIR)/thirdparty/rapidjson/include
 CXXFLAGS += $(OPT) -pipe -MMD -W -Wall -fPIC \
 			-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DHAVE_SNAPPY $(INCPATH)
+BASIC_LD_FLAGS = -L$(GALAXY_DIR)/thirdparty/lib \
+				 -lsofa-pbrpc -lins_sdk -lprotobuf -lsnappy -lgflags -lcommon \
+				 -lpthread -lrt -lz
 LDFLAGS += -L$(GALAXY_DIR) -lgalaxy_sdk \
-		   -L$(GALAXY_DIR)/thirdparty/lib \
-		   -lcommon -lins_sdk -lglog -lsofa-pbrpc -lprotobuf -lgflags -lsnappy \
+		   $(BASIC_LD_FLAGS) \
+		   -L$(GALAXY_DIR)/thirdparty/lib -lglog -lsnappy \
 		   -L$(LIB_HDFS_DIR)/output/lib -lhdfs \
-		   -L$(JVM_LIB_DIR) -ljvm \
-		   -lpthread -lz -lrt
+		   -L$(JVM_LIB_DIR) -ljvm -lz
 TESTFLAGS = -L$(GALAXY_DIR)/thirdparty/lib -lgtest
 PROTOC = $(GALAXY_DIR)/thirdparty/bin/protoc
 
@@ -167,23 +169,21 @@ rm_test: $(TEST_RESOURCE_MANAGER_OBJ)
 	$(CXX) $(TEST_RESOURCE_MANAGER_OBJ) -o $@ $(LDFLAGS) $(TESTFLAGS)
 
 phaser: $(TOOL_PARTITION_OBJ)
-	$(CXX) $(TOOL_PARTITION_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TOOL_PARTITION_OBJ) -o $@ \
+		-L$(GALAXY_DIR)/thirdparty/lib -lgflags -lprotobuf -lpthread
 
 tricorder: $(TOOL_SORTFILE_OBJ)
 	$(CXX) $(TOOL_SORTFILE_OBJ) -o $@ $(LDFLAGS)
 
 beam: $(TOOL_QUERY_OBJ)
-	$(CXX) $(TOOL_QUERY_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TOOL_QUERY_OBJ) -o $@ $(BASIC_LD_FLAGS)
 
 libshuttle.a: $(LIB_SDK_OBJ)
 	ar crs $@ $(LIB_SDK_OBJ)
 
 shuttle-internal: libshuttle.a $(CLIENT_OBJ)
-	$(CXX) $(CLIENT_OBJ) -o $@ -L. -lshuttle \
-		-L$(GALAXY_DIR)/thirdparty/lib \
-		-lsofa-pbrpc -lins_sdk -lprotobuf -lsnappy -lgflags -lcommon \
-		-L$(BOOST_DIR)/stage/lib -lboost_program_options \
-		-lpthread -lrt -lz
+	$(CXX) $(CLIENT_OBJ) -o $@ -L. -lshuttle $(BASIC_LD_FLAGS) \
+		-L$(BOOST_DIR)/stage/lib -lboost_program_options
 
 .PHONY: clean install output
 clean:
