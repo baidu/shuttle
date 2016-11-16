@@ -130,49 +130,43 @@ int Configuration::ParseJson(std::istream& is) {
     return 0;
 }
 
-/*int Configuration::BuildJobDescription(sdk::JobDescription& job) const {
-    if (vars_.count("count")) {
-        const std::string& command = vars_["count"].as<std::string>();
-        if (command == "streaming") {
-            job.set_pipe_style(kStreaming);
-        } else if (command == "bistreaming") {
-            job.set_pipe_style(kBiStreaming);
+int Configuration::BuildJobDescription(sdk::JobDescription& job) {
+    std::vector<std::string> strlist;
+    std::string conf;
+    GetConf("subcommand", strlist);
+    if (!strlist.empty()) {
+        if (strlist[0] == "streaming") {
+            job.pipe_style = sdk::kStreaming;
+        } else if (strlist[0] == "bistreaming") {
+            job.pipe_style = sdk::kBiStreaming;
         } else {
-            std::cerr << "INTERNAL ERROR: command " << command
-                      << " is not for submitting job" << std::endl;
+            std::cerr << "ERROR: " << strlist[0]
+                << " is not a valid job type" << std::endl;
             return -1;
         }
     } else {
-        std::cerr << "INTERNAL ERROR: no command to submit" << std::endl;
+        std::cerr << "ERROR: please define job type" << std::endl;
         return -1;
     }
-    std::map<std::string, std::string>::iterator it;
-    if ((it = conf_.find("mapred.job.name")) == conf_.end()) {
+    job.name = GetConf("mapred.job.name");
+    if (job.name.empty()) {
         std::cerr << "ERROR: please offer the name of job" << std::endl;
         return -1;
     }
-    job.name = it->second;
-    if (vars_.count("file")) {
-        const std::vector<std::string>& files =
-            vars_["file"].as< std::vector<std::string> >();
-        for (std::vector<std::string>::iterator it = files.begin();
-                it != file.end(); ++it) {
-            job.add_files(*it);
-        }
-    } else {
+    GetConf("file", job.files);
+    if (job.files.empty()) {
         std::cerr << "WARNING: no local file is specified" << std::endl;
     }
-    if (vars_.count("cacheArchive")) {
-        job.set_cache_archive(vars_["cacheArchive"].as<std::string>());
-    }
-    if ((it = conf_.find("mapred.input.split.size")) != conf_.end()) {
-        job.set_split_size(boost::lexical_cast<int64_t>(it->second));
+    job.cache_archive = GetConf("cacheArchive");
+    conf = GetConf("mapred.input.split.size");
+    if (!conf.empty()) {
+        job.split_size = boost::lexical_cast<int64_t>(conf);
     } else {
-        job.set_split_size(500l * 1024 * 1024); // default split size
+        job.split_size = 500l * 1024 * 1024;
     }
     // TODO fill job description
     return 0;
-}*/
+}
 
 int Configuration::BuildJson(std::ostream& os) {
     rapidjson::Document doc(rapidjson::kObjectType);
@@ -198,7 +192,8 @@ std::string Configuration::Help() const {
         "usage: shuttle command [options]\n\n"
         "command:\n"
         "    help                              show help information\n"
-        "    streaming/bistreaming [flags]     start a computing job\n"
+        "    legacy pipe [flags]               start a map-reduce job\n"
+        "    dag json [file flags]             start a dag job\n"
         "    set jobid node new_capacity       adjust the capacity of a phase\n"
         "    kill jobid [node-task-attempt]    cancel a job or a certain task\n"
         "    list [-a]                         get a list of current jobs\n"

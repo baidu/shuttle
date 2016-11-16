@@ -24,7 +24,11 @@ int main(int argc, char** argv) {
         const std::string& file_name = config.GetConf("file");
         std::ostream& os = file_name.empty() ? std::cout : std::ofstream(file_name.c_str());
         ret = config.BuildJson(os);
-    } else if (command == "submit") {
+    } else if (command == "legacy") {
+        baidu::shuttle::ShuttleConnector connector(&config);
+        ret = connector.Submit();
+    } else if (command == "dag") {
+        // TODO parse json
         baidu::shuttle::ShuttleConnector connector(&config);
         ret = connector.Submit();
     } else if (command == "set") {
