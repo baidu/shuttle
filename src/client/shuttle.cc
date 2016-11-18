@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <boost/lexical_cast.hpp>
 
 #include "sdk/shuttle.h"
 #include "client/config.h"
@@ -13,14 +14,15 @@ int main(int argc, char** argv) {
         return ret;
     }
     const std::string command = config.GetConf("command");
+    if (command == "help" || config.GetConf("help") == "true") {
+        std::cerr << config.Help();
+        return 1;
+    }
     if (command.empty()) {
         std::cerr << "ERROR: please offer a command" << std::endl;
         return -1;
     }
-    if (command == "help" || config.GetConf("help") == "true") {
-        std::cerr << config.Help();
-        return 1;
-    } else if (command == "json") {
+    if (command == "json") {
         const std::string& file_name = config.GetConf("file");
         std::ostream& os = file_name.empty() ? std::cout : std::ofstream(file_name.c_str());
         ret = config.BuildJson(os);

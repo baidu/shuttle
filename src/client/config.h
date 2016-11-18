@@ -38,10 +38,15 @@ public:
         value = it->second;
     }
 private:
+    int64_t ParseMemory(const std::string& memory);
+    void FillLegacyNodes();
     void InteractiveGetConfig();
 private:
     std::map<std::string, std::string> kv_;
     std::map< std::string, std::vector<std::string> > multivalue_;
+
+    std::vector<sdk::NodeConfig> nodes_;
+    std::vector< std::vector<int> > successors_;
 };
 
 }
