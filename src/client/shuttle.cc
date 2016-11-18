@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
         baidu::shuttle::ShuttleConnector connector(&config);
         ret = connector.Monitor();
     } else {
-        std::cerr << "ERROR: " << command << " command is not recognized."
+        std::cerr << "ERROR: " << command << " command is not recognized. "
                   << "Please refer to help command" << std::endl;
         ret = -1;
     }

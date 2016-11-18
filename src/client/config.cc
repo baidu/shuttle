@@ -60,9 +60,9 @@ int Configuration::ParseCommandLine(int argc, char** argv) {
     }
     for (po::variables_map::iterator it = vars.begin();
             it != vars.end(); ++it) {
-        if (it->first == "input" || it->first == "files" || it->first == "subcommand") {
+        if (it->first == "input" || it->first == "file" || it->first == "subcommand") {
             multivalue_[it->first] = it->second.as< std::vector<std::string> >();
-        } else if (it->first == "all" || it->first == "i" || it->first == "help") {
+        } else if (it->first == "all" || it->first == "immediate" || it->first == "help") {
             kv_[it->first] = "true";
         } else if (it->first == "jobconf") {
             continue;
@@ -87,8 +87,8 @@ int Configuration::ParseJson(std::istream& is) {
     }
     kv_["mapred.job.name"] = std::string(doc["name"].GetString(),
             doc["name"].GetStringLength());
-    std::vector<std::string>& file_vec = multivalue_["files"];
-    if (doc.HasMember("files")) {
+    std::vector<std::string>& file_vec = multivalue_["file"];
+    if (doc.HasMember("file")) {
         rapidjson::Value& files = doc["files"];
         if (files.IsArray()) {
             for (rapidjson::Value::ConstValueIterator it = files.Begin();
@@ -286,6 +286,15 @@ int64_t Configuration::ParseMemory(const std::string& memory) {
     return base;
 }
 
+int32_t Configuration::ParseNumberWithDefault(const std::string& key,
+        int32_t def_value) {
+    const std::string& conf = GetConf(key);
+    if (conf.empty()) {
+        return def_value;
+    }
+    return boost::lexical_cast<int32_t>(conf);
+}
+
 void Configuration::FillLegacyNodes() {
     nodes_.reserve(2);
     nodes_.resize(1);
@@ -293,10 +302,16 @@ void Configuration::FillLegacyNodes() {
     std::string conf;
     sdk::NodeConfig* cur = &nodes_[0];
     cur->node = 1;
-    cur->capacity = boost::lexical_cast<int32_t>(GetConf("mapred.job.map.capacity"));
-    cur->total = boost::lexical_cast<int32_t>(GetConf("mapred.job.map.tasks"));
-    cur->millicores = boost::lexical_cast<int32_t>(GetConf("mapred.job.cpu.millicores"));
-    cur->memory = ParseMemory(GetConf("mapred.job.memory"));
+    cur->type = sdk::kMap;
+    cur->capacity = ParseNumberWithDefault("mapred.job.map.capacity", 50);
+    cur->total = ParseNumberWithDefault("mapred.job.map.tasks", 0);
+    cur->millicores = ParseNumberWithDefault("mapred.job.cpu.millicores", 500);
+    conf = GetConf("mapred.job.memory");
+    if (conf.empty()) {
+        cur->memory = 1024l * 1024 * 1024;
+    } else {
+        cur->memory = ParseMemory(conf);
+    }
     cur->command = GetConf("mapper");
     GetConf("input", strlist);
     if (strlist.empty()) {
@@ -334,18 +349,15 @@ void Configuration::FillLegacyNodes() {
         cur->partition = sdk::kKeyFieldBased;
     }
     cur->key_separator = GetConf("map.key.field.separator");
-    cur->key_fields_num = boost::lexical_cast<int32_t>(
-            GetConf("stream.num.map.output.key.fields"));
-    cur->partition_fields_num = boost::lexical_cast<int32_t>(
-            GetConf("num.key.fields.for.partition"));
+    cur->key_fields_num = ParseNumberWithDefault("stream.num.map.output.key.fields", 1);
+    cur->partition_fields_num = ParseNumberWithDefault("num.key.fields.for.partition", 1);
     cur->allow_duplicates = boost::iequals("true",
             GetConf("mapred.map.tasks.speculative.execution"));
-    cur->retry = boost::lexical_cast<int32_t>(GetConf("mapred.map.max.attempts"));
+    cur->retry = ParseNumberWithDefault("mapred.map.max.attempts", 3);
     cur->combiner = GetConf("combiner");
     cur->check_counters = boost::iequals("true",
             GetConf("mapred.job.check.counters"));
-    cur->ignore_failures = boost::lexical_cast<int32_t>(
-            GetConf("mapred.ignore.map.failures"));
+    cur->ignore_failures = ParseNumberWithDefault("mapred.ignore.map.failures", 0);
     cur->decompress_input = boost::iequals("true",
             GetConf("mapred.decompress.input"));
     cur->compress_output = boost::iequals("true",
@@ -356,40 +368,44 @@ void Configuration::FillLegacyNodes() {
     info.port = GetConf("mapred.job.output.port");
     info.user = GetConf("mapred.job.output.user");
     info.password = GetConf("mapred.job.output.password");
-    sdk::OutputFormat of;
     conf = GetConf("outputformat");
     if (boost::starts_with(conf, "Text")) {
-        of = sdk::kTextOutput;
+        cur->output_format = sdk::kTextOutput;
     } else if (boost::starts_with(conf, "Binary")) {
-        of = sdk::kBinaryOutput;
+        cur->output_format = sdk::kBinaryOutput;
     } else if (boost::starts_with(conf, "SuffixMultipleText")) {
-        of = sdk::kSuffixMultipleTextOutput;
+        cur->output_format = sdk::kSuffixMultipleTextOutput;
     } else {
-        of = sdk::kTextOutput;
+        cur->output_format = sdk::kTextOutput;
     }
-    if (boost::lexical_cast<int32_t>(GetConf("mapred.job.reduce.tasks")) ||
-            GetConf("reducer").empty()) {
+    conf = GetConf("mapred.job.reduce.tasks");
+    if (!conf.empty() && boost::lexical_cast<int32_t>(conf) == 0
+            || GetConf("reducer").empty()) {
         // map only
         cur->output = info;
-        cur->output_format = of;
         return;
     }
     nodes_.resize(2);
     cur = &nodes_[1];
     cur->node = 2;
-    cur->capacity = boost::lexical_cast<int32_t>(GetConf("mapred.job.reduce.capacity"));
-    cur->total = boost::lexical_cast<int32_t>(GetConf("mapred.job.reduce.tasks"));
+    cur->type = sdk::kReduce;
+    cur->capacity = ParseNumberWithDefault("mapred.job.reduce.capacity", 50);
+    if (conf.empty()) {
+        std::cerr << "WARNING: no specific reduce number, set to 1" << std::endl;
+    }
+    cur->total = ParseNumberWithDefault("mapred.job.reduce.tasks", 1);
     cur->millicores = nodes_[0].millicores;
     cur->memory = nodes_[0].memory;
     cur->command = GetConf("reducer");
+    cur->input_format = nodes_[0].input_format;
     cur->output = info;
-    cur->output_format = of;
+    cur->output_format = nodes_[0].output_format;
+    cur->partition = nodes_[0].partition;
     cur->allow_duplicates = boost::iequals("true",
             GetConf("mapred.reduce.tasks.speculative.execution"));
-    cur->retry = boost::lexical_cast<int32_t>(GetConf("mapred.reduce.max.attempts"));
+    cur->retry = ParseNumberWithDefault("mapred.reduce.max.attempts", 3);
     cur->check_counters = nodes_[0].check_counters;
-    cur->ignore_failures = boost::lexical_cast<int32_t>(
-            GetConf("mapred.ignore.reduce.failures"));
+    cur->ignore_failures = ParseNumberWithDefault("mapred.ignore.reduce.failures", 0);
     cur->decompress_input = nodes_[0].decompress_input;
     cur->compress_output = nodes_[0].compress_output;
     cur->cmdenvs = nodes_[0].cmdenvs;

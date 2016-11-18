@@ -31,14 +31,25 @@ public:
     void GetConf(const std::string& name,
             std::vector<std::string>& value) const {
         std::map< std::string, std::vector<std::string> >::const_iterator it
-            = multivalue_.find(name);
+                = multivalue_.find(name);
         if (it == multivalue_.end()) {
             return;
         }
         value = it->second;
     }
+
+    bool AddConf(const std::string& name, const std::string& value) {
+        std::map< std::string, std::vector<std::string> >::iterator it
+                = multivalue_.find(name);
+        if (it == multivalue_.end()) {
+            return false;
+        }
+        it->second.push_back(value);
+        return true;
+    }
 private:
     int64_t ParseMemory(const std::string& memory);
+    int32_t ParseNumberWithDefault(const std::string& key, int32_t def_value);
     void FillLegacyNodes();
     void InteractiveGetConfig();
 private:

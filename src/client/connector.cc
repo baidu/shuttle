@@ -51,9 +51,10 @@ int ShuttleConnector::Submit() {
         return -1;
     }
     std::cout << "INFO: job successfully submitted, id = " << job_id << std::endl;
-    if (config_->GetConf("i") == "true") {
+    if (config_->GetConf("immediate") == "true") {
         return 0;
     }
+    config_->AddConf("subcommand", job_id);
     return Monitor();
 }
 
@@ -155,7 +156,7 @@ int ShuttleConnector::Status() {
     std::vector<std::string> subcommands;
     config_->GetConf("subcommand", subcommands);
     if (subcommands.empty()) {
-        std::cerr << "ERROR: please provide job id to kill" << std::endl;
+        std::cerr << "ERROR: please provide job id to show" << std::endl;
         return -1;
     }
     if (!sdk_->ShowJob(subcommands[0], job, tasks, !config_->GetConf("all").empty())) {
