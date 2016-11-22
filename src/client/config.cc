@@ -7,7 +7,7 @@
 #include <rapidjson/document.h>
 #include <rapidjson/istreamwrapper.h>
 #include <rapidjson/ostreamwrapper.h>
-#include <rapidjson/writer.h>
+#include <rapidjson/prettywriter.h>
 #include <cstdlib>
 
 namespace baidu {
@@ -21,6 +21,7 @@ int Configuration::ParseCommandLine(int argc, char** argv) {
         ("help,h", "")
         ("all,a", "")
         ("immediate,i", "")
+        ("pipe", po::value<std::string>(), "")
         ("input", po::value< std::vector<std::string> >(), "")
         ("output", po::value<std::string>(), "")
         ("file,f", po::value< std::vector<std::string> >(), "")
@@ -136,13 +137,17 @@ int Configuration::BuildJobDescription(sdk::JobDescription& job) {
     std::vector<std::string> strlist;
     std::string conf;
     GetConf("subcommand", strlist);
-    if (!strlist.empty()) {
-        if (strlist[0] == "streaming") {
+    conf = GetConf("pipe");
+    if (conf.empty() && !strlist.empty()) {
+        conf = strlist[0];
+    }
+    if (!conf.empty()) {
+        if (conf == "streaming") {
             job.pipe_style = sdk::kStreaming;
-        } else if (strlist[0] == "bistreaming") {
+        } else if (conf == "bistreaming") {
             job.pipe_style = sdk::kBiStreaming;
         } else {
-            std::cerr << "ERROR: " << strlist[0]
+            std::cerr << "ERROR: " << conf
                 << " is not a valid job type" << std::endl;
             return -1;
         }
@@ -186,13 +191,104 @@ int Configuration::BuildJson(std::ostream& os) {
         InteractiveGetConfig();
     }
     std::string result = GetConf("mapred.job.name");
-    doc["name"].SetString(result.data(), result.size(), alloc);
+    doc.AddMember("name", rapidjson::Value().SetString(result.data(), result.size()), alloc);
     result = GetConf("cacheArchive");
-    doc["cache_archive"].SetString(result.data(), result.size(), alloc);
-    doc["split_size"] = boost::lexical_cast<int64_t>(GetConf(""));
-    // TODO
+    doc.AddMember("cache_archive", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    result = GetConf("mapred.input.split.size");
+    if (result.empty()) {
+        doc.AddMember("split_size", 0, alloc);
+    } else {
+        doc.AddMember("split_size", boost::lexical_cast<int64_t>(result), alloc);
+    }
+    result = GetConf("pipe");
+    if (result == "streaming" || result == "bistreaming") {
+        doc.AddMember("pipe", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    } else {
+        doc.AddMember("pipe", rapidjson::Value().SetString(""), alloc);
+    }
+    std::vector<std::string> strlist;
+    rapidjson::Value node(rapidjson::kObjectType);
+    node.AddMember("node", 1, alloc);
+    node.AddMember("capacity", ParseNumberWithDefault("mapred.job.map.capacity", 0), alloc);
+    node.AddMember("millicores", ParseNumberWithDefault("mapred.job.cpu.millicores", 0), alloc);
+    result = GetConf("mapred.job.memory.limit");
+    node.AddMember("memory", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    result = GetConf("mapper");
+    node.AddMember("command", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    rapidjson::Value json_arr(rapidjson::kArrayType);
+    GetConf("input", strlist);
+    for (std::vector<std::string>::iterator it = strlist.begin();
+            it != strlist.end(); ++it) {
+        json_arr.PushBack(rapidjson::Value().SetString(it->data(), it->size()), alloc);
+    }
+    node.AddMember("input", json_arr, alloc);
+    result = GetConf("inputformat");
+    node.AddMember("inputformat", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    result = GetConf("output");
+    node.AddMember("output", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    result = GetConf("outputformat");
+    node.AddMember("outputformat", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    result = GetConf("partitioner");
+    node.AddMember("partitioner", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    result = GetConf("map.key.field.separator");
+    node.AddMember("separator", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    node.AddMember("key_fields", ParseNumberWithDefault("map.key.field.separator", 1), alloc);
+    node.AddMember("partition_fields", ParseNumberWithDefault("num.key.fields.for.partition", 1), alloc);
+    result = GetConf("mapred.map.tasks.speculative.execution");
+    node.AddMember("speculative", result.empty() || result == "true", alloc);
+    node.AddMember("max_attempts", ParseNumberWithDefault("mapred.map.max.attempts", 3), alloc);
+    result = GetConf("combiner");
+    node.AddMember("combiner", rapidjson::Value().SetString(result.data(), result.size()), alloc);
+    node.AddMember("check_counters", GetConf("mapred.job.check.counters") == "true", alloc);
+    node.AddMember("ignore_failures", ParseNumberWithDefault("mapred.ignore.map.failures", 0), alloc);
+    node.AddMember("decompress_input", GetConf("mapred.decompress.input") == "true", alloc);
+    node.AddMember("compress_output", GetConf("mapred.output.compress") == "true", alloc);
+    GetConf("cmdenv", strlist);
+    json_arr.SetArray();
+    for (std::vector<std::string>::iterator it = strlist.begin();
+            it != strlist.end(); ++it) {
+        json_arr.PushBack(rapidjson::Value().SetString(it->data(), it->size()), alloc);
+    }
+    node.AddMember("cmdenvs", json_arr, alloc);
+    node.AddMember("next_node", -1, alloc);
+    json_arr.SetArray();
+    GetConf("subcommand", strlist);
+    if (strlist[0] == "mapreduce") {
+        rapidjson::Value reduce(node, alloc);
+        node.RemoveMember("output");
+        node.RemoveMember("outputformat");
+        node.RemoveMember("compress_output");
+        node.FindMember("next_node")->value = 2;
+        reduce.RemoveMember("input");
+        reduce.RemoveMember("inputformat");
+        reduce.RemoveMember("partitioner");
+        reduce.RemoveMember("separator");
+        reduce.RemoveMember("key_fields");
+        reduce.RemoveMember("partition_fields");
+        reduce.RemoveMember("combiner");
+        reduce.RemoveMember("decompress_input");
+        reduce.FindMember("node")->value = 2;
+        reduce.FindMember("capacity")->value = ParseNumberWithDefault("mapred.job.reduce.capacity", 50);
+        result = GetConf("reducer");
+        reduce.FindMember("command")->value.SetString(result.data(), result.size());
+        result = GetConf("mapred.reduce.tasks.speculative.execution");
+        reduce.FindMember("speculative")->value = result.empty() || result == "true";
+        reduce.FindMember("max_attempts")->value = ParseNumberWithDefault("mapred.reduce.max.attempts", 3);
+        reduce.FindMember("ignore_failures")->value = ParseNumberWithDefault("mapred.ignore.reduce.failures", 3);
+        json_arr.PushBack(node, alloc).PushBack(reduce, alloc);
+    } else if (strlist[0] == "maponly") {
+        node.RemoveMember("partitioner");
+        node.RemoveMember("separator");
+        node.RemoveMember("key_fields");
+        node.RemoveMember("partition_fields");
+        node.RemoveMember("combiner");
+        json_arr.PushBack(node, alloc);
+    } else if (strlist[0] == "dag") {
+        json_arr.PushBack(node, alloc);
+    }
+    doc.AddMember("node", json_arr, alloc);
     rapidjson::OStreamWrapper osw(os);
-    rapidjson::Writer<rapidjson::OStreamWrapper> writer(osw);
+    rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(osw);
     doc.Accept(writer);
     return 0;
 }
@@ -202,7 +298,7 @@ std::string Configuration::Help() const {
         "usage: shuttle command [options]\n\n"
         "command:\n"
         "    help                              show help information\n"
-        "    legacy <pipe> [flags]             start a map-reduce job\n"
+        "    legacy [pipe] [flags]             start a map-reduce job\n"
         "    dag <json> [file flags]           start a dag job\n"
         "    set <jobid> <node> <new capacity> adjust the capacity of a phase\n"
         "    kill <jobid> [node-task-attempt]  cancel a job or a certain task\n"
@@ -214,6 +310,7 @@ std::string Configuration::Help() const {
         "    -h [ --help ]             show help information\n"
         "    -a [ --all ]              check all jobs including dead jobs in listing\n"
         "    -i [ --immediate ]        return immediately without monitoring\n"
+        "    --pipe ARG                pipe style, overwritten pipe in subcommand\n"
         "    --input ARG               input file of a job\n"
         "    --output ARG              output path of a job\n"
         "    -f [ --file ] ARG         upload local file to computing node\n"
@@ -225,6 +322,7 @@ std::string Configuration::Help() const {
         "    --inputformat ARG         organization format of input\n"
         "    --outputformat ARG        organization format of output\n"
         "    --jobconf key=value       set the configuration of a job\n"
+        "    --cmdenv key=value        set custom environment variables for MR\n"
         "    --nexus ARG               comma splited server list of nexus\n"
         "    --nexus-file ARG          use flag file to get nexus server list\n"
         "    --nexus-root ARG          use this nexus root path to find master\n"
@@ -266,6 +364,9 @@ std::string Configuration::Help() const {
 }
 
 int64_t Configuration::ParseMemory(const std::string& memory) {
+    if (memory.empty()) {
+        return 0l;
+    }
     size_t dimension = memory.find_first_not_of("0123456789");
     int64_t base = boost::lexical_cast<int64_t>(memory.substr(0, dimension));
     for (size_t i = dimension; i < memory.size(); ++i) {
@@ -379,7 +480,7 @@ void Configuration::FillLegacyNodes() {
         cur->output_format = sdk::kTextOutput;
     }
     conf = GetConf("mapred.job.reduce.tasks");
-    if (!conf.empty() && boost::lexical_cast<int32_t>(conf) == 0
+    if ((!conf.empty() && boost::lexical_cast<int32_t>(conf) == 0)
             || GetConf("reducer").empty()) {
         // map only
         cur->output = info;

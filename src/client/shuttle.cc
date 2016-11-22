@@ -23,9 +23,19 @@ int main(int argc, char** argv) {
         return -1;
     }
     if (command == "json") {
-        const std::string& file_name = config.GetConf("file");
-        std::ostream& os = file_name.empty() ? std::cout : std::ofstream(file_name.c_str());
-        ret = config.BuildJson(os);
+        std::vector<std::string> subcommand;
+        config.GetConf("subcommand", subcommand);
+        if (subcommand.empty()) {
+            std::cerr << "ERROR: please specify template name" << std::endl;
+            return -1;
+        }
+        if (subcommand.size() < 2) {
+            ret = config.BuildJson(std::cout);
+        } else {
+            std::ofstream ofs(subcommand[1].c_str());
+            ret = config.BuildJson(ofs);
+            ofs.close();
+        }
     } else if (command == "legacy") {
         baidu::shuttle::ShuttleConnector connector(&config);
         ret = connector.Submit();
