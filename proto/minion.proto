@@ -4,6 +4,7 @@ package baidu.shuttle;
 option cc_generic_services = true;
 
 message QueryRequest {
+    optional bool detail = 1;
 }
 
 message QueryResponse {
@@ -11,6 +12,7 @@ message QueryResponse {
     optional int32 task_id = 2;
     optional int32 attempt_id = 3;
     optional TaskState task_state = 4;
+    optional string log_msg = 5;
 }
 
 message CancelTaskRequest {

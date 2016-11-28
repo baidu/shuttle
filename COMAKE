@@ -133,6 +133,8 @@ partition_test_src = 'src/minion/partition_test.cc'
 
 partition_tool_src = 'src/minion/partition_tool.cc'
 
+query_tool_src = 'src/minion/query_tool.cc proto/shuttle.proto proto/minion.proto'
+
 resourcemanager_test_src = 'src/master/resource_manager.cc \
                             src/master/resource_manager_test.cc \
                             src/master/master_flags.cc \
@@ -153,6 +155,7 @@ Application('shuffle_tool', Sources(sort_src, shuffle_tool_src))
 Application('tuo_merger', Sources(sort_src, tuo_merger_src))
 Application('combine_tool', Sources(sort_src, combine_tool_src))
 Application('partition_tool', Sources(partition_src, partition_tool_src))
+Application('ping_tool', Sources(query_tool_src))
 
 StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
 Directory('src/client', Prefixes('libshuttle.a'))

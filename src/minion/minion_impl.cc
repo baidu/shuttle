@@ -112,12 +112,10 @@ void MinionImpl::WatchDogTask() {
     watch_dog_.DelayTask(1000, boost::bind(&MinionImpl::WatchDogTask, this));
 }
 
-void MinionImpl::Query(::google::protobuf::RpcController* controller,
+void MinionImpl::Query(::google::protobuf::RpcController*,
                        const ::baidu::shuttle::QueryRequest* request,
                        ::baidu::shuttle::QueryResponse* response,
                        ::google::protobuf::Closure* done) {
-    (void)controller;
-    (void)request;
     MutexLock locker(&mu_);
     if (over_loaded_) {
         done->Run();
@@ -134,14 +132,21 @@ void MinionImpl::Query(::google::protobuf::RpcController* controller,
     response->set_task_id(cur_task_id_);
     response->set_attempt_id(cur_attempt_id_);
     response->set_task_state(cur_task_state_);
+    if (request->has_detail() && request->detail()) {
+        mu_.Unlock();
+        TaskInfo task;
+        task.set_task_id(response->task_id());
+        task.set_attempt_id(response->attempt_id());
+        response->set_log_msg(executor_->GetErrorMsg(task, work_mode_ != kReduce));
+        mu_.Lock();
+    }
     done->Run();
 }
 
-void MinionImpl::CancelTask(::google::protobuf::RpcController* controller,
+void MinionImpl::CancelTask(::google::protobuf::RpcController*,
                             const ::baidu::shuttle::CancelTaskRequest* request,
                             ::baidu::shuttle::CancelTaskResponse* response,
                             ::google::protobuf::Closure* done) {
-    (void)controller;
     int32_t task_id = request->task_id();
     const std::string jobid = request->job_id();
     {
