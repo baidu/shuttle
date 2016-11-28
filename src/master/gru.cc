@@ -4,6 +4,7 @@
 #include <gflags/gflags.h>
 #include <boost/algorithm/string.hpp>
 #include <vector>
+#include <cmath>
 #include "logging.h"
 #include "util.h"
 
@@ -50,7 +51,13 @@ Status Gru::Start() {
     galaxy_job.job.deploy.pools = pools;
     galaxy_job.job.name = minion_name_ + "@minion";
     galaxy_job.job.type = ::baidu::galaxy::sdk::kJobBatch;
-    galaxy_job.job.deploy.replica = (mode_ == kReduce) ? job_->reduce_capacity() : job_->map_capacity();
+    if (mode_ == kReduce) {
+        galaxy_job.job.deploy.replica = std::min(job_->reduce_capacity(),
+                std::min(job_->reduce_total() * 6 / 5, 20));
+    } else {
+        galaxy_job.job.deploy.replica = std::min(job_->map_capacity(),
+                std::min(job_->map_total() * 6 / 5, 20));
+    }
     galaxy_job.job.deploy.step = std::min((int)FLAGS_galaxy_deploy_step, (int)galaxy_job.job.deploy.replica);
     galaxy_job.job.deploy.interval = 1;
     galaxy_job.job.deploy.max_per_host = FLAGS_max_minions_per_host;
