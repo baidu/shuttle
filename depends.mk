@@ -17,7 +17,7 @@
 GALAXY_DIR=./galaxy
 
 # Boost
-BOOST_HEADER_DIR=./galaxy/thirdparty/boost_1_57_0
+BOOST_DIR=./galaxy/thirdparty/boost_1_57_0
 
 # HDFS library
 LIB_HDFS_DIR=../../../inf/computing/libhdfs

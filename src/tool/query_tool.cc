@@ -48,14 +48,14 @@ int main(int argc, char** argv) {
     }
     static const char* task_state[] = {
         "pending", "running", "failed", "killed", "completed",
-        "canceled", "move output failed", "unknown"
+        "canceled", "move output failed", "", "", "", "unknown"
     };
     std::cout << "minion response:" << std::endl;
     std::cout << "job id: " << response.job_id() << std::endl;
     std::cout << "node: " << response.node() << std::endl;
     std::cout << "task id: " << response.task_id() << std::endl;
     std::cout << "attempt id: " << response.attempt_id() << std::endl;
-    std::cout << "status: " << task_state[response.attempt_id()] << std::endl;
+    std::cout << "status: " << task_state[response.task_state()] << std::endl;
     return 0;
 }
 
