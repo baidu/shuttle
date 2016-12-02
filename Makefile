@@ -73,6 +73,9 @@ TOOL_PARTITION_SRC = src/minion/partition_tool.cc src/minion/partition.cc \
 					 proto/shuttle.pb.cc
 TOOL_PARTITION_OBJ = $(patsubst %.cc, %.o, $(TOOL_PARTITION_SRC))
 
+TOOL_PING_SRC = src/minion/query_tool.cc proto/shuttle.pb.cc proto/minion.pb.cc
+TOOL_PING_OBJ = $(patsubst %.cc, %.o, $(TOOL_PING_SRC))
+
 LIB_SDK_SRC = $(wildcard src/sdk/*.cc) \
 			  proto/app_master.pb.cc proto/shuttle.pb.cc
 LIB_SDK_OBJ = $(patsubst %.cc, %.o, $(LIB_SDK_SRC))
@@ -84,9 +87,9 @@ CLIENT_OBJ = $(patsubst %.cc, %.o, $(CLIENT_SRC))
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INPUT_TOOL_OBJ) $(SHUFFLE_TOOL_OBJ) \
 	   $(TUO_MERGER_OBJ) $(COMBINE_TOOL_OBJ) $(LIB_SDK_OBJ) $(CLIENT_OBJ)\
 	   $(TEST_SORT_OBJ) \
-	   $(TOOL_SORT_FILE_OBJ) $(TOOL_PARTITION_OBJ)
-BIN = master minion input_tool shuffle_tool tuo_merger combine_tool sf_tool partition_tool
-TESTS = sort_test
+	   $(TOOL_SORT_FILE_OBJ) $(TOOL_PARTITION_OBJ) $(TOOL_PING_OBJ)
+BIN = master minion input_tool shuffle_tool tuo_merger combine_tool sf_tool partition_tool ping_tool
+ESTS = sort_test
 LIB = libshuttle.a
 DEPS = $(patsubst %.o, %.d, $(OBJS))
 
@@ -130,7 +133,10 @@ sf_tool: $(TOOL_SORT_FILE_OBJ)
 	$(CXX) $(TOOL_SORT_FILE_OBJ) -o $@ $(LDFLAGS)
 
 partition_tool: $(TOOL_PARTITION_OBJ)
-	$(CXX) $(TOOL_PARTITION_OBJ) -o $@ $(LDFLAGS)
+	$(CXX) $(TOOL_PARTITION_OBJ) -o $@ $(BASIC_LD_FLAGS)
+
+ping_tool: $(TOOL_PING_OBJ)
+	$(CXX) $(TOOL_PING_OBJ) -o $@ $(BASIC_LD_FLAGS)
 
 libshuttle.a: $(LIB_SDK_OBJ)
 	ar crs $@ $(LIB_SDK_OBJ)
