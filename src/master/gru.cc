@@ -53,10 +53,10 @@ Status Gru::Start() {
     galaxy_job.job.type = ::baidu::galaxy::sdk::kJobBatch;
     if (mode_ == kReduce) {
         galaxy_job.job.deploy.replica = std::min(job_->reduce_capacity(),
-                std::min(job_->reduce_total() * 6 / 5, 20));
+                std::max(job_->reduce_total() * 6 / 5, 20));
     } else {
         galaxy_job.job.deploy.replica = std::min(job_->map_capacity(),
-                std::min(job_->map_total() * 6 / 5, 20));
+                std::max(job_->map_total() * 6 / 5, 20));
     }
     galaxy_job.job.deploy.step = std::min((int)FLAGS_galaxy_deploy_step, (int)galaxy_job.job.deploy.replica);
     galaxy_job.job.deploy.interval = 1;
