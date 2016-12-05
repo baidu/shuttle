@@ -39,6 +39,9 @@ ShuttleConnector::ShuttleConnector(Configuration* config)
 }
 
 int ShuttleConnector::Submit() {
+    if (sdk_ == NULL) {
+        return -1;
+    }
     sdk::JobDescription job;
     int ret = config_->BuildJobDescription(job);
     if (ret != 0) {
@@ -59,6 +62,9 @@ int ShuttleConnector::Submit() {
 }
 
 int ShuttleConnector::Update() {
+    if (sdk_ == NULL) {
+        return -1;
+    }
     std::vector<std::string> subcommands;
     config_->GetConf("subcommand", subcommands);
     if (subcommands.size() < 3) {
@@ -84,6 +90,9 @@ int ShuttleConnector::Update() {
 }
 
 int ShuttleConnector::Kill() {
+    if (sdk_ == NULL) {
+        return -1;
+    }
     std::vector<std::string> subcommands;
     config_->GetConf("subcommand", subcommands);
     if (subcommands.empty()) {
@@ -130,6 +139,9 @@ int ShuttleConnector::Kill() {
 }
 
 int ShuttleConnector::List() {
+    if (sdk_ == NULL) {
+        return -1;
+    }
     std::vector<sdk::JobInstance> jobs;
     if (!sdk_->ListJobs(jobs, !config_->GetConf("all").empty())) {
         std::cerr << "ERROR: failed to list job" << std::endl;
@@ -151,6 +163,9 @@ int ShuttleConnector::List() {
 }
 
 int ShuttleConnector::Status() {
+    if (sdk_ == NULL) {
+        return -1;
+    }
     sdk::JobInstance job;
     std::vector<sdk::TaskInstance> tasks;
     std::vector<std::string> subcommands;
@@ -192,6 +207,9 @@ int ShuttleConnector::Status() {
 }
 
 int ShuttleConnector::Monitor() {
+    if (sdk_ == NULL) {
+        return -1;
+    }
     std::vector<std::string> subcommands;
     config_->GetConf("subcommand", subcommands);
     if (subcommands.empty()) {

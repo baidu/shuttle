@@ -59,7 +59,7 @@ static int AskTask() {
     }
     if (response.status() != baidu::shuttle::kOk) {
         std::cout << "faker received " << baidu::shuttle::Status_Name(response.status())
-            << "and now quit" << std::endl;
+            << " and now quit" << std::endl;
         return 0;
     }
     std::cout << "faker received a task:" << std::endl;
@@ -136,8 +136,13 @@ static int ReturnTask() {
 int main(int argc, char** argv) {
     google::ParseCommandLineNonHelpFlags(&argc, &argv, true);
     if (argc < 2) {
-        std::cerr << "faker: I need your command, sir" << std::endl;
-        return -1;
+        if (FLAGS_h || FLAGS_help) {
+            std::cerr << helper;
+            return 1;
+        } else {
+            std::cerr << "faker: I need your command, sir" << std::endl;
+            return -1;
+        }
     }
     std::string command = argv[1];
     if (command == "ask") {

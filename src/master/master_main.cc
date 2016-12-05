@@ -12,6 +12,10 @@ using baidu::common::INFO;
 
 DECLARE_string(master_port);
 
+namespace ins_common {
+void SetLogLevel(int level);
+}
+
 static volatile bool s_quit = false;
 static void SignalIntHandler(int /*sig*/){
     s_quit = true;
@@ -19,6 +23,7 @@ static void SignalIntHandler(int /*sig*/){
 
 int main(int argc, char* argv[]) {
     google::ParseCommandLineFlags(&argc, &argv, true);
+    ins_common::SetLogLevel(8);
     baidu::shuttle::MasterImpl * master = new baidu::shuttle::MasterImpl();
     master->Init();
     sofa::pbrpc::RpcServerOptions options;
