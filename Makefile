@@ -99,6 +99,10 @@ TOOL_SORTFILE_OBJ = $(patsubst %.cc, %.o, $(TOOL_SORTFILE_SRC))
 TOOL_QUERY_SRC = src/tool/query_tool.cc src/proto/minion.pb.cc src/proto/shuttle.pb.cc
 TOOL_QUERY_OBJ = $(patsubst %.cc, %.o, $(TOOL_QUERY_SRC))
 
+TOOL_FAKE_SRC = src/tool/fake_tool.cc src/proto/shuttle.pb.cc \
+				src/proto/minion.pb.cc src/proto/master.pb.cc
+TOOL_FAKE_OBJ = $(patsubst %.cc, %.o, $(TOOL_FAKE_SRC))
+
 LIB_SDK_SRC = $(wildcard src/sdk/*.cc)
 LIB_SDK_OBJ = $(patsubst %.cc, %.o, $(LIB_SDK_SRC))
 
@@ -110,9 +114,9 @@ CLIENT_OBJ = $(patsubst %.cc, %.o, $(CLIENT_SRC))
 OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INLET_OBJ) $(COMBINER_OBJ) $(OUTLET_OBJ) \
 	   $(TEST_FILE_OBJ) $(TEST_FILE_FORMAT_OBJ) $(TEST_SCANNER_OBJ) $(TEST_MERGER_OBJ) \
 	   $(TEST_DAG_SCHEDULER_OBJ) $(TEST_RESOURCE_MANAGER_OBJ) \
-	   $(TOOL_PARTITION_OBJ) $(TOOL_SORTFILE_OBJ) $(TOOL_QUERY_OBJ) \
+	   $(TOOL_PARTITION_OBJ) $(TOOL_SORTFILE_OBJ) $(TOOL_QUERY_OBJ) $(TOOL_FAKE_OBJ) \
 	   $(LIB_SDK_OBJ) $(CLIENT_OBJ)
-BIN = master minion inlet combiner outlet phaser tricorder beam shuttle-internal
+BIN = master minion inlet combiner outlet phaser tricorder beam faker shuttle-internal
 TESTS = file_test fileformat_test scanner_test merger_test dag_test rm_test
 LIB = libshuttle.a
 DEPS = $(patsubst %.o, %.d, $(OBJS))
@@ -177,6 +181,9 @@ tricorder: $(TOOL_SORTFILE_OBJ)
 
 beam: $(TOOL_QUERY_OBJ)
 	$(CXX) $(TOOL_QUERY_OBJ) -o $@ $(BASIC_LD_FLAGS)
+
+faker: $(TOOL_FAKE_OBJ)
+	$(CXX) $(TOOL_FAKE_OBJ) -o $@ $(BASIC_LD_FLAGS)
 
 libshuttle.a: $(LIB_SDK_OBJ)
 	ar crs $@ $(LIB_SDK_OBJ)
