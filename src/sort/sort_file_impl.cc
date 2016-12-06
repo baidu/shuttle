@@ -43,6 +43,7 @@ SortFileReaderImpl::IteratorImpl::IteratorImpl(const std::string& start_key,
                                                const std::string& end_key,
                                                SortFileReaderImpl* reader) {
     reader_ = reader;
+    has_more_ = false;
     error_ = kOk;
     cur_offset_ = 0;
     start_key_ = start_key;

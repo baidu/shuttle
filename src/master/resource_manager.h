@@ -29,7 +29,7 @@ public:
     int attempt;
     ResourceStatus status;
     int allocated;
-    IdItem() { }
+    IdItem() : no(0), attempt(0), status(kResPending), allocated(0) { }
     IdItem(const IdItem& res);
     IdItem* operator=(const IdItem& res);
     IdItem* CopyFrom(const IdItem& res);

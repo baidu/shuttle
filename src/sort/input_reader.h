@@ -19,6 +19,7 @@ public:
         virtual void Next() = 0;
         virtual const std::string& Record() = 0;
         virtual Status Error() = 0;
+        virtual ~Iterator() { }
     };
     virtual Status Open(const std::string& path, FileSystem::Param param) = 0;
     virtual Iterator* Read(int64_t offset, int64_t len) = 0;

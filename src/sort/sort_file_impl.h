@@ -37,7 +37,7 @@ public:
         std::string end_key_;
     }; //class IteratorImpl
 
-    SortFileReaderImpl(FileSystem* fs) {fs_ = fs;} ;
+    SortFileReaderImpl(FileSystem* fs) : fs_(fs), idx_offset_(0) { }
     virtual ~SortFileReaderImpl(){ delete fs_; };
     virtual Status Open(const std::string& path, FileSystem::Param param);
     virtual Iterator* Scan(const std::string& start_key, const std::string& end_key);

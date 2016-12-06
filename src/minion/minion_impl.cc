@@ -76,6 +76,10 @@ void MinionImpl::WatchDogTask() {
     double minute_load = 0.0;
     int numCPU = sysconf( _SC_NPROCESSORS_ONLN );
     FILE* file = fopen("/proc/loadavg", "r");
+    if (file == NULL) {
+        watch_dog_.DelayTask(1000, boost::bind(&MinionImpl::WatchDogTask, this));
+        return;
+    }
     fscanf(file, "%lf%*", &minute_load);
     fclose(file);
     int64_t network_limit = FLAGS_flow_limit_10gb;

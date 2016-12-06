@@ -52,6 +52,7 @@ public:
     virtual bool Glob(const std::string& dir, std::vector<FileInfo>* children) = 0;
     virtual bool Mkdirs(const std::string& dir) = 0;
     virtual bool Exist(const std::string& path) = 0;
+    virtual ~FileSystem() { }
 };
 
 class InfSeqFile {

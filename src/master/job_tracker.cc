@@ -46,11 +46,13 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::sdk::AppMaster* gala
                       reduce_allow_duplicates_(true),
                       map_(NULL),
                       map_manager_(NULL),
+                      map_end_game_begin_(0),
                       map_killed_(0),
                       map_failed_(0),
                       reduce_begin_(0),
                       reduce_(NULL),
                       reduce_manager_(NULL),
+                      reduce_end_game_begin_(0),
                       reduce_killed_(0),
                       reduce_failed_(0),
                       monitor_(NULL),
@@ -1142,7 +1144,7 @@ void JobTracker::KeepMonitoring(bool map_now) {
                     continue;
                 }
             }
-            if (top->state == kTaskKilled) {
+            if (top->state == kTaskKilled && reduce_manager_ != NULL) {
                 reduce_manager_->ReturnBackItem(top->resource_no);
             }
             reduce_slug_.push(top->resource_no);
