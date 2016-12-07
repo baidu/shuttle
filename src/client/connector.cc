@@ -27,7 +27,7 @@ const char* ShuttleConnector::state_string[] = {
 };
 
 ShuttleConnector::ShuttleConnector(Configuration* config)
-        : config_(config) {
+        : config_(config), sdk_(NULL) {
     if (config == NULL) {
         return;
     }
@@ -256,11 +256,24 @@ int ShuttleConnector::Monitor() {
 std::string ShuttleConnector::GetMasterAddr() {
     galaxy::ins::sdk::SDKError error;
     galaxy::ins::sdk::InsSDK nexus(config_->GetConf("nexus"));
-    const std::string& master_path = config_->GetConf("nexus-root")
-        + config_->GetConf("master");
+    const std::string& master_path = config_->GetConf("nexus-root");
+    std::string master_key = config_->GetConf("master");
+    if (master_key.empty()) {
+        master_key = "master";
+    }
     std::string master_addr;
-    bool ok = nexus.Get(master_path, &master_addr, &error);
-    return ok ? master_addr : "";
+    bool ok = nexus.Get(master_path + master_key, &master_addr, &error);
+    static const char* error_str[] = {
+        "ok", "cluster down", "no such key", "timeout", "lock fail",
+        "clean binlog fail", "user exists", "permission denied",
+        "password error", "unknown user"
+    };
+    if (!ok) {
+        std::cerr << "ERROR: fail to get master address, status: "
+            << error_str[error] << std::endl;
+        return "";
+    }
+    return master_addr ;
 }
 
 }

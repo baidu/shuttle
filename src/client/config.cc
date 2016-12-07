@@ -405,7 +405,7 @@ void Configuration::FillLegacyNodes() {
     cur->node = 1;
     cur->type = sdk::kMap;
     cur->capacity = ParseNumberWithDefault("mapred.job.map.capacity", 50);
-    cur->total = ParseNumberWithDefault("mapred.job.map.tasks", 0);
+    cur->total = ParseNumberWithDefault("mapred.map.tasks", 0);
     cur->millicores = ParseNumberWithDefault("mapred.job.cpu.millicores", 500);
     conf = GetConf("mapred.job.memory");
     if (conf.empty()) {
@@ -479,7 +479,7 @@ void Configuration::FillLegacyNodes() {
     } else {
         cur->output_format = sdk::kTextOutput;
     }
-    conf = GetConf("mapred.job.reduce.tasks");
+    conf = GetConf("mapred.reduce.tasks");
     if ((!conf.empty() && boost::lexical_cast<int32_t>(conf) == 0)
             || GetConf("reducer").empty()) {
         // map only
