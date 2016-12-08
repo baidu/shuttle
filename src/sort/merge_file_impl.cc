@@ -150,7 +150,7 @@ MergeFileReader::MergeIterator::MergeIterator(const std::vector<SortFileReader::
         } else {
             drained = true;
         }
-        if (reader_it->Error() != kOk) {
+        if (reader_it->Error() != kOk && reader_it->Error() != kNoMore) {
             status_ = reader_it->Error();
             merge_reader_->err_file_ = reader_it->GetFileName();
         }

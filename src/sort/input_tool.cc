@@ -85,6 +85,7 @@ void DoRead() {
     InputReader::Iterator* it = reader->Read(FLAGS_offset, FLAGS_len);
     int32_t record_no = 0;
     bool should_print_eol = false;
+    bool should_emit_kv = false;
     if (FLAGS_is_nline) {
         should_print_eol = true;
     }
@@ -94,7 +95,14 @@ void DoRead() {
         } else if (FLAGS_format == "binary") {
             should_print_eol = false;
         }
+    } else {
+        if (FLAGS_format == "text") {
+            should_emit_kv = true;
+        }
     }
+
+    std::string s_offset = boost::lexical_cast<std::string>(FLAGS_offset);
+
     while (!it->Done()) {
         if (should_print_eol) {
             if (FLAGS_is_nline) {
@@ -103,8 +111,19 @@ void DoRead() {
                 std::cout << it->Record() << std::endl;
             }
         } else {
-            std::cout << it->Record();// no new line
-            //std::cerr << record_no << std::endl;
+            if (!should_emit_kv) {
+                std::cout << it->Record();// no new line
+            } else {
+                const std::string& value = it->Record();
+                std::string record;
+                int32_t key_len = (int32_t)s_offset.size();
+                int32_t value_len = (int32_t)value.size();
+                record.append((const char*)(&key_len), sizeof(key_len));
+                record.append(s_offset);
+                record.append((const char*)(&value_len), sizeof(value_len));
+                record.append(value);
+                std::cout << record;
+            }
         }
         it->Next();
         record_no ++;
