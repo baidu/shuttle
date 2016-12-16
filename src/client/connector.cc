@@ -273,7 +273,7 @@ std::string ShuttleConnector::GetMasterAddr() {
             << error_str[error] << std::endl;
         return "";
     }
-    return master_addr ;
+    return master_addr;
 }
 
 }

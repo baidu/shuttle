@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <sys/time.h>
 
+#include "common/file.h"
 #include "proto/serialize.pb.h"
 #include "logging.h"
 
@@ -32,6 +33,25 @@ Status JobTracker::Start() {
     if (!scheduler_.Validate()) {
         LOG(WARNING, "job do not meet DAG limitation: %s", job_id_.c_str());
         return kInvalidArg;
+    }
+
+    // Check the existence of output
+    std::vector<int> dests = scheduler_.Destinations();
+    for (std::vector<int>::iterator it = dests.begin(); it != dests.end(); ++it) {
+        const NodeConfig& cur = job_.nodes(*it);
+        File::Param param = File::BuildParam(cur.output());
+        File* fs = File::Create(kInfHdfs, param);
+        if (fs == NULL) {
+            LOG(WARNING, "fail to connect to output fs, node %d: %s",
+                    *it, job_id_.c_str());
+            return kWriteFileFail;
+        }
+        if (fs->Exist(cur.output().path())) {
+            LOG(WARNING, "node %d output exists, failed: %s", *it, job_id_.c_str());
+            delete fs;
+            return kWriteFileFail;
+        }
+        delete fs;
     }
 
     Status ret_val = kOk;

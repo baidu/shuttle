@@ -45,7 +45,6 @@ public:
         cluster_ = new GalaxyHandler(job_, job_id_, node_);
         cur_node_ = job_.mutable_nodes(node_);
         allow_duplicates_ = cur_node_->allow_duplicates();
-        monitor_.AddTask(boost::bind(&BasicGru::KeepMonitoring, this));
     }
     virtual ~BasicGru() {
         if (rpc_client_ != NULL) {
@@ -228,15 +227,6 @@ Gru* Gru::GetOmegaGru(JobDescriptor& job, const std::string& job_id,
 
 Status BasicGru::Start() {
     start_time_ = std::time(NULL);
-
-    // Check the existence of output
-    File::Param param = File::BuildParam(cur_node_->output());
-    File* fs = File::Create(kInfHdfs, param);
-    if (fs->Exist(cur_node_->output().path())) {
-        LOG(WARNING, "node %d output exists, failed: %s", node_, job_id_.c_str());
-        cur_node_->set_total(0);
-        return kWriteFileFail;
-    }
 
     manager_ = BuildResourceManager();
     if (manager_ == NULL) {
@@ -693,7 +683,7 @@ void BasicGru::KeepMonitoring() {
 
     monitor_.DelayTask(sleep_time * 1000, boost::bind(&BasicGru::KeepMonitoring, this));
     LOG(INFO, "[monitor] node %d will now rest for %ds: %s",
-            node_, FLAGS_first_sleeptime, job_id_.c_str());
+            node_, sleep_time, job_id_.c_str());
 }
 
 void BasicGru::BuildEndGameCounters() {
@@ -804,6 +794,8 @@ AlphaGru::AlphaGru(JobDescriptor& job, const std::string& job_id,
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdir(temp);
     delete fs;
+    temp = output.path() + FLAGS_temporary_dir + "node_output_"
+		   + boost::lexical_cast<std::string>(node);
 
     cur_node_->mutable_output()->CopyFrom(output);
     cur_node_->mutable_output()->set_path(temp);
@@ -945,6 +937,8 @@ BetaGru::BetaGru(JobDescriptor& job, const std::string& job_id,
     temp += FLAGS_temporary_dir + "node_output_" + boost::lexical_cast<std::string>(node);
     fs->Mkdir(temp);
     delete fs;
+    temp += output.path() + FLAGS_temporary_dir + "node_output_"
+		    + boost::lexical_cast<std::string>(node);
 
     cur_node_->mutable_output()->CopyFrom(output);
     cur_node_->mutable_output()->set_path(temp);

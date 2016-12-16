@@ -399,10 +399,11 @@ int32_t Configuration::ParseNumberWithDefault(const std::string& key,
 void Configuration::FillLegacyNodes() {
     nodes_.reserve(2);
     nodes_.resize(1);
+    successors_.resize(1);
     std::vector<std::string> strlist;
     std::string conf;
     sdk::NodeConfig* cur = &nodes_[0];
-    cur->node = 1;
+    cur->node = 0;
     cur->type = sdk::kMap;
     cur->capacity = ParseNumberWithDefault("mapred.job.map.capacity", 50);
     cur->total = ParseNumberWithDefault("mapred.map.tasks", 0);
@@ -487,8 +488,10 @@ void Configuration::FillLegacyNodes() {
         return;
     }
     nodes_.resize(2);
+    successors_.resize(2);
+    successors_[0].push_back(1);
     cur = &nodes_[1];
-    cur->node = 2;
+    cur->node = 1;
     cur->type = sdk::kReduce;
     cur->capacity = ParseNumberWithDefault("mapred.job.reduce.capacity", 50);
     if (conf.empty()) {
