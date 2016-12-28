@@ -125,6 +125,7 @@ void DoWrite() {
         std::cerr << "fail to close: " << FLAGS_file << std::endl;
         exit(-1);
     }
+    std::cerr << "have written " << count << " records" << std::endl;
     std::cerr << "== Write Done ==" << std::endl;
 }
 
@@ -188,8 +189,8 @@ void DoSeek() {
 }
 
 int main(int argc, char* argv[]) {
-    baidu::common::SetLogFile(GetLogName("./sf_tool.log").c_str());
-    baidu::common::SetWarningFile(GetLogName("./sf_tool.log.wf").c_str());
+    baidu::common::SetLogFile("./sf_tool.log");
+    baidu::common::SetWarningFile("./sf_tool.log.wf");
     google::ParseCommandLineFlags(&argc, &argv, true);
     if (FLAGS_fs == "hdfs") {
         g_file_type = kHdfsFile;

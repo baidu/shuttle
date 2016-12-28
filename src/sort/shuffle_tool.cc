@@ -198,8 +198,8 @@ int MergeTuo() {
 }
 
 int main(int argc, char* argv[]) {
-    baidu::common::SetLogFile(GetLogName("./shuffle_tool.log").c_str());
-    baidu::common::SetWarningFile(GetLogName("./shuffle_tool.log.wf").c_str());
+    baidu::common::SetLogFile("./shuffle_tool.log");
+    baidu::common::SetWarningFile("./shuffle_tool.log.wf");
     google::ParseCommandLineFlags(&argc, &argv, true);
     FileSystem::Param param;
     FillParam(param);

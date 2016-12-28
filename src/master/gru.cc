@@ -64,6 +64,8 @@ Status Gru::Start() {
     galaxy_job.job.deploy.update_break_count = 0;
     galaxy_job.job.version = "1.0.0";
     galaxy_job.job.run_user = "galaxy";
+    galaxy_job.job.v2_support = false;
+    galaxy_job.job.volum_view = ::baidu::galaxy::sdk::kVolumViewTypeEmpty;
     if (!FLAGS_galaxy_node_label.empty()) {
         galaxy_job.job.deploy.tag = FLAGS_galaxy_node_label;
     }
