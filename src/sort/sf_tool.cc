@@ -21,7 +21,7 @@ using baidu::common::INFO;
 using baidu::common::WARNING;
 using namespace baidu::shuttle;
 
-char g_line_buf[40960];
+char g_line_buf[4096000];
 FileType g_file_type;
 
 void DoRead() {
@@ -33,7 +33,20 @@ void DoRead() {
         exit(-1);
     }
     MergeFileReader* reader = new MergeFileReader();
-    FileSystem::Param param; //TODO
+    FileSystem::Param param;
+    if (getenv("minion_input_dfs_host") != NULL) {
+        param["host"] = getenv("minion_input_dfs_host");
+    }
+    if (getenv("minion_input_dfs_port") != NULL) {
+        param["port"] = getenv("minion_input_dfs_port");
+    }
+    if (getenv("minion_input_dfs_user") != NULL) {
+        param["user"] = getenv("minion_input_dfs_user");
+    }
+    if (getenv("minion_input_dfs_password") != NULL) {
+        param["password"] = getenv("minion_input_dfs_password");
+    }
+
     Status status = reader->Open(file_names, param, g_file_type);
     if (status != kOk) {
         std::cerr << "fail to open: " << reader->GetErrorFile() << std::endl;
@@ -86,6 +99,18 @@ void DoWrite() {
     }
     FileSystem::Param param;
     param["replica"] = std::string(FLAGS_replica);
+    if (getenv("minion_output_dfs_host") != NULL) {
+        param["host"] = getenv("minion_output_dfs_host");
+    }
+    if (getenv("minion_output_dfs_port") != NULL) {
+        param["port"] = getenv("minion_output_dfs_port");
+    }
+    if (getenv("minion_output_dfs_user") != NULL) {
+        param["user"] = getenv("minion_output_dfs_user");
+    }
+    if (getenv("minion_output_dfs_password") != NULL) {
+        param["password"] = getenv("minion_output_dfs_password");
+    }
     status = writer->Open(FLAGS_file, param);
     if (status != kOk) {
         std::cerr << "fail to open for write:" << FLAGS_file << std::endl;
@@ -130,18 +155,30 @@ void DoWrite() {
 }
 
 void DoSeek() {
-    if (FLAGS_file.empty()) {
-        std::cerr << "use -file to specify input file" << std::endl;
+    std::vector<std::string> file_names;
+    boost::split(file_names, FLAGS_file,
+                 boost::is_any_of(","), boost::token_compress_on);
+    if (file_names.size() == 0 || FLAGS_file.empty()) {
+        std::cerr << "use -file to specify input files" << std::endl;
         exit(-1);
     }
+    MergeFileReader* reader = new MergeFileReader();
     Status status;
-    SortFileReader * reader = SortFileReader::Create(g_file_type, &status);
-    if (status != kOk) {
-        std::cerr << "fail to create reader" << std::endl;
-        exit(-1);
+    FileSystem::Param param;
+    if (getenv("minion_input_dfs_host") != NULL) {
+        param["host"] = getenv("minion_input_dfs_host");
     }
-    FileSystem::Param param; //TODO
-    status = reader->Open(FLAGS_file, param);
+    if (getenv("minion_input_dfs_port") != NULL) {
+        param["port"] = getenv("minion_input_dfs_port");
+    }
+    if (getenv("minion_input_dfs_user") != NULL) {
+        param["user"] = getenv("minion_input_dfs_user");
+    }
+    if (getenv("minion_input_dfs_password") != NULL) {
+        param["password"] = getenv("minion_input_dfs_password");
+    }
+
+    status = reader->Open(file_names, param, g_file_type);
     if (status != kOk) {
         std::cerr << "fail to open for read:" << FLAGS_file << std::endl;
         exit(-1);
