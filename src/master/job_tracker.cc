@@ -94,12 +94,14 @@ JobTracker::~JobTracker() {
     if (reduce_manager_ != NULL) {
         delete reduce_manager_;
     }
-    delete rpc_client_;
     {
         MutexLock lock(&alloc_mu_);
         for (std::vector<AllocateItem*>::iterator it = allocation_table_.begin();
                 it != allocation_table_.end(); ++it) {
             delete *it;
+        }
+        if (rpc_client_ != NULL) {
+            delete rpc_client_;
         }
     }
     delete fs_;
@@ -291,6 +293,8 @@ Status JobTracker::Kill(JobState end_state) {
         }
     }
     finish_time_ =  common::timer::now_time();
+    delete rpc_client_;
+    rpc_client_ = NULL;
     return kOk;
 }
 
@@ -471,11 +475,13 @@ IdItem* JobTracker::AssignReduce(const std::string& endpoint, Status* status) {
 }
 
 void JobTracker::CancelOtherAttempts(
-    const std::map<int, std::map<int, AllocateItem*> >& lookup_index,
-    int no, int attempt) 
-{
+        const std::map<int, std::map<int, AllocateItem*> >& lookup_index,
+        int no, int attempt) {
     Minion_Stub* stub = NULL;
     MutexLock lock(&alloc_mu_);
+    if (rpc_client_ == NULL) {
+        return;
+    }
     std::map<int, std::map<int, AllocateItem*> >::const_iterator it;
     std::map<int, AllocateItem*>::const_iterator jt;   
     it = lookup_index.find(no);
@@ -544,6 +550,8 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
     if (port_pos != std::string::npos) {
         cur_node = cur->endpoint.substr(0, port_pos);
     }
+
+    bool finished = false;
     {
         MutexLock lock(&mu_);
         if (state == kTaskFailed && 
@@ -597,6 +605,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
                     mu_.Unlock();
                     master_->RetractJob(job_id_, kFailed);
                     mu_.Lock();
+                    finished = true;
                     state_ = kFailed;
                     break;
                 }
@@ -609,6 +618,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
                     fs_->Remove(tmp_work_dir);
                     master_->RetractJob(job_id_, kCompleted);
                     mu_.Lock();
+                    finished = true;
                     state_ = kCompleted;
                 } else {
                     LOG(INFO, "map phrase ends now: %s", job_id_.c_str());
@@ -674,6 +684,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
                 mu_.Unlock(); 
                 master_->RetractJob(job_id_, kFailed);
                 mu_.Lock();
+                finished = true;
                 state_ = kFailed;
             }
             break;
@@ -708,6 +719,11 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
         return kOk;
     }
     CancelOtherAttempts(map_index_, no, attempt);
+    if (finished) {
+        MutexLock lock(&alloc_mu_);
+        delete rpc_client_;
+        rpc_client_ = NULL;
+    }
     return kOk;
 }
 
@@ -755,6 +771,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
         cur_node = cur->endpoint.substr(0, port_pos);
     }
 
+    bool finished = false;
     {
         MutexLock lock(&mu_);
         if (state == kTaskFailed && 
@@ -786,6 +803,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
                 }
                 master_->RetractJob(job_id_, kCompleted);
                 mu_.Lock();
+                finished = true;
                 state_ = kCompleted;
             }
             break;
@@ -813,6 +831,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
                 mu_.Unlock();
                 master_->RetractJob(job_id_, kFailed);
                 mu_.Lock();
+                finished = true;
                 state_ = kFailed;
             }
             break;
@@ -846,6 +865,11 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
         return kOk;
     }
     CancelOtherAttempts(reduce_index_, no, attempt);
+    if (finished) {
+        MutexLock lock(&alloc_mu_);
+        delete rpc_client_;
+        rpc_client_ = NULL;
+    }
     return kOk;
 }
 
@@ -907,7 +931,7 @@ void JobTracker::Replay(const std::vector<AllocateItem>& history, std::vector<Id
         }
         IdItem& cur = table[it->resource_no];
         cur.attempt = it->attempt;
-        LOG(INFO, "replay: %s_%d: %s", it->is_map? "map": "reduce", it->resource_no, TaskState_Name(it->state).c_str());
+        //LOG(INFO, "replay: %s_%d: %s", it->is_map? "map": "reduce", it->resource_no, TaskState_Name(it->state).c_str());
         switch(it->state) {
         case kTaskRunning:
             if (cur.status != kResDone) {

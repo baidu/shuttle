@@ -29,7 +29,7 @@ DECLARE_string(galaxy_am_path);
 namespace baidu {
 namespace shuttle {
 
-MasterImpl::MasterImpl() {
+MasterImpl::MasterImpl() : gc_(2) {
     srand(time(NULL));
     galaxy_sdk_ = ::baidu::galaxy::sdk::AppMaster::ConnectAppMaster(
                     FLAGS_nexus_server_list, FLAGS_galaxy_am_path);
@@ -455,11 +455,7 @@ bool MasterImpl::SaveJobToNexus(JobTracker* jobtracker) {
     snappy::Compress(ss.str().data(), ss.str().size(), &compressed_str);
     const std::string& jobid = jobtracker->GetJobId();
     const std::string& descriptor = compressed_str;
-    const std::string& jobdata = SerialJobData(jobtracker->GetState(),
-                                               jobtracker->HistoryForDump(),
-                                               jobtracker->InputDataForDump(),
-                                               jobtracker->GetStartTime(),
-                                               jobtracker->GetFinishTime());
+    const std::string& jobdata = SerialJobData(jobtracker);
     bool ok = nexus_->Put(FLAGS_nexus_root_path + jobid, descriptor, NULL);
     if (ok) {
         ok = nexus_->Put(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, jobdata, NULL);
@@ -496,16 +492,18 @@ void MasterImpl::KeepDataPersistence() {
 }
 
 void MasterImpl::Reload() {
+    std::string jobid;
     JobDescriptor job;
     JobState state;
     std::vector<AllocateItem> history;
     std::vector<ResourceItem> resources;
-    std::string jobid;
     int32_t start_time;
     int32_t finish_time;
-    while (GetJobInfoFromNexus(jobid, job, state, history, 
-                               resources, start_time, finish_time)) {
+    while (GetJobDescFromNexus(jobid, job)) {
         if (FLAGS_skip_history && state != kRunning) {
+            continue;
+        }
+        if (!GetJobInfoFromNexus(jobid, state, history, resources, start_time, finish_time)) {
             continue;
         }
         JobTracker* jobtracker = new JobTracker(this, galaxy_sdk_, job);
@@ -523,14 +521,15 @@ void MasterImpl::Reload() {
     gc_.AddTask(boost::bind(&MasterImpl::KeepDataPersistence, this));
 }
 
-bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, JobState& state,
-                                     std::vector<AllocateItem>& history,
-                                     std::vector<ResourceItem>& resources,
-                                     int32_t& start_time,
-                                     int32_t& finish_time) {
+bool MasterImpl::GetJobDescFromNexus(std::string& jobid, JobDescriptor& job) {
     static ::galaxy::ins::sdk::ScanResult* result = nexus_->Scan(
             FLAGS_nexus_root_path + "job_", FLAGS_nexus_root_path + "job`");
+    if (result == NULL) {
+        return false;
+    }
     if (result->Done()) {
+        delete result;
+        result = NULL;
         return false;
     }
     jobid = result->Key();
@@ -541,12 +540,21 @@ bool MasterImpl::GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, Job
     snappy::Uncompress(result->Value().data(), result->Value().size(), &uncompressed_str);
     std::stringstream job_ss(uncompressed_str);
     job.ParseFromIstream(&job_ss);
-    std::string data_str;
-    if (nexus_->Get(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, &data_str, NULL)) {
-        ParseJobData(data_str, state, history, resources, start_time, finish_time);
-    }
     result->Next();
     return true;
+}
+
+bool MasterImpl::GetJobInfoFromNexus(const std::string& jobid, JobState& state,
+                                     std::vector<AllocateItem>& history,
+                                     std::vector<ResourceItem>& resources,
+                                     int32_t& start_time,
+                                     int32_t& finish_time) {
+    std::string data_str;
+    bool ok = nexus_->Get(FLAGS_nexus_root_path + FLAGS_jobdata_header + jobid, &data_str, NULL);
+    if (ok) {
+        ParseJobData(data_str, state, history, resources, start_time, finish_time);
+    }
+    return ok;
 }
 
 void MasterImpl::ParseJobData(const std::string& history_str, JobState& state,
@@ -589,15 +597,13 @@ void MasterImpl::ParseJobData(const std::string& history_str, JobState& state,
     }
 }
 
-std::string MasterImpl::SerialJobData(const JobState state,
-                                      const std::vector<AllocateItem>& history,
-                                      const std::vector<ResourceItem>& resources,
-                                      const int32_t start_time,
-                                      const int32_t finish_time) {
+std::string MasterImpl::SerialJobData(JobTracker* const jobtracker) {
     JobCollection jc;
-    jc.set_state(state);
-    jc.set_start_time(start_time);
-    jc.set_finish_time(finish_time);
+    jc.set_state(jobtracker->GetState());
+    jc.set_start_time(jobtracker->GetStartTime());
+    jc.set_finish_time(jobtracker->GetFinishTime());
+    const std::vector<AllocateItem>& history = jobtracker->HistoryForDump();
+    const std::vector<ResourceItem>& resources = jobtracker->InputDataForDump();
     for (std::vector<AllocateItem>::const_iterator it = history.begin();
             it != history.end(); ++it) {
         JobAllocation* job = jc.add_jobs();

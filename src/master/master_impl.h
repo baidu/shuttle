@@ -64,7 +64,8 @@ private:
     void KeepGarbageCollecting();
     void KeepDataPersistence();
     void Reload();
-    bool GetJobInfoFromNexus(std::string& jobid, JobDescriptor& job, JobState& state,
+    bool GetJobDescFromNexus(std::string& jobid, JobDescriptor& job);
+    bool GetJobInfoFromNexus(const std::string& jobid, JobState& state,
                              std::vector<AllocateItem>& history,
                              std::vector<ResourceItem>& resources,
                              int32_t& start_time,
@@ -74,11 +75,7 @@ private:
                       std::vector<ResourceItem>& resources,
                       int32_t& start_time,
                       int32_t& finish_time);
-    std::string SerialJobData(const JobState state,
-                              const std::vector<AllocateItem>& history,
-                              const std::vector<ResourceItem>& resources,
-                              int32_t start_time,
-                              int32_t finish_time);
+    std::string SerialJobData(JobTracker* const jobtracker);
     bool SaveJobToNexus(JobTracker* jobtracker);
     bool RemoveJobFromNexus(const std::string& jobid);
     void ParseJobCounters(const google::protobuf::RepeatedPtrField<baidu::shuttle::TaskCounter>& rpc_counters,
