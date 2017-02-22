@@ -58,6 +58,7 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::sdk::AppMaster* gala
                       monitor_(NULL),
                       map_monitoring_(false),
                       reduce_monitoring_(false),
+                      rpc_client_(NULL),
                       fs_(NULL),
                       start_time_(0),
                       finish_time_(0),
@@ -65,7 +66,6 @@ JobTracker::JobTracker(MasterImpl* master, ::baidu::galaxy::sdk::AppMaster* gala
                       ignored_reduce_failures_(0) {
     job_descriptor_.CopyFrom(job);
     job_id_ = GenerateJobId();
-    rpc_client_ = new RpcClient();
 
     if (!job_descriptor_.has_map_retry()) {
         job_descriptor_.set_map_retry(FLAGS_retry_bound);
@@ -210,6 +210,7 @@ Status JobTracker::Start() {
         return kNoMore;
     }
     BuildEndGameCounters();
+    rpc_client_ = new RpcClient();
     map_ = new Gru(galaxy_, &job_descriptor_, job_id_,
             (job_descriptor_.job_type() == kMapOnlyJob) ? kMapOnly : kMap);
     if (map_->Start() == kOk) {
@@ -953,9 +954,7 @@ bool JobTracker::Load(const std::string& jobid, const JobState state,
                       const std::vector<ResourceItem>& resource,
                       int32_t start_time,
                       int32_t finish_time) {
-    LOG(INFO, "reload job: %s, map_manager_:%p , reduce_manager_:%p", jobid.c_str(),
-        map_manager_, reduce_manager_);
-    LOG(INFO, "reloading..., data.size(): %d", data.size());
+    LOG(INFO, "reload job: %s, data.size(): %d", jobid.c_str(), data.size());
     job_id_ = jobid;
     state_ = state;
     start_time_ = start_time;
@@ -1003,6 +1002,9 @@ bool JobTracker::Load(const std::string& jobid, const JobState state,
         } else {
             reduce_monitoring_ = true;
         }
+    }
+    if (state_ == kRunning || state_ == kPending) {
+        rpc_client_ = new RpcClient();
     }
     for (std::vector<AllocateItem>::const_iterator it = data.begin();
             it != data.end(); ++it) {

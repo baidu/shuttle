@@ -231,7 +231,7 @@ void ResourceManager::ExpandWildcard(const std::vector<std::string>& input_files
 
 ResourceManager::ResourceManager(const std::vector<std::string>& input_files,
                                  FileSystem::Param& param,
-                                 int64_t split_size) : manager_(NULL), fs_(NULL) {
+                                 int64_t split_size) : manager_(NULL) {
     if (input_files.size() == 0) {
         return;
     }
@@ -446,7 +446,7 @@ NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input
         param["host"] = host;
         param["port"] = boost::lexical_cast<std::string>(port);
     }
-    fs_ = FileSystem::CreateInfHdfs(param);
+    FileSystem* fs = FileSystem::CreateInfHdfs(param);
     std::vector<FileInfo> files;
     std::string path;
     for (std::vector<std::string>::const_iterator it = input_files.begin();
@@ -457,9 +457,9 @@ NLineResourceManager::NLineResourceManager(const std::vector<std::string>& input
             path = *it;
         }
         if (path.find('*') == std::string::npos) {
-            fs_->List(path, &files);
+            fs->List(path, &files);
         } else {
-            fs_->Glob(path, &files);
+            fs->Glob(path, &files);
         }
     }
     int counter = 0;

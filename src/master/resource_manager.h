@@ -173,14 +173,13 @@ public:
     virtual std::vector<ResourceItem> Dump();
 
 protected:
-    ResourceManager() : manager_(NULL), fs_(NULL) { }
+    ResourceManager() : manager_(NULL) { }
 
 protected:
     Mutex mu_;
     std::vector<ResourceItem*> resource_pool_;
     IdManager* manager_;
     MultiFs multi_fs_;
-    FileSystem* fs_;
 
 private:
     void ExpandWildcard(const std::vector<std::string>& input_files,
