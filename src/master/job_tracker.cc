@@ -104,7 +104,9 @@ JobTracker::~JobTracker() {
             delete rpc_client_;
         }
     }
-    delete fs_;
+    if (fs_ != NULL) {
+        delete fs_;
+    }
 }
 
 void JobTracker::BuildOutputFsPointer() {
@@ -959,7 +961,9 @@ bool JobTracker::Load(const std::string& jobid, const JobState state,
     state_ = state;
     start_time_ = start_time;
     finish_time_ = finish_time;
-    BuildOutputFsPointer();
+    if (state_ == kRunning || state_ == kPending) {
+        BuildOutputFsPointer();
+    }
     if (job_descriptor_.map_total() != 0) {
         std::vector<std::string> input;
         FileSystem::Param param;
@@ -1005,6 +1009,9 @@ bool JobTracker::Load(const std::string& jobid, const JobState state,
     }
     if (state_ == kRunning || state_ == kPending) {
         rpc_client_ = new RpcClient();
+    } else {
+        delete monitor_;
+        monitor_ = NULL;
     }
     for (std::vector<AllocateItem>::const_iterator it = data.begin();
             it != data.end(); ++it) {
