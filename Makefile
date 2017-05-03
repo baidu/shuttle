@@ -88,13 +88,13 @@ OBJS = $(MASTER_OBJ) $(MINION_OBJ) $(INPUT_TOOL_OBJ) $(SHUFFLE_TOOL_OBJ) \
 	   $(TUO_MERGER_OBJ) $(COMBINE_TOOL_OBJ) $(LIB_SDK_OBJ) $(CLIENT_OBJ)\
 	   $(TEST_SORT_OBJ) \
 	   $(TOOL_SORT_FILE_OBJ) $(TOOL_PARTITION_OBJ) $(TOOL_PING_OBJ)
-BIN = master minion input_tool shuffle_tool tuo_merger combine_tool sf_tool partition_tool ping_tool
+BIN = master minion input_tool shuffle_tool tuo_merger combine_tool sf_tool partition_tool ping_tool shuttle-internal
 ESTS = sort_test
 LIB = libshuttle.a
 DEPS = $(patsubst %.o, %.d, $(OBJS))
 
 # Default build all binary files except tests
-all: $(BIN) $(LIB)
+all: $(BIN) $(LIB) output
 	@echo 'make all done.'
 
 # Dependencies
@@ -154,4 +154,5 @@ clean:
 output: $(BIN)
 	mkdir -p output/bin
 	cp $(BIN) output/bin
+	cp src/client/shuttle src/client/shuttle.conf output/bin/
 

@@ -159,5 +159,3 @@ Application('ping_tool', Sources(query_tool_src))
 
 StaticLibrary('shuttle', Sources(sdk_src), HeaderFiles(sdk_header))
 Directory('src/client', Prefixes('libshuttle.a'))
-TARGET('copy-client-sh', ShellCommands('cp src/client/shuttle.sh output/bin/'), Prefixes('libshuttle.a'))
-TARGET('copy-client-conf', ShellCommands('cp src/client/shuttle.conf output/bin/'), Prefixes('libshuttle.a'))
