@@ -37,4 +37,5 @@ LDFLAGS('-lpthread -lcrypto -lrt')
 client_sources='shuttle_main.cc ../common/table_printer.cc'
 
 #可执行文件
-Application('shuttle',Sources(client_sources), OutputPath('../../output/bin'))
+Application('shuttle-internal',Sources(client_sources), OutputPath('../../output/bin'))
+TARGET('copy-client', ShellCommands('cp src/client/shuttle src/client/shuttle.conf output/bin/'), Prefixes('libshuttle.a'))

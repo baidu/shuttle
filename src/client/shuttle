@@ -89,7 +89,7 @@ do
     done
 done
 
-$the_dir/shuttle $nexus_param $nexus_root $file_param \
+$the_dir/shuttle-internal $nexus_param $nexus_root $file_param \
     -jobconf mapred.job.input.host=$input_host \
     -jobconf mapred.job.input.port=$input_port \
     -jobconf mapred.job.input.user=$input_user \
