@@ -80,6 +80,8 @@ private:
     bool RemoveJobFromNexus(const std::string& jobid);
     void ParseJobCounters(const google::protobuf::RepeatedPtrField<baidu::shuttle::TaskCounter>& rpc_counters,
                           std::map<std::string, int64_t>* counters);
+    void SubmitJobRoutine(const SubmitJobRequest* request, SubmitJobResponse* response,
+                          ::google::protobuf::Closure* done);
 private:
     ::baidu::galaxy::sdk::AppMaster* galaxy_sdk_;
     Mutex tracker_mu_;
@@ -87,6 +89,7 @@ private:
     Mutex dead_mu_;
     std::map<std::string, JobTracker*> dead_trackers_;
     ThreadPool gc_;
+    ThreadPool submitter_;
     // For persistent of meta data and addressing of minion
     ::galaxy::ins::sdk::InsSDK* nexus_;
     std::set<std::string> saved_dead_jobs_;

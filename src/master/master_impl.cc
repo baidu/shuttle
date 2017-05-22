@@ -21,6 +21,7 @@ DECLARE_string(nexus_server_list);
 DECLARE_string(jobdata_header);
 DECLARE_int32(gc_interval);
 DECLARE_int32(backup_interval);
+DECLARE_int32(submit_threadpool_size);
 DECLARE_bool(recovery);
 DECLARE_bool(ignore_ins_error);
 DECLARE_bool(skip_history);
@@ -29,7 +30,7 @@ DECLARE_string(galaxy_am_path);
 namespace baidu {
 namespace shuttle {
 
-MasterImpl::MasterImpl() : gc_(2) {
+MasterImpl::MasterImpl() : gc_(2), submitter_(FLAGS_submit_threadpool_size) {
     srand(time(NULL));
     galaxy_sdk_ = ::baidu::galaxy::sdk::AppMaster::ConnectAppMaster(
                     FLAGS_nexus_server_list, FLAGS_galaxy_am_path);
@@ -60,10 +61,9 @@ void MasterImpl::Init() {
     AcquireMasterLock();
 }
 
-void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
-                           const ::baidu::shuttle::SubmitJobRequest* request,
-                           ::baidu::shuttle::SubmitJobResponse* response,
-                           ::google::protobuf::Closure* done) {
+void MasterImpl::SubmitJobRoutine(const ::baidu::shuttle::SubmitJobRequest* request,
+                                  ::baidu::shuttle::SubmitJobResponse* response,
+                                  ::google::protobuf::Closure* done) {
     const JobDescriptor& job = request->job();
     LOG(INFO, "use dfs user: %s", job.input_dfs().user().c_str());
     LOG(INFO, "use output dfs user: %s", job.output_dfs().user().c_str());
@@ -84,6 +84,15 @@ void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
     response->set_status(status);
     response->set_jobid(job_id);
     done->Run();
+}
+
+void MasterImpl::SubmitJob(::google::protobuf::RpcController* /*controller*/,
+                           const ::baidu::shuttle::SubmitJobRequest* request,
+                           ::baidu::shuttle::SubmitJobResponse* response,
+                           ::google::protobuf::Closure* done) {
+    boost::function<void ()> routine =
+            boost::bind(&MasterImpl::SubmitJobRoutine, this, request, response, done);
+    submitter_.AddTask(routine);
 }
 
 void MasterImpl::UpdateJob(::google::protobuf::RpcController* /*controller*/,
