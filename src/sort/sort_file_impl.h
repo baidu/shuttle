@@ -54,13 +54,12 @@ private:
 };
 
 struct IndexSampleOrder{
-   const bool operator()(const KeyOffset& x , const KeyOffset& y) {
-       if (x.key() < y.key()) {
-            return true;
-       } else {
-            return x.offset() < y.offset(); 
-       }
-   } 
+    bool operator()(const KeyOffset& x , const KeyOffset& y) {
+        if (x.key() < y.key()) {
+             return true;
+        }
+        return x.offset() < y.offset();
+    }
 };
 
 class SortFileWriterImpl : public SortFileWriter {

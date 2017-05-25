@@ -16,33 +16,31 @@ CPPFLAGS('-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -DVERSION=\\\"_TEST_VERSION_\\\" -
 #CPPFLAGS_32('-D_XOPEN_SOURE=500')
 
 #C编译参数.
-CFLAGS('-g -pipe -W -Wall -Werror -fPIC')
+CFLAGS('-g -pipe -W -Wall -fPIC')
 
 #C++编译参数.
-CXXFLAGS('-g -pipe -W -Wall -Wextra -Wno-unused-parameter -Werror -fPIC -O2')
+CXXFLAGS('-g -pipe -W -Wall -Wextra -Wno-unused-parameter -fPIC -O2')
 
 # protoc
-#PROTOC('../../third-64/protobuf/bin/protoc')
+PROTOC('./galaxy/thirdparty/bin/protoc')
 
 #头文件路径.
-INCPATHS('. ./src ./output/include galaxy/src/sdk galaxy/thirdsrc/common/include galaxy/thirdsrc/ins/sdk/ ../../inf/computing/libhdfs/output/include')
+INCPATHS('. ./src ./output/include galaxy/src/sdk galaxy/thirdparty/include ../../inf/computing/libhdfs/output/include')
 
 #使用库
-LIBS('galaxy/thirdparty/lib/libcommon.a galaxy/thirdparty/lib/libins_sdk.a galaxy/libgalaxy_sdk.a galaxy/thirdparty/lib/libglog.a')
+LIBS('galaxy/thirdparty/lib/libcommon.a galaxy/thirdparty/lib/libins_sdk.a galaxy/libgalaxy_sdk.a galaxy/thirdparty/lib/libglog.a galaxy/thirdparty/lib/libsofa-pbrpc.a')
 
 #链接参数.
 LDFLAGS('-lpthread -lz -lrt')
 
 #依赖模块
-CONFIGS('ps/opensource/sofa-pbrpc@trunk@COMAKE')
+#CONFIGS('ps/opensource/sofa-pbrpc@trunk@COMAKE')
 CONFIGS('third-64/protobuf@protobuf_2-6-1-200_PD_BL')
-CONFIGS('thirdsrc/protobuf@protobuf_2-6-1-200_PD_BL')
 CONFIGS('third-64/gtest@1.6.0.100')
 CONFIGS('third-64/boost@1.63.0.101')
 CONFIGS('third-64/gflags@gflags_2-0-0-100_PD_BL')
 CONFIGS('third-64/snappy@1.0.5.100')
 CONFIGS('inf/computing/libhdfs@libhdfs_1-4-2-62665_PD_BL@COMAKE', IncludePaths('./output/include'))
-CONFIGS('third-64/tcmalloc@base')
 
 master_src = 'src/master/master_main.cc \
               src/master/master_impl.cc \

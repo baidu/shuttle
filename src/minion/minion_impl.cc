@@ -90,7 +90,7 @@ void MinionImpl::WatchDogTask() {
         LOG(WARNING, "load average: %f, cores: %d", minute_load, numCPU);
         LOG(WARNING, "machine may be overloaded, so froze the task");
         if (!task_frozen_) {
-            frozen_time_ = std::time(NULL);
+            frozen_time_ = ::time(NULL);
         }
         task_frozen_ = true;
         over_loaded_ =  true;
@@ -102,7 +102,7 @@ void MinionImpl::WatchDogTask() {
         LOG(WARNING, "network traffic is busy, so froze the task");
         system("killall -SIGSTOP input_tool shuffle_tool tuo_merger 2>/dev/null");
         if (!task_frozen_) {
-            frozen_time_ = std::time(NULL);
+            frozen_time_ = ::time(NULL);
         }
         task_frozen_ = true;
     } else {
@@ -126,7 +126,7 @@ void MinionImpl::Query(::google::protobuf::RpcController*,
         return;
     }
     if (task_frozen_) {
-        time_t now = std::time(NULL);
+        time_t now = ::time(NULL);
         if (frozen_time_ + 300 < now) {
             done->Run();
             return;

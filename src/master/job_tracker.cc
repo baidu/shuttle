@@ -588,7 +588,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
             }
         }
         switch (state) {
-        case kTaskCompleted:
+        case kTaskCompleted: { // start a code block to define local var
             if (!map_manager_->FinishItem(cur->resource_no)) {
                 LOG(WARNING, "ignore finish map request: %s, %d",
                         job_id_.c_str(), cur->resource_no);
@@ -662,6 +662,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
                     }
                 }
             }
+            } // end of code block
             break;
         case kTaskFailed:
             map_manager_->ReturnBackItem(cur->resource_no);
@@ -785,7 +786,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
             state = kTaskCompleted;
         }
         switch (state) {
-        case kTaskCompleted:
+        case kTaskCompleted: { // start a code block to define local var
             if (!reduce_manager_->FinishItem(cur->resource_no)) {
                 LOG(WARNING, "ignore finish reduce request: %s, %d",
                     job_id_.c_str(), cur->resource_no);
@@ -809,6 +810,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
                 finished = true;
                 state_ = kCompleted;
             }
+            } // end of code block
             break;
         case kTaskFailed:
             reduce_manager_->ReturnBackItem(cur->resource_no);
