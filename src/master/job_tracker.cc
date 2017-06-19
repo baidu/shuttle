@@ -527,7 +527,7 @@ Status JobTracker::FinishMap(int no, int attempt, TaskState state,
             jt = it->second.find(attempt);
             if (jt != it->second.end()) {
                 AllocateItem* candidate = jt->second;
-                if (candidate->state == kTaskRunning) {
+                if (candidate->state == kTaskRunning || candidate->state == kTaskKilled) {
                     cur = candidate;
                 }
             }
@@ -749,7 +749,7 @@ Status JobTracker::FinishReduce(int no, int attempt, TaskState state,
             jt = it->second.find(attempt);
             if (jt != it->second.end()) {
                 AllocateItem* candidate = jt->second;
-                if (candidate->state == kTaskRunning) {
+                if (candidate->state == kTaskRunning || candidate->state == kTaskKilled) {
                     cur = candidate;
                 }
             }
