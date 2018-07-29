@@ -9,7 +9,7 @@
 #include "common/tools_util.h"
 
 DEFINE_string(mode, "read", "work mode: read/write/seek");
-DEFINE_string(file, "", "file path, use ',' to seperate multiple files");
+DEFINE_string(file, "", "file path, use ',' to separate multiple files");
 DEFINE_string(start, "", "start key, in 'read' mode");
 DEFINE_string(end, "", "end key, in 'read' mode");
 DEFINE_string(fs, "hdfs", "filesytem: 'hdfs' or 'local' ");
